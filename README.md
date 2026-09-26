@@ -380,3 +380,7 @@ The hackathon MVP is complete when a tester can use accessible controls or speec
 ## Backend implementation
 
 A runnable FastAPI foundation is available in [backend/README.md](backend/README.md), with setup instructions, API examples, tests, and an initial Supabase schema. The included route/noise dataset is synthetic and simulation-only; camera descriptions require a configured server-side model key. Supabase persistence and speech transcription remain integration points.
+
+### Camera processing modules
+
+See [mobile camera modules](mobile/vision/README.md) and [real-time frame handling](docs/realtime-camera.md) for bounded frame buffering, local quality checks, and latest-request speech control. Native camera integration and on-device object/road models are not yet connected.
