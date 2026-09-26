@@ -375,3 +375,64 @@ Agree on request/response schemas before coding in parallel. Make a working end-
 ## 13. Definition of done
 
 The hackathon MVP is complete when a tester can use accessible controls or speech to select a destination, hear and choose between verified route alternatives informed by measured noise, follow a simulated spoken journey, and request a spoken camera description of a stationary landmark. The team must also be able to explain the limits of its location, noise, and AI measurements without claiming real-world navigation safety.
+
+## 14. Run the implemented prototype
+
+Backend (Python 3.11+):
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt pytest
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Mobile (Node.js with pnpm or npm):
+
+```bash
+cd mobile
+cp .env.example .env
+# Set EXPO_PUBLIC_API_URL to the backend LAN URL reachable by the demo phone.
+pnpm install
+pnpm start
+```
+
+Run verification with `cd backend && .venv/bin/pytest -q` and `cd mobile && pnpm typecheck && pnpm test`.
+
+Without environment variables, the backend uses its deterministic in-memory graph, clearly marked demo coordinates/noise, and the explicitly labelled mock vision provider. `SUPABASE_URL` plus `SUPABASE_ANON_KEY` switches the data repository to the README tables. `VISION_API_KEY` and `SPEECH_API_KEY` are reserved for server-side provider adapters; this MVP does not silently pretend those providers are connected. The mobile app contains no secret provider keys.
+
+## 14. Current implementation quick start
+
+The repository now contains an Expo SDK 57 mobile flow and a FastAPI demo backend.
+The mobile app works with accessible typed destination input while native speech
+recognition remains behind an adapter until it is tested on the demo phone.
+
+```bash
+# Terminal 1
+cd mobile
+npm install
+npm run typecheck
+npx expo start
+
+# Terminal 2
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+On a physical phone, set `EXPO_PUBLIC_API_URL` in `mobile/.env` to the computer's
+LAN address, for example `http://192.168.1.20:8000`. If the API is unavailable,
+the mobile app explicitly switches to reviewed demo routes so the presentation
+flow remains usable.
+
+Implementation notes:
+
+- `expo-speech` is used for text-to-speech; it is not a speech-recognition API.
+- The guidance screen uses simulated waypoint progression and a P0–P3 message queue.
+- Camera descriptions are clearly labelled demo responses until frame analysis is connected.
+- `expo-maps` is intentionally excluded from the first Expo Go demo because its
+  native configuration and target-device compatibility must be verified first.
+- See `docs/demo-script.md` and `docs/accessibility-test-plan.md` before the demo.
