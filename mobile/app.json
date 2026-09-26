@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "SENSEA",
+    "slug": "sensea",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "sensea",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sensea.navigation"
+    },
+    "android": {
+      "package": "com.sensea.navigation",
+      "adaptiveIcon": {
+        "backgroundColor": "#101827"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "SENSEA uses the camera only when you request a description of your surroundings.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "SENSEA uses your location while the app is open to provide campus guidance."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "SENSEA uses brief microphone samples only after you start noise measurement.",
+          "enableBackgroundPlayback": false,
+          "enableBackgroundRecording": false
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
+

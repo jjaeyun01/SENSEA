@@ -1,0 +1,2 @@
+"""SENSEA FastAPI application package."""
+
