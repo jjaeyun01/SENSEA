@@ -22,6 +22,7 @@ function routeSpeechSummary(destination: string, routes: RouteOption[]): string 
   const choices = routes.map((route, index) => (
     `${index + 1}번 ${route.name}. ${route.durationMinutes}분, ${route.distanceMeters}미터, ` +
     `계단 ${route.hasStairs ? '있음' : '없음'}, 측정 소음 ${route.noiseLevel}. ` +
+    `${route.noiseDataStatus === 'stale' ? '주의, 소음 데이터가 오래되어 참고용입니다. ' : ''}` +
     `${route.dataFreshness}. 불확실성 안내: ${route.uncertainty}`
   ));
   return `${destination}까지 두 가지 검증된 데모 경로입니다. ${choices.join(' 다음 선택지. ')} 원하는 경로 버튼을 선택하세요.`;
@@ -34,14 +35,24 @@ export default function RoutesScreen() {
   const [routes, setRoutes] = useState<RouteOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDemo, setIsDemo] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    void requestRoutes(destination).then(({ routes: loadedRoutes, source }) => {
+    void requestRoutes(destination).then(({ routes: loadedRoutes, source, error }) => {
       if (cancelled) return;
+      if (source === 'unavailable' || loadedRoutes.length === 0) {
+        const message = error ?? '이 목적지에는 검증된 보행 경로가 없습니다. 다른 목적지를 입력해주세요.';
+        setRoutes([]);
+        setErrorMessage(message);
+        setIsLoading(false);
+        void speak(message, false);
+        return;
+      }
       setRoutes(loadedRoutes);
       setIsDemo(source === 'demo');
+      setErrorMessage(null);
       setIsLoading(false);
       void speak(routeSpeechSummary(destination, loadedRoutes), false);
     });
@@ -71,18 +82,31 @@ export default function RoutesScreen() {
         </View>
       )}
 
+      {errorMessage && (
+        <View accessibilityRole="alert" style={styles.errorBanner}>
+          <Text accessibilityRole="header" style={styles.errorTitle}>경로를 찾을 수 없습니다</Text>
+          <Text accessibilityLiveRegion="assertive" style={styles.errorText}>{errorMessage}</Text>
+          <LargeActionButton
+            label="목적지 다시 입력"
+            accessibilityHint="목적지 입력 화면으로 돌아갑니다"
+            onPress={() => router.back()}
+            variant="secondary"
+          />
+        </View>
+      )}
+
       {isLoading ? (
         <View accessibilityLabel="경로를 불러오는 중" style={styles.loading}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>경로를 불러오고 있습니다.</Text>
         </View>
-      ) : (
+      ) : !errorMessage ? (
         <View style={styles.routeList}>
           {routes.map((route, index) => (
             <Pressable
               key={route.id}
               accessibilityRole="button"
-              accessibilityLabel={`${index + 1}번 ${route.name}, ${route.durationMinutes}분, ${route.distanceMeters}미터, 계단 ${route.hasStairs ? '있음' : '없음'}, 측정 소음 ${route.noiseLevel}, ${route.dataFreshness}, 불확실성: ${route.uncertainty}`}
+              accessibilityLabel={`${index + 1}번 ${route.name}, ${route.durationMinutes}분, ${route.distanceMeters}미터, 계단 ${route.hasStairs ? '있음' : '없음'}, 측정 소음 ${route.noiseLevel}, ${route.noiseDataStatus === 'stale' ? '주의, 오래된 소음 데이터' : '최신 소음 데이터'}, ${route.dataFreshness}, 불확실성: ${route.uncertainty}`}
               accessibilityHint="이 경로로 모의 안내를 시작합니다"
               onPress={() => chooseRoute(route, index)}
               style={({ pressed }) => [styles.routeCard, pressed && styles.pressed]}
@@ -96,7 +120,9 @@ export default function RoutesScreen() {
                 <Text style={styles.metric}>{route.hasStairs ? '계단 있음' : '계단 없음'}</Text>
                 <Text style={styles.metric}>소음 {route.noiseLevel}</Text>
               </View>
-              <Text style={styles.freshness}>{route.dataFreshness}</Text>
+              <Text style={route.noiseDataStatus === 'stale' ? styles.stale : styles.freshness}>
+                {route.noiseDataStatus === 'stale' ? '주의: ' : ''}{route.dataFreshness}
+              </Text>
               <Text style={styles.uncertainty}>불확실성: {route.uncertainty}</Text>
             </Pressable>
           ))}
@@ -107,7 +133,7 @@ export default function RoutesScreen() {
             variant="secondary"
           />
         </View>
-      )}
+      ) : null}
 
       <Text style={styles.note}>소음은 측정 당시의 상대값이며 사람 수나 현재 혼잡도를 의미하지 않습니다.</Text>
     </ScrollView>
@@ -121,6 +147,9 @@ const styles = StyleSheet.create({
   intro: { color: colors.muted, fontSize: 18, lineHeight: 27 },
   demoBanner: { backgroundColor: '#4A3410', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: colors.warning },
   demoText: { color: colors.warning, fontSize: 17, lineHeight: 25 },
+  errorBanner: { backgroundColor: '#4C1D1D', borderRadius: 14, padding: 18, gap: 14, borderWidth: 2, borderColor: colors.danger },
+  errorTitle: { color: colors.text, fontSize: 22, fontWeight: '800' },
+  errorText: { color: colors.text, fontSize: 18, lineHeight: 27 },
   loading: { minHeight: 240, alignItems: 'center', justifyContent: 'center', gap: 16 },
   loadingText: { color: colors.text, fontSize: 18 },
   routeList: { gap: 16 },
@@ -132,6 +161,7 @@ const styles = StyleSheet.create({
   metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   metric: { color: colors.text, backgroundColor: colors.surfaceRaised, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, fontSize: 16 },
   freshness: { color: colors.primary, fontSize: 15, lineHeight: 22, marginTop: 4 },
+  stale: { color: colors.danger, fontSize: 15, fontWeight: '700', lineHeight: 22, marginTop: 4 },
   uncertainty: { color: colors.warning, fontSize: 15, lineHeight: 22 },
   note: { color: colors.warning, fontSize: 15, lineHeight: 23 },
 });

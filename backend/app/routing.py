@@ -3,6 +3,19 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 
+class UnknownDestinationError(ValueError):
+    """Raised when a destination is outside the manually verified demo graph."""
+
+
+KNOWN_DESTINATIONS = {
+    "학생회관": "학생회관",
+    "학생 회관": "학생회관",
+    "도서관": "도서관",
+    "중앙도서관": "도서관",
+    "공학관": "공학관",
+}
+
+
 class RouteRequest(BaseModel):
     destination: str = Field(min_length=1, max_length=120)
 
@@ -31,6 +44,7 @@ class RouteOption(BaseModel):
     distanceMeters: int = Field(gt=0)
     hasStairs: bool
     noiseLevel: Literal["낮음", "보통", "높음"]
+    noiseDataStatus: Literal["fresh", "stale", "unknown"]
     verificationStatus: Literal["verified-demo"]
     dataFreshness: str
     uncertainty: str
@@ -45,7 +59,13 @@ class RoutesResponse(BaseModel):
 
 def build_demo_routes(destination: str) -> RoutesResponse:
     """Return manually reviewed demo routes for the hackathon flow."""
-    normalized_destination = destination.strip()
+    requested_destination = destination.strip()
+    normalized_destination = KNOWN_DESTINATIONS.get(requested_destination)
+    if normalized_destination is None:
+        raise UnknownDestinationError(
+            f"'{requested_destination}'은 현재 검증된 데모 목적지가 아닙니다. "
+            "학생회관, 도서관 또는 공학관을 선택해주세요."
+        )
     routes = [
         RouteOption(
             id="flat-safe",
@@ -56,6 +76,7 @@ def build_demo_routes(destination: str) -> RoutesResponse:
             distanceMeters=360,
             hasStairs=False,
             noiseLevel="낮음",
+            noiseDataStatus="fresh",
             verificationStatus="verified-demo",
             dataFreshness="오늘 측정한 데모 데이터",
             uncertainty="현재 공사나 일시적 장애물은 반영되지 않을 수 있습니다.",
@@ -95,9 +116,10 @@ def build_demo_routes(destination: str) -> RoutesResponse:
             distanceMeters=240,
             hasStairs=True,
             noiseLevel="보통",
+            noiseDataStatus="stale",
             verificationStatus="verified-demo",
-            dataFreshness="오늘 확인한 데모 경로",
-            uncertainty="계단과 GPS 오차 때문에 수동 확인이 필요할 수 있습니다.",
+            dataFreshness="7일 전 측정한 오래된 소음 데이터",
+            uncertainty="소음 정보가 오래되었고 계단과 GPS 오차 때문에 수동 확인이 필요할 수 있습니다.",
             steps=[
                 NavigationStep(
                     id="q1",

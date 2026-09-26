@@ -1,7 +1,7 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routing import RouteRequest, RoutesResponse, build_demo_routes
+from .routing import RouteRequest, RoutesResponse, UnknownDestinationError, build_demo_routes
 from .vision import VisionResponse, describe_demo_scene
 
 
@@ -27,7 +27,10 @@ async def health() -> dict[str, str]:
 
 @app.post("/routes", response_model=RoutesResponse)
 async def routes(request: RouteRequest) -> RoutesResponse:
-    return build_demo_routes(request.destination)
+    try:
+        return build_demo_routes(request.destination)
+    except UnknownDestinationError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
 
 
 @app.post("/vision/describe", response_model=VisionResponse)
@@ -37,4 +40,3 @@ async def describe_scene(
     # Do not persist uploads in the MVP. A future implementation should enforce
     # size/type limits and process the frame in memory with explicit consent.
     return describe_demo_scene(image.filename if image else None)
-

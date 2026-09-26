@@ -14,6 +14,7 @@ export type RouteOption = {
   distanceMeters: number;
   hasStairs: boolean;
   noiseLevel: '낮음' | '보통' | '높음';
+  noiseDataStatus: 'fresh' | 'stale' | 'unknown';
   verificationStatus: 'verified-demo';
   dataFreshness: string;
   uncertainty: string;
@@ -28,6 +29,14 @@ export type SceneDescription = {
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:8000';
 
+const DEMO_DESTINATION_ALIASES: Record<string, string> = {
+  학생회관: '학생회관',
+  '학생 회관': '학생회관',
+  도서관: '도서관',
+  중앙도서관: '도서관',
+  공학관: '공학관',
+};
+
 const DEMO_ROUTES: RouteOption[] = [
   {
     id: 'flat-safe',
@@ -38,6 +47,7 @@ const DEMO_ROUTES: RouteOption[] = [
     distanceMeters: 360,
     hasStairs: false,
     noiseLevel: '낮음',
+    noiseDataStatus: 'fresh',
     verificationStatus: 'verified-demo',
     dataFreshness: '오늘 측정한 데모 데이터',
     uncertainty: '현재 공사나 일시적 장애물은 반영되지 않을 수 있습니다.',
@@ -57,9 +67,10 @@ const DEMO_ROUTES: RouteOption[] = [
     distanceMeters: 240,
     hasStairs: true,
     noiseLevel: '보통',
+    noiseDataStatus: 'stale',
     verificationStatus: 'verified-demo',
-    dataFreshness: '오늘 확인한 데모 경로',
-    uncertainty: '계단과 GPS 오차 때문에 수동 확인이 필요할 수 있습니다.',
+    dataFreshness: '7일 전 측정한 오래된 소음 데이터',
+    uncertainty: '소음 정보가 오래되었고 계단과 GPS 오차 때문에 수동 확인이 필요할 수 있습니다.',
     steps: [
       { id: 'q1', instruction: '정면 12시 방향으로 50미터 직진하세요.', distanceMeters: 50, priority: 3 },
       { id: 'q2', instruction: '3미터 앞에 내리막 계단이 시작됩니다. 난간을 확인하세요.', distanceMeters: 3, priority: 1 },
@@ -68,6 +79,20 @@ const DEMO_ROUTES: RouteOption[] = [
     ],
   },
 ];
+
+function demoRoutesFor(destination: string): RouteOption[] {
+  return DEMO_ROUTES.map((route) => ({
+    ...route,
+    steps: route.steps.map((step, index) => (
+      index === route.steps.length - 1
+        ? {
+            ...step,
+            instruction: `${destination} ${route.routeType === 'quiet' ? '정문' : '측면 입구'} 근처에 도착했습니다.`,
+          }
+        : step
+    )),
+  }));
+}
 
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 3500): Promise<Response> {
   const controller = new AbortController();
@@ -82,15 +107,33 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 3500
 
 export async function requestRoutes(destination: string): Promise<{
   routes: RouteOption[];
-  source: 'server' | 'demo';
+  source: 'server' | 'demo' | 'unavailable';
+  error?: string;
 }> {
+  const requestedDestination = destination.trim();
+  const verifiedDestination = DEMO_DESTINATION_ALIASES[requestedDestination];
+  if (!verifiedDestination) {
+    return {
+      routes: [],
+      source: 'unavailable',
+      error: `'${requestedDestination}'은 현재 검증된 데모 목적지가 아닙니다. 학생회관, 도서관 또는 공학관을 선택해주세요.`,
+    };
+  }
+
   try {
     const response = await fetchWithTimeout(`${API_URL}/routes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ destination }),
+      body: JSON.stringify({ destination: verifiedDestination }),
     });
 
+    if (response.status === 404) {
+      const data = (await response.json().catch(() => null)) as { detail?: unknown } | null;
+      const detail = typeof data?.detail === 'string'
+        ? data.detail
+        : '검증된 경로가 없는 목적지입니다.';
+      return { routes: [], source: 'unavailable', error: detail };
+    }
     if (!response.ok) throw new Error(`Route request failed with ${response.status}`);
     const data = (await response.json()) as { routes?: RouteOption[] };
     if (!Array.isArray(data.routes) || data.routes.length === 0) {
@@ -98,7 +141,7 @@ export async function requestRoutes(destination: string): Promise<{
     }
     return { routes: data.routes, source: 'server' };
   } catch {
-    return { routes: DEMO_ROUTES, source: 'demo' };
+    return { routes: demoRoutesFor(verifiedDestination), source: 'demo' };
   }
 }
 
