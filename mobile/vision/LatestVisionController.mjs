@@ -14,6 +14,7 @@ export class VisionRequestError extends Error {
 export class LatestVisionController {
   constructor({
     capture,
+    releasePhoto,
     describe,
     stopSpeech,
     speak,
@@ -23,17 +24,19 @@ export class LatestVisionController {
     now = () => performance.now(),
     maxResultAgeMs = 15000,
   }) {
-    for (const callback of [capture, describe, stopSpeech, speak, makeRequestId, onResult, onError, now]) {
+    for (const callback of [capture, releasePhoto, describe, stopSpeech, speak, makeRequestId, onResult, onError, now]) {
       if (typeof callback !== "function") throw new TypeError("Callbacks must be functions");
     }
     if (!Number.isFinite(maxResultAgeMs) || maxResultAgeMs <= 0) {
       throw new TypeError("maxResultAgeMs must be positive");
     }
     Object.assign(this, {
-      capture, describe, stopSpeech, speak, makeRequestId, onResult, onError, now, maxResultAgeMs,
+      capture, releasePhoto, describe, stopSpeech, speak, makeRequestId, onResult, onError, now, maxResultAgeMs,
     });
     this.generation = 0;
     this.stationary = false;
+    this.externalProcessingConsent = false;
+    this.cleanupFailed = false;
     this.disposed = false;
     this.activeAbort = null;
     this.captureChain = Promise.resolve();
@@ -41,11 +44,12 @@ export class LatestVisionController {
   }
 
   isCurrent(token) {
-    return !this.disposed && this.stationary && token.generation === this.generation;
+    return !this.disposed && this.stationary && this.externalProcessingConsent && token.generation === this.generation;
   }
 
   ensureFresh(token) {
-    if (this.now() - token.startedAt > this.maxResultAgeMs) {
+    const age = this.now() - token.startedAt;
+    if (!Number.isFinite(age) || age < 0 || age > this.maxResultAgeMs) {
       throw new VisionRequestError("expired_result", "사진을 찍은 뒤 시간이 지났습니다. 다시 촬영해 주세요.");
     }
   }
@@ -60,6 +64,12 @@ export class LatestVisionController {
   setStationary(value) {
     if (typeof value !== "boolean") throw new TypeError("stationary must be a boolean");
     this.stationary = value;
+    return value ? Promise.resolve() : this.cancel();
+  }
+
+  setExternalProcessingConsent(value) {
+    if (typeof value !== "boolean") throw new TypeError("consent must be a boolean");
+    this.externalProcessingConsent = value;
     return value ? Promise.resolve() : this.cancel();
   }
 
@@ -78,6 +88,12 @@ export class LatestVisionController {
 
   async request({ expectedPlace } = {}) {
     if (this.disposed) throw new VisionRequestError("disposed", "카메라 화면이 닫혔습니다.");
+    if (this.cleanupFailed) {
+      throw new VisionRequestError("photo_cleanup_failed", "임시 사진 정리를 확인한 뒤 다시 시작해 주세요.");
+    }
+    if (!this.externalProcessingConsent) {
+      throw new VisionRequestError("external_consent_required", "외부 AI로 사진을 보내는 데 동의가 필요합니다.");
+    }
     if (!this.stationary) {
       throw new VisionRequestError("stationary_required", "이동을 멈춘 뒤 촬영해 주세요.");
     }
@@ -86,6 +102,7 @@ export class LatestVisionController {
     const abort = new AbortController();
     this.activeAbort = abort;
     const token = { generation: this.generation, startedAt: this.now() };
+    let photo;
     try {
       await this.enqueueSpeech(() => this.stopSpeech());
       if (!this.isCurrent(token)) return null;
@@ -102,12 +119,12 @@ export class LatestVisionController {
         return this.capture();
       });
       this.captureChain = pendingCapture.catch(() => {});
-      const photo = await pendingCapture;
+      photo = await pendingCapture;
       if (!this.isCurrent(token)) return null;
       this.ensureFresh(token);
       if (!photo) throw new VisionRequestError("capture_failed", "사진을 촬영하지 못했습니다.");
       const result = await this.describe({
-        photo, requestId, expectedPlace, signal: abort.signal,
+        photo, requestId, expectedPlace, signal: abort.signal, externalProcessingConsent: true,
       });
       if (!this.isCurrent(token)) return null;
       this.ensureFresh(token);
@@ -131,6 +148,16 @@ export class LatestVisionController {
       return null;
     } finally {
       if (this.activeAbort === abort) this.activeAbort = null;
+      if (photo) {
+        try { await this.releasePhoto(photo); }
+        catch {
+          this.cleanupFailed = true;
+          this.generation += 1;
+          this.activeAbort?.abort();
+          await this.enqueueSpeech(() => this.stopSpeech()).catch(() => {});
+          this.onError(new VisionRequestError("photo_cleanup_failed", "임시 사진을 지우지 못했습니다. 앱의 임시 파일을 확인해 주세요."));
+        }
+      }
     }
   }
 }
@@ -154,7 +181,9 @@ function speechText(result, requestId) {
       !result.recognized_text.every(text => typeof text === "string")
     ) throw invalid();
     const text = result.description;
-    if (typeof text === "string" && text.trim() && text.length <= 600) return text;
+    if (typeof text === "string" && text.trim() && text.length <= 600) {
+      return result.uncertainty === "high" ? "사진만으로 확실하게 알 수 없습니다. " + text : text;
+    }
   }
   throw invalid();
 }

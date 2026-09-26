@@ -160,3 +160,13 @@ test("retake guidance is spoken only after a stable quality problem", () => {
   gate.reset();
   assert.equal(gate.offer(dark, 500), null);
 });
+
+
+test("results with missing, future or expired timestamps are never fresh", async () => {
+  const { isFreshResult } = await import("../detection.mjs");
+  assert.equal(isFreshResult({ receivedAt: 100 }, 1100), true);
+  for (const receivedAt of [undefined, NaN, Infinity, 1101, 99]) {
+    assert.equal(isFreshResult({ receivedAt }, 1100), false);
+  }
+  assert.equal(isFreshResult(null, 1100), false);
+});

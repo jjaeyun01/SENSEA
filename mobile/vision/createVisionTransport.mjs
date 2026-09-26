@@ -4,11 +4,28 @@ import { VisionRequestError } from "./LatestVisionController.mjs";
 export function createVisionTransport({
   baseUrl,
   apiKey = "",
-  fetchImpl = globalThis.fetch,
+  allowInsecureLocalHttp = false,
+  fetchImpl,
   formDataFactory = () => new FormData(),
 }) {
-  const endpoint = baseUrl.replace(/\/+$/, "") + "/vision/describe";
-  return async ({ photo, requestId, expectedPlace, signal }) => {
+  const url = new URL(baseUrl);
+  const host = url.hostname;
+  const privateHost = host === "localhost" || host === "[::1]" ||
+    (/^\d+\.\d+\.\d+\.\d+$/.test(host) &&
+      (/^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) ||
+       /^172\.(1[6-9]|2[0-9]|3[01])\./.test(host)));
+  if (url.username || url.password || url.search || url.hash ||
+      (url.protocol !== "https:" && !(url.protocol === "http:" && privateHost && allowInsecureLocalHttp))) {
+    throw new TypeError("Photo upload requires HTTPS; local HTTP must be explicitly enabled.");
+  }
+  // React Native's XHR-based global fetch ignores redirect: "error".
+  // Inject expo/fetch (or a verified standards-compliant implementation).
+  if (typeof fetchImpl !== "function") throw new TypeError("A redirect-aware fetch implementation is required.");
+  const endpoint = url.toString().replace(/\/+$/, "") + "/vision/describe";
+  return async ({ photo, requestId, expectedPlace, signal, externalProcessingConsent = false }) => {
+    if (externalProcessingConsent !== true) {
+      throw new VisionRequestError("external_consent_required", "외부 AI로 사진을 보내는 데 동의가 필요합니다.");
+    }
     const body = formDataFactory();
     body.append("image", {
       uri: photo.uri,
@@ -16,10 +33,14 @@ export function createVisionTransport({
       type: photo.mimeType ?? "image/jpeg",
     });
     body.append("stationary", "true");
+    body.append("external_processing_consent", "true");
     body.append("request_id", requestId);
     if (expectedPlace) body.append("expected_place", expectedPlace);
     const response = await fetchImpl(endpoint, {
       method: "POST",
+      redirect: "error",
+      credentials: "omit",
+      cache: "no-store",
       headers: apiKey ? { "X-API-Key": apiKey } : {},
       body,
       signal,

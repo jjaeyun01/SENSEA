@@ -22,7 +22,7 @@ cd backend
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 Copy-Item .env.example .env
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --no-access-log --reload --host 127.0.0.1 --port 8000
 ```
 
 macOS/Linux:
@@ -32,7 +32,7 @@ cd backend
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt
 cp .env.example .env
-.venv/bin/python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+.venv/bin/python -m uvicorn app.main:app --no-access-log --reload --host 127.0.0.1 --port 8000
 ```
 
 [Swagger UI](http://127.0.0.1:8000/docs)에서 요청을 실행할 수 있습니다.
@@ -63,7 +63,7 @@ cp .env.example .env
 }
 ```
 
-원시 오디오, 사용자 ID, 사용자 GPS는 받지 않습니다. 구간별 최대 1,000개 요약값을 메모리에 보관하며, 집계/쓰기 시 1시간보다 오래된 값은 제거합니다. 읽기·쓰기가 없는 유휴 구간의 메모리 제거는 다음 접근 때 이뤄집니다. 데모 초기값과 업로드값은 함께 집계되므로 실제 측정값으로 사용하지 마세요.
+원시 오디오, 사용자 ID, 사용자 GPS는 받지 않습니다. 구간별 최대 1,000개 요약값을 메모리에 보관하며, 집계/쓰기와 별도 정리 작업에서 1시간 지난 값을 제거합니다. 요청이 없는 구간도 기본 60초 간격으로 정리하며 서버 종료 시 메모리 저장소를 비웁니다. 데모 초기값과 업로드값은 함께 집계되므로 실제 측정값으로 사용하지 마세요.
 
 `relative_noise`는 0~1 상대 소음값이며 dB SPL이나 인원수 추정값이 아닙니다. 만료/누락된 값은 `null`로 반환합니다. 경로 탐색에서는 미측정 구간을 0 소음으로 간주하지 않고 비용 계산에 보수적인 값 1을 사용합니다. 경로 소음값은 측정된 거리만의 가중 평균이며 `noise_coverage`와 구간별 측정 시간을 함께 확인해야 합니다.
 
@@ -73,11 +73,12 @@ cp .env.example .env
 | --- | --- | --- |
 | image | JPEG/PNG/WebP 파일 | 사진 1장, 기본 5MiB/12MP 이하 |
 | stationary | boolean, 필수 | 앱에서 사용자가 멈췄음을 확인 |
+| external_processing_consent | boolean, 필수 true | 외부 AI 서비스로 이번 사진을 전송하는 데 명시적으로 동의 |
 | request_id | UUID, 필수 | 촬영 시도마다 새 ID 생성, 응답과 대조 |
 | expected_place | string, 선택 | 예상 장소명 200자 이하, 식별 근거로 간주하지 않음 |
 
 ```powershell
-curl.exe -X POST http://127.0.0.1:8000/vision/describe -H "X-API-Key: YOUR_DEMO_TOKEN" -F "stationary=true" -F "request_id=00000000-0000-4000-8000-000000000001" -F "image=@sign.jpg;type=image/jpeg"
+curl.exe -X POST http://127.0.0.1:8000/vision/describe -H "X-API-Key: YOUR_DEMO_TOKEN" -F "stationary=true" -F "external_processing_consent=true" -F "request_id=00000000-0000-4000-8000-000000000001" -F "image=@sign.jpg;type=image/jpeg"
 ```
 
 기본 `VISION_PROVIDER=disabled`에서는 품질 검사만 수행하며, 검사를 통과한 사진의 장면 설명은 `503 vision_not_configured`를 반환합니다. 실제 분석을 사용하려면 로컬 `.env`에 `VISION_PROVIDER=openai`, `OPENAI_API_KEY`, `SENSEA_API_KEY`를 설정하세요. 키는 Git에 포함하지 않습니다. 모바일에는 OpenAI 키를 넣지 않고, 데모용 접근 토큰만 `X-API-Key` 헤더로 전달합니다. 이 공유 토큰은 운영용 사용자 인증을 대체하지 않습니다.
@@ -88,7 +89,17 @@ OpenAI 연동은 [공식 이미지 입력 문서](https://developers.openai.com/
 
 설명은 표지판·랜드마크 중심입니다. `navigation_safe`는 항상 false입니다. 차도/인도 관측이 있어도 거리 계산, 통행 허가, 충돌 회피, 횡단 판단을 제공하지 않습니다. 앱에서는 사진 설명 동안 이동 안내를 멈추고 [연결 모듈](../mobile/vision/README.md)로 중복 음성 출력과 뒤늦은 응답을 처리해야 합니다.
 
-## 사진 품질과 응답 계약 (v0.2)
+## 사진 전송과 데이터 보관 (v0.3)
+
+`external_processing_consent=true`가 없으면 `409 external_consent_required`를 반환하고 공급자를 호출하지 않습니다. 클라이언트는 촬영·전송 전에 수신 서비스와 전송 내용을 안내하고 동의를 받아야 합니다. 이 필드는 OS 카메라 권한이나 정지 확인을 대신하지 않습니다. 현재 APK는 이 API를 호출하지 않습니다.
+
+사진 업로드는 본문 버퍼링 전에 기본 2개 동시 요청으로 제한합니다. 초과분은 큐에 쌓지 않고 `429 upload_busy`로 거부합니다. 성공·예상 오류 응답에 `Cache-Control: no-store`를 설정합니다. 위 실행 예는 목적지 검색어가 URL 접근 로그에 기록되지 않도록 `--no-access-log`를 사용합니다. 별도 프록시/호스팅 로그 설정은 배포 시 확인해야 합니다.
+
+`NOISE_CLEANUP_INTERVAL_SECONDS` 기본 60초, `NOISE_TTL_SECONDS` 기본 3600초입니다. 유휴 데이터의 최대 보관시간은 TTL + 정리 주기이며 이벤트 루프 지연이 더해질 수 있습니다. 강제 메모리 덮어쓰기나 외부 서비스의 데이터 삭제를 보장하지 않습니다.
+
+실제 경로 모드에서는 `pedestrian_verified=true`와 시간대가 포함된 `verified_at`가 모두 필요합니다. 미래 시각과 `PATH_VERIFICATION_TTL_SECONDS`(기본 24시간) 이상 지난 검증은 제외합니다. 이 값은 시험용 재검토 기준이며 경로 안전을 보장하는 시간이 아닙니다. 응답 `navigation_safe`는 항상 false입니다. 현재 저장소는 계속 가상 데이터 모드입니다.
+
+## 사진 품질과 응답 계약 (v0.2부터)
 
 v0.2부터 `request_id`가 필수이며, 누락된 기존 클라이언트 요청은 422로 거부합니다. HTTP 200 응답은 먼저 `status`로 분기하세요.
 
@@ -134,9 +145,9 @@ v0.2부터 `request_id`가 필수이며, 누락된 기존 클라이언트 요청
 - 400: 소음 업로드 동의 없음
 - 401: API 토큰 누락/불일치
 - 404: 미등록 지점/구간, 연결된 경로 없음
-- 409: 시뮬레이션 또는 정지 확인 필요
+- 409: 시뮬레이션·정지 확인·외부 사진 전송 동의 필요
 - 413/415/422: 크기 초과, 파일 형식, 요청 오류
-- 429: 카메라 호출 제한, 기본 프로세스 전체 분당 6회, 품질 검사 시도 포함
+- 429: 동시 업로드 또는 카메라 호출 제한, 기본 프로세스 전체 분당 6회, 품질 검사 시도 포함
 - 501: 음성 인식 미연결
 - 502/503/504: 모델 응답 오류, 미연결, 시간 초과
 
@@ -163,7 +174,7 @@ tests/
 
 Supabase는 아직 연결하지 않았습니다. SQL은 루트 README의 places/waypoints/path_edges/noise_observations에 입구 waypoint 연결과 역방향 안내 문장을 추가한 초안입니다. [Supabase RLS 문서](https://supabase.com/docs/guides/database/postgres/row-level-security)에 따라 RLS와 클라이언트 권한 차단을 포함합니다. 실제 DB에 적용·검증하기 전까지 마이그레이션 성공을 가정하지 마세요.
 
-다음 단계는 실제 캠퍼스 구간 검증, Supabase 저장소 어댑터와 보존기간 삭제 작업, 지도/위치 정확도 처리, 필요 시 STT 제공자 연결입니다. 실제 저장소를 붙일 때는 `simulation_only=false`에서 미검증 edge가 제외되는 규칙과 양방향 안내를 유지하세요. 현재 경로 알고리즘 테스트는 이 필터를 검증하지만, 실시간 길안내 앱 자체를 검증하지는 않습니다.
+다음 단계는 실제 캠퍼스 구간 검증, Supabase 저장소 어댑터와 DB 보존기간 삭제 작업, 지도/위치 정확도 처리, 필요 시 STT 제공자 연결입니다. 실제 저장소를 붙일 때는 `simulation_only=false`에서 미검증 edge가 제외되는 규칙과 양방향 안내를 유지하세요. 현재 경로 알고리즘 테스트는 이 필터를 검증하지만, 실시간 길안내 앱 자체를 검증하지는 않습니다.
 
 ## 검사
 

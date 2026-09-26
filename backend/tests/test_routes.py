@@ -45,6 +45,7 @@ def test_live_algorithm_excludes_unverified_edges():
     for edge in repo.graph.edges:
         if edge.id in {"start-quad", "quad-library"}:
             edge.pedestrian_verified = True
+            edge.verified_at = datetime.now(UTC)
     path = find_route(repo.graph, {}, "start", "library_entrance", noise_weight=0, simulation=False)
     assert [segment.edge_id for segment in path] == ["start-quad", "quad-library"]
 

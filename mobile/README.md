@@ -22,7 +22,17 @@ npm run ios -- --device
 
 최초 모델 다운로드는 SHA-256과 파일 크기를 검증합니다. 모델을 지웠으면 다시 다운로드한 뒤 빌드합니다. 개발 빌드를 설치한 후에는 `npm start`로 Metro에 연결합니다. Google Drive 같은 동기화 폴더에서 npm 설치 오류가 나면 저장소를 일반 로컬 디스크에 복제해 실행하세요.
 
-GitHub Actions의 **SENSEA native camera**는 두 OS의 네이티브 컴파일을 수행합니다. Android 성공 실행의 `sensea-android-arm64-demo` 아티팩트는 개발 키로 서명된 테스트 APK이며 앱스토어 배포용이 아닙니다. iOS 아티팩트는 시뮬레이터용으로, iPhone 설치에는 별도 Apple 개발 서명 또는 TestFlight 구성이 필요합니다.
+GitHub Actions의 **SENSEA native camera**는 두 OS의 네이티브 컴파일을 수행합니다. Android 성공 실행의 `sensea-android-arm64-demo` 아티팩트는 개발 키로 서명된 테스트 APK이며 앱스토어 배포용이 아닙니다. iOS 아티팩트는 시뮬레이터용으로, 별도 iPhone test package 워크플로는 개인 서명용 IPA를 만듭니다. [Windows 설치 안내](../docs/iphone-testing.md)를 확인하세요.
+
+## 개인정보와 접근성 (v0.4)
+
+처음 카메라를 켜기 전에 앱 내 이용 안내를 확인합니다. 안내 확인 상태는 앱 세션에만 유지하며 권한 승인은 별도 OS 창에서 받습니다. 안내를 취소하면 카메라를 열지 않습니다.
+
+- **개인정보와 이용 안내 / 오픈소스 안내**를 열면 카메라와 음성이 정지합니다.
+- **분석 종료·현재 결과 지우기**는 진행 중 입력·음성을 멈추고 표시 결과를 지웁니다. 저장된 사진이나 분석 기록은 만들지 않습니다.
+- TalkBack/VoiceOver가 켜져 있으면 자동 TTS를 쉬고 **다시 듣기**를 화면 읽기 시스템으로 전달합니다. 자동 음성을 꺼도 수동 다시 듣기는 사용할 수 있습니다.
+- Android는 사용하지 않는 마이크·위치·사진 라이브러리 권한을 manifest에서 차단합니다. 카메라 권한만 기능 사용 시 요청합니다.
+- 실제 기기에서 초점 이동·모달 닫기·큰 글씨·음성 겹침 검증은 [접근성 시험 계획](../docs/accessibility-test-plan.md)에 남아 있습니다.
 
 ## 조작
 

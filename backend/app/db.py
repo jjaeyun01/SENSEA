@@ -23,6 +23,21 @@ class DemoRepository:
             score = 0.15 if "garden" in edge.id else 0.85
             self.observations[edge.id].append((now, score))
 
+    def purge_expired(self, now: datetime | None = None) -> int:
+        """Also called by the lifespan sweeper when no requests arrive."""
+        cutoff = (now or datetime.now(UTC)) - timedelta(seconds=self.noise_ttl_seconds)
+        removed = 0
+        for edge_id, samples in list(self.observations.items()):
+            while samples and samples[0][0] <= cutoff:
+                samples.popleft()
+                removed += 1
+            if not samples:
+                del self.observations[edge_id]
+        return removed
+
+    def clear(self) -> None:
+        self.observations.clear()
+
     def search_places(self, query: str):
         return [p for p in self.graph.places if query.casefold() in p.name.casefold()]
 
@@ -34,7 +49,7 @@ class DemoRepository:
         now = datetime.now(UTC)
         samples = self.observations[observation.edge_id]
         cutoff = now - timedelta(seconds=self.noise_ttl_seconds)
-        while samples and samples[0][0] < cutoff:
+        while samples and samples[0][0] <= cutoff:
             samples.popleft()
         samples.append((now, observation.relative_noise))
         return self.noise_summary(observation.edge_id, now)
@@ -42,7 +57,7 @@ class DemoRepository:
     def noise_summary(self, edge_id: str, now: datetime) -> NoiseSummary:
         samples = self.observations.get(edge_id, ())
         cutoff = now - timedelta(seconds=self.noise_ttl_seconds)
-        while samples and samples[0][0] < cutoff:
+        while samples and samples[0][0] <= cutoff:
             samples.popleft()
         if not samples:
             return NoiseSummary(status="unknown")

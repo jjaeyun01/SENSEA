@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     quality_clip_fraction: float = Field(default=0.85, ge=0.5, le=1)
     quality_min_edge_mean: float = Field(default=1.5, ge=0, le=255)
     noise_ttl_seconds: int = Field(default=3600, ge=1, le=86400)
+    noise_cleanup_interval_seconds: float = Field(default=60, gt=0, le=300)
+    path_verification_ttl_seconds: int = Field(default=86400, ge=1, le=2592000)
+    max_concurrent_uploads: int = Field(default=2, ge=1, le=8)
     cors_origins: list[str] = []
 
     @model_validator(mode="after")

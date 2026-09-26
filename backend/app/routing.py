@@ -14,11 +14,18 @@ def find_route(
     *,
     noise_weight: float,
     simulation: bool,
+    now: datetime | None = None,
+    verification_ttl_seconds: int = 86400,
 ) -> list[Segment] | None:
+    now = now or datetime.now(UTC)
     adjacency = {waypoint.id: [] for waypoint in graph.waypoints}
     for edge in graph.edges:
-        if not simulation and not edge.pedestrian_verified:
-            continue
+        if not simulation:
+            if not edge.pedestrian_verified or edge.verified_at is None:
+                continue
+            age = (now - edge.verified_at).total_seconds()
+            if not 0 <= age < verification_ttl_seconds:
+                continue
         adjacency[edge.from_waypoint].append((edge.to_waypoint, edge, edge.instruction))
         if edge.bidirectional and edge.reverse_instruction:
             adjacency[edge.to_waypoint].append((edge.from_waypoint, edge, edge.reverse_instruction))
@@ -94,7 +101,7 @@ def summarize(route_id: str, segments: list[Segment], simulation: bool) -> Route
     )
 
 
-def plan_routes(repository, request: RouteRequest) -> RouteResponse:
+def plan_routes(repository, request: RouteRequest, verification_ttl_seconds=86400) -> RouteResponse:
     if repository.simulation_only and not request.simulation:
         raise APIError(
             409,
@@ -119,6 +126,8 @@ def plan_routes(repository, request: RouteRequest) -> RouteResponse:
             request.end_waypoint,
             noise_weight=weight,
             simulation=repository.simulation_only,
+            now=now,
+            verification_ttl_seconds=verification_ttl_seconds,
         )
         if segments is None:
             continue

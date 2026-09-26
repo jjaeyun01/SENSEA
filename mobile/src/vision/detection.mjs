@@ -80,7 +80,12 @@ export function describeResult(result) {
   };
   if (result.quality.reason) return qualityMessages[result.quality.reason] ?? "촬영 상태를 확인해 주세요.";
   const labels = [...new Set(result.detections.map(item => labelInKorean(item.label)))].slice(0, 3);
-  return labels.length ? labels.join(", ") + "이 보입니다." : "아직 사물을 식별하지 못했습니다.";
+  return labels.length ? labels.join(", ") + "이 보입니다." : "사물을 식별하지 못했습니다. 사물이 없다는 뜻은 아닙니다.";
+}
+
+export function isFreshResult(result, now) {
+  const age = now - result?.receivedAt;
+  return Number.isFinite(age) && age >= 0 && age <= 1000;
 }
 
 /** Constant-space announcement debounce. Never infer a clear or safe path. */

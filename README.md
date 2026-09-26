@@ -365,6 +365,8 @@ Agree on request/response schemas before coding in parallel. Make a working end-
 
 ## 12. Privacy and safety rules
 
+구현 상태: 앱 내 안내·권한·중지·현재 결과 지우기, 화면 읽기와 자동 음성 조정, 사진 외부 전송 동의·임시 파일 정리 계약, 소음 자동 만료, 경로 검증 기한을 구현했습니다. 실제 기기·현장·당사자 검토는 완료하지 않았습니다. [구현 범위](docs/privacy-and-safety.md) · [기기/사용자 시험 계획](docs/accessibility-test-plan.md).
+
 - Ask permission only when a feature needs it; show microphone/camera active state and a clear stop action.
 - Do not store raw audio or photos by default; never expose secret API keys in the app.
 - Aggregate and expire location-linked noise measurements; avoid publishing individual user movement traces.

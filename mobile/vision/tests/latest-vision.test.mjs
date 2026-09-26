@@ -20,6 +20,7 @@ async function harness(overrides = {}) {
   let count = 0, stops = 0;
   const controller = new LatestVisionController({
     capture: async () => ({ uri: "file:///generated-test.jpg" }),
+    releasePhoto: async () => {},
     describe: args => {
       const pending = deferred();
       calls.push({ ...args, ...pending });
@@ -33,6 +34,7 @@ async function harness(overrides = {}) {
     ...overrides,
   });
   await controller.setStationary(true);
+  await controller.setExternalProcessingConsent(true);
   return { controller, spoken, results, errors, calls, stops: () => stops };
 }
 
@@ -248,4 +250,68 @@ test("native stop failure suppresses speech and a later request can recover", as
   await next;
   assert.equal(h.errors.length, 1);
   assert.equal(h.spoken.length, 1);
+});
+
+
+test("explicit external consent is required before capture and revoking it invalidates results", async () => {
+  const released = [];
+  const h = await harness({ releasePhoto: async photo => released.push(photo.uri) });
+  await h.controller.setExternalProcessingConsent(false);
+  await assert.rejects(h.controller.request(), { code: "external_consent_required" });
+  assert.equal(h.calls.length, 0);
+  await h.controller.setExternalProcessingConsent(true);
+  const pending = h.controller.request();
+  await tick();
+  await h.controller.setExternalProcessingConsent(false);
+  assert.equal(h.calls[0].signal.aborted, true);
+  h.calls[0].resolve(scene(h.calls[0].requestId));
+  assert.equal(await pending, null);
+  assert.deepEqual(h.spoken, []);
+  assert.deepEqual(released, ["file:///generated-test.jpg"]);
+});
+
+for (const outcome of ["success", "network-failure", "invalid", "expired", "dispose-during-capture"]) {
+  test("temporary photo is released exactly once: " + outcome, async () => {
+    const camera = deferred();
+    const released = [];
+    let now = 0;
+    const h = await harness({
+      capture: () => camera.promise,
+      releasePhoto: async photo => released.push(photo.uri), now: () => now,
+    });
+    const pending = h.controller.request();
+    await tick();
+    if (outcome === "dispose-during-capture") await h.controller.dispose();
+    camera.resolve({ uri: "owned-temporary-photo.jpg" });
+    await tick();
+    if (h.calls.length) {
+      if (outcome === "network-failure") h.calls[0].reject(new Error("network failure"));
+      else {
+        if (outcome === "expired") now = 15001;
+        h.calls[0].resolve(outcome === "invalid" ? {} : scene(h.calls[0].requestId));
+      }
+    }
+    await pending;
+    assert.deepEqual(released, ["owned-temporary-photo.jpg"]);
+  });
+}
+
+test("photo cleanup failures are surfaced and block further captures", async () => {
+  const h = await harness({ releasePhoto: async () => { throw new Error("private file path"); } });
+  const pending = h.controller.request();
+  await tick();
+  h.calls[0].resolve(scene(h.calls[0].requestId));
+  await pending;
+  assert.equal(h.errors.at(-1).code, "photo_cleanup_failed");
+  assert.doesNotMatch(h.errors.at(-1).message, /private file path/);
+  await assert.rejects(h.controller.request(), { code: "photo_cleanup_failed" });
+});
+
+test("high uncertainty is explicitly spoken", async () => {
+  const h = await harness();
+  const pending = h.controller.request();
+  await tick();
+  h.calls[0].resolve({ ...scene(h.calls[0].requestId), uncertainty: "high" });
+  await pending;
+  assert.match(h.spoken[0], /확실하게 알 수 없습니다/);
 });

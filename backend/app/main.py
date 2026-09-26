@@ -2,7 +2,7 @@ import asyncio
 import secrets
 import time
 from collections import deque
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Annotated
 from uuid import UUID
 
@@ -15,7 +15,11 @@ from app.config import Settings
 from app.db import DemoRepository
 from app.errors import APIError, register_error_handlers
 from app.images import prepare_image
-from app.middleware import BodySizeLimitMiddleware
+from app.middleware import (
+    BodySizeLimitMiddleware,
+    PrivacyHeadersMiddleware,
+    UploadCapacityMiddleware,
+)
 from app.models import (
     NoiseRequest,
     RouteRequest,
@@ -40,6 +44,12 @@ def create_app(
     repository = repository or DemoRepository(settings.noise_ttl_seconds)
     vision_calls = deque()
 
+    async def sweep_noise():
+        interval = min(settings.noise_cleanup_interval_seconds, settings.noise_ttl_seconds)
+        while True:
+            await asyncio.sleep(interval)
+            repository.purge_expired()
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         owned = None
@@ -50,13 +60,20 @@ def create_app(
             app.state.vision = owned
         else:
             app.state.vision = DisabledVisionProvider()
+        repository.purge_expired()
+        cleanup = asyncio.create_task(sweep_noise())
+        app.state.noise_cleanup_task = cleanup
         try:
             yield
         finally:
+            cleanup.cancel()
+            with suppress(asyncio.CancelledError):
+                await cleanup
+            repository.clear()
             if owned is not None:
                 await owned.close()
 
-    app = FastAPI(title="SENSEA API", version="0.2.0", lifespan=lifespan)
+    app = FastAPI(title="SENSEA API", version="0.3.0", lifespan=lifespan)
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_image_bytes + 64 * 1024)
     app.add_middleware(
         CORSMiddleware,
@@ -64,6 +81,9 @@ def create_app(
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type", "X-API-Key"],
     )
+    # Capacity is checked before buffering or parsing any upload bytes.
+    app.add_middleware(UploadCapacityMiddleware, limit=settings.max_concurrent_uploads)
+    app.add_middleware(PrivacyHeadersMiddleware)
     register_error_handlers(app)
 
     async def authenticate(key: Annotated[str | None, Depends(api_key_header)]):
@@ -96,7 +116,7 @@ def create_app(
         tags=["routes"],
     )
     async def routes(payload: RouteRequest):
-        return plan_routes(repository, payload)
+        return plan_routes(repository, payload, settings.path_verification_ttl_seconds)
 
     @app.post("/noise", dependencies=[Depends(authenticate)], tags=["noise"])
     async def noise(payload: NoiseRequest):
@@ -117,9 +137,19 @@ def create_app(
         image: Annotated[UploadFile, File(description="Stationary JPEG, PNG or WebP snapshot")],
         stationary: Annotated[bool, Form(description="User confirms they are stopped")],
         request_id: Annotated[UUID, Form(description="New UUID for every capture attempt")],
+        external_processing_consent: Annotated[
+            bool,
+            Form(description="Explicit consent to send this photo to the configured AI service"),
+        ] = False,
         expected_place: Annotated[str | None, Form(max_length=200)] = None,
     ):
         try:
+            if not external_processing_consent:
+                raise APIError(
+                    409,
+                    "external_consent_required",
+                    "외부 AI로 사진을 보내는 데 동의가 필요합니다.",
+                )
             if not stationary:
                 raise APIError(
                     409, "stationary_required", "이동을 멈춘 뒤 주변 설명을 요청해 주세요."
@@ -138,6 +168,7 @@ def create_app(
             raise APIError(429, "vision_rate_limited", "잠시 후 카메라 설명을 다시 요청해 주세요.")
         vision_calls.append(now)
         jpeg = await run_in_threadpool(prepare_image, data, content_type, settings.max_image_pixels)
+        del data
         quality = await run_in_threadpool(assess_quality, jpeg, settings)
         if quality.status == "retake":
             return VisionRetakeResponse(request_id=request_id, quality=quality)

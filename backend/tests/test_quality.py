@@ -42,7 +42,11 @@ def test_retake_never_calls_provider_or_returns_scene(settings, image, reason):
         response = client.post(
             "/vision/describe",
             files={"image": ("image.jpg", encode(image), "image/jpeg")},
-            data={"stationary": "true", "request_id": "00000000-0000-4000-8000-000000000001"},
+            data={
+                "stationary": "true",
+                "external_processing_consent": "true",
+                "request_id": "00000000-0000-4000-8000-000000000001",
+            },
         )
     assert response.status_code == 200
     payload = response.json()
@@ -72,7 +76,11 @@ def test_retake_also_consumes_request_budget(settings):
     with TestClient(create_app(settings)) as client:
         params = {
             "files": {"image": ("image.jpg", encode(Image.new("RGB", (640, 480))), "image/jpeg")},
-            "data": {"stationary": "true", "request_id": "00000000-0000-4000-8000-000000000001"},
+            "data": {
+                "stationary": "true",
+                "external_processing_consent": "true",
+                "request_id": "00000000-0000-4000-8000-000000000001",
+            },
         }
         assert client.post("/vision/describe", **params).status_code == 200
         assert client.post("/vision/describe", **params).status_code == 429

@@ -68,6 +68,8 @@ jobs:
           cd android
           chmod +x gradlew
           ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon --max-workers=2
+      - name: Verify built APK privacy permissions and offline model
+        run: python3 scripts/check-package-privacy.py android android/app/build/outputs/apk/release/app-release.apk
       - uses: actions/upload-artifact@v4
         with:
           name: sensea-android-arm64-demo

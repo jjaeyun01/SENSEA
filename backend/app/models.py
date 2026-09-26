@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StrictBool
 
 
 class Model(BaseModel):
@@ -31,6 +31,7 @@ class Edge(Model):
     to_waypoint: str
     distance_m: float = Field(gt=0)
     pedestrian_verified: bool = False
+    verified_at: AwareDatetime | None = None
     instruction: str
     reverse_instruction: str | None = None
     bidirectional: bool = True
@@ -81,6 +82,7 @@ class Route(Model):
 
 
 class RouteResponse(Model):
+    navigation_safe: Literal[False] = False
     simulation_only: bool
     routes: list[Route]
     explanation: str

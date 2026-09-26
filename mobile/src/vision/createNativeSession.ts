@@ -4,7 +4,7 @@ import { createResizer, type Resizer } from "react-native-vision-camera-resizer"
 import { createWorkletRuntimeForThread } from "react-native-vision-camera-worklets";
 import { createSynchronizable, scheduleOnRN, scheduleOnRuntime } from "react-native-worklets";
 import labels from "../../assets/models/labels.json";
-import { analyzeOwnedFrame } from "./detection.mjs";
+import { analyzeOwnedFrame, isFreshResult } from "./detection.mjs";
 import type { LiveResult, NativeSession } from "./types";
 
 // A second opening cannot allocate another interpreter while the first is closing.
@@ -44,8 +44,7 @@ export async function createNativeSession(
 
     const deliver = (result: LiveResult) => {
       try {
-        const age = Date.now() - result.receivedAt;
-        if (!disposed && active.getBlocking() && age >= 0 && age <= 1000) onResult(result);
+        if (!disposed && active.getBlocking() && isFreshResult(result, Date.now())) onResult(result);
       } finally { notificationPending.setBlocking(false); }
     };
     const fail = (message: string) => {

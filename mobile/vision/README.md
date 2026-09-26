@@ -10,7 +10,7 @@
 
 ## 정지 사진 설명 동작
 
-1. 사용자가 멈췄음을 확인한 뒤 촬영 버튼에서 `request()`를 호출합니다. 카메라 호출 전에 이전 요청을 무효화하고 기존 음성을 중지합니다.
+1. 외부 서비스로 사진이 전송됨을 알리고 동의를 받은 다음, 사용자가 멈췄음을 확인한 뒤 촬영 버튼에서 `request()`를 호출합니다. 카메라 호출 전에 이전 요청을 무효화하고 기존 음성을 중지합니다.
 2. 카메라 호출은 하나씩 실행합니다. 촬영 중 여러 요청이 쌓이면 이전 대기 요청을 건너뛰고 가장 최근 요청만 촬영합니다.
 3. 사진마다 새로운 UUID를 보내고 서버 응답의 `request_id`를 확인합니다. 이전 HTTP 요청에는 abort를 전달하되, 취소가 무시되어도 이전 결과·오류를 버립니다.
 4. 음성 출력을 시작하기 직전에도 요청 세대와 경과 시간을 검사합니다. 기본 유효 시간은 촬영 버튼을 누른 시점부터 15초이며 기기 평가 후 조정할 값입니다.
@@ -20,11 +20,13 @@
 
 ## Expo 연결 예
 
-실제 Expo 앱에서 `expo-camera`, `expo-crypto`, `expo-speech`를 구성한 뒤 사용하는 연결 예입니다. 이 예제는 별도 정지 사진 UI를 위한 것으로, 현재 카메라 앱에는 expo-camera·expo-crypto와 서버 업로드를 연결하지 않았습니다.
+실제 Expo 앱에서 `expo-camera`, `expo-crypto`, `expo-speech`를 구성한 뒤 사용하는 연결 예입니다. 이 예제는 별도 정지 사진 UI를 위한 것으로, 현재 카메라 앱에는 expo-camera·expo-crypto·expo-file-system과 서버 업로드를 연결하지 않았습니다.
 
 ```js
 import * as Crypto from "expo-crypto";
 import * as Speech from "expo-speech";
+import { File } from "expo-file-system";
+import { fetch as expoFetch } from "expo/fetch";
 import { LatestVisionController } from "./vision/LatestVisionController.mjs";
 import { createVisionTransport } from "./vision/createVisionTransport.mjs";
 
@@ -34,8 +36,14 @@ const assistant = new LatestVisionController({
     const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
     return { uri: photo.uri, mimeType: "image/jpeg" };
   },
+  // Mandatory: delete only the temporary file owned by this capture.
+  releasePhoto: async photo => {
+    const file = new File(photo.uri);
+    if (file.exists) file.delete();
+  },
   describe: createVisionTransport({
-    baseUrl: "http://YOUR_LOCAL_PC:8000", // 로컬 기기 테스트용; 배포는 HTTPS
+    baseUrl: "https://YOUR_BACKEND", // 기본 HTTPS만 허용; 키를 URL에 넣지 않습니다.
+    fetchImpl: expoFetch, // RN의 기본 XHR fetch는 redirect:error를 보장하지 않습니다.
     apiKey: demoAccessToken, // OpenAI 키를 넣지 않습니다.
   }),
   makeRequestId: () => Crypto.randomUUID(),
@@ -45,6 +53,8 @@ const assistant = new LatestVisionController({
   onError: error => showAccessibleError(error.message),
 });
 
+// 외부 AI 수신자·전송 내용 안내에 대한 사용자의 명시적 동의 뒤:
+await assistant.setExternalProcessingConsent(true);
 // 사용자의 정지 확인과 촬영 버튼 동작:
 await assistant.setStationary(true);
 await assistant.request({ expectedPlace: "도서관 입구" });
@@ -61,7 +71,9 @@ await assistant.dispose();
 
 `speak`는 동기적으로 발화를 큐에 넣는 함수여야 합니다. 비동기 작업 뒤 발화를 시작하는 콜백을 넣으면 최종 시점 검사가 깨집니다. [Expo Speech](https://docs.expo.dev/versions/latest/sdk/speech/)의 `speak`와 `stop`을 기준으로 구성했습니다. 다른 길안내 TTS도 같은 음성 제어 경로에서 조정하세요. 오류·재촬영 안내를 접근성 스크린 리더와 이중 낭독하지 않도록 실제 앱에서 확인해야 합니다.
 
-카메라 권한, 임시 사진 파일 삭제, 앱 상태 구독, 정지 확인 UI는 앱 연결 시 구현할 부분입니다. 이 모듈은 사진을 저장하거나 기록하지 않지만 `capture`가 만든 기기 캐시 파일은 앱이 소유하고 정리해야 합니다. 공유 데모 토큰은 운영용 사용자 인증이 아닙니다.
+카메라 권한, 앱 상태 구독, 정지·외부 전송 동의 UI는 별도 사진 화면을 연결할 때 구현해야 합니다. `releasePhoto`는 필수 콜백이며 성공·오류·취소·늦게 끝난 촬영에서 사진마다 한 번 호출됩니다. 삭제 실패는 알리고 추가 촬영을 차단합니다. 캡처 도중 내부적으로 만든 파일은 `capture`가 반환하지 못할 경우 캡처 어댑터가 정리해야 합니다. `setExternalProcessingConsent(false)`는 진행 중 요청을 취소하고 늦은 결과를 무효화하지만 이미 전송된 사진을 회수하지는 못합니다.
+
+전송 모듈은 HTTPS만 허용하고 리디렉션을 거부하도록 요청합니다. 이를 지원하는 `expo/fetch`를 명시적으로 주입해야 하며, React Native의 기본 XHR fetch로 자동 대체하지 않습니다. 개발 중 사설 IP·loopback HTTP가 필요한 경우에만 `allowInsecureLocalHttp: true`를 명시하세요. HTTP 구간은 암호화되지 않으며 운영용이 아닙니다. 실제 네이티브 fetch의 리디렉션/취소 처리와 파일 삭제는 기기에서도 확인해야 합니다. 공유 데모 토큰은 운영용 사용자 인증이 아닙니다.
 
 ## 검증
 

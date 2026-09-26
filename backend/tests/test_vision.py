@@ -35,7 +35,11 @@ def upload(client, jpeg, **kwargs):
     return client.post(
         "/vision/describe",
         files={"image": ("frame.jpg", jpeg, "image/jpeg")},
-        data={"stationary": "true", "request_id": "00000000-0000-4000-8000-000000000001"},
+        data={
+            "stationary": "true",
+            "external_processing_consent": "true",
+            "request_id": "00000000-0000-4000-8000-000000000001",
+        },
         **kwargs,
     )
 
@@ -61,7 +65,11 @@ def test_user_must_be_stopped(client, jpeg):
     response = client.post(
         "/vision/describe",
         files={"image": ("frame.jpg", jpeg, "image/jpeg")},
-        data={"stationary": "false", "request_id": "00000000-0000-4000-8000-000000000001"},
+        data={
+            "stationary": "false",
+            "external_processing_consent": "true",
+            "request_id": "00000000-0000-4000-8000-000000000001",
+        },
     )
     assert response.status_code == 409
 
@@ -77,7 +85,11 @@ def test_bad_uploads(client, content, mime, status):
     response = client.post(
         "/vision/describe",
         files={"image": ("frame", content, mime)},
-        data={"stationary": "true", "request_id": "00000000-0000-4000-8000-000000000001"},
+        data={
+            "stationary": "true",
+            "external_processing_consent": "true",
+            "request_id": "00000000-0000-4000-8000-000000000001",
+        },
     )
     assert response.status_code == status
 
@@ -244,7 +256,7 @@ def test_sdk_timeout_becomes_gateway_timeout():
 
 @pytest.mark.parametrize("request_id", [None, "not-a-uuid", ""])
 def test_capture_id_is_required_and_validated(client, jpeg, request_id):
-    data = {"stationary": "true"}
+    data = {"stationary": "true", "external_processing_consent": "true"}
     if request_id is not None:
         data["request_id"] = request_id
     response = client.post(

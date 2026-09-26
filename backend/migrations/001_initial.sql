@@ -25,10 +25,12 @@ create table public.path_edges (
   to_waypoint text not null references public.waypoints(id),
   distance_m double precision not null check (distance_m > 0 and distance_m < 'Infinity'::float8),
   pedestrian_verified boolean not null default false,
+  verified_at timestamptz,
   instruction text not null,
   reverse_instruction text,
   bidirectional boolean not null default true,
   check (from_waypoint <> to_waypoint),
+  check (not pedestrian_verified or verified_at is not null),
   check (not bidirectional or reverse_instruction is not null)
 );
 
