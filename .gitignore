@@ -8,6 +8,8 @@ node_modules/
 .env
 .env.local
 .env.*
+!.env.example
+!**/.env.example
 
 # Expo / React Native
 .expo/
@@ -17,3 +19,10 @@ dist/
 __pycache__/
 *.pyc
 .venv/
+
+# Local generated dependencies and caches
+backend/.venv/
+.pytest_cache/
+mobile/node_modules/
+mobile/.expo/
+.pnpm-store/
