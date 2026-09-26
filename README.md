@@ -1,5 +1,7 @@
 # SENSEA
 
+개발 진행 내역: [README1 — 구현 내용·검증 결과·설치 파일·남은 작업](README1.md)
+
 **Voice-first, noise-aware navigation with optional AI visual assistance for blind and low-vision users.**
 
 > Hackathon prototype · 3–4 developers · 24 hours  
