@@ -12,7 +12,6 @@ from fastapi.security import APIKeyHeader
 from starlette.concurrency import run_in_threadpool
 
 from app.config import Settings
-from app.db import DemoRepository
 from app.errors import APIError, register_error_handlers
 from app.images import prepare_image
 from app.middleware import BodySizeLimitMiddleware
@@ -25,7 +24,9 @@ from app.models import (
     VisionRetakeResponse,
 )
 from app.quality import assess_quality
+from app.repository import Repository
 from app.routing import plan_routes
+from app.storage import create_repository
 from app.vision import DisabledVisionProvider, OpenAIVisionProvider, VisionProvider
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -33,11 +34,12 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def create_app(
     settings: Settings | None = None,
-    repository: DemoRepository | None = None,
+    repository: Repository | None = None,
     provider: VisionProvider | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
-    repository = repository or DemoRepository(settings.noise_ttl_seconds)
+    owns_repository = repository is None
+    repository = repository if repository is not None else create_repository(settings)
     vision_calls = deque()
 
     @asynccontextmanager
@@ -53,8 +55,12 @@ def create_app(
         try:
             yield
         finally:
-            if owned is not None:
-                await owned.close()
+            try:
+                if owned is not None:
+                    await owned.close()
+            finally:
+                if owns_repository:
+                    await run_in_threadpool(repository.close)
 
     app = FastAPI(title="SENSEA API", version="0.2.0", lifespan=lifespan)
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_image_bytes + 64 * 1024)
@@ -77,7 +83,7 @@ def create_app(
     async def health():
         return {
             "status": "ok",
-            "data_mode": "demo",
+            "data_mode": "demo" if repository.simulation_only else "live",
             "simulation_only": repository.simulation_only,
             "vision_configured": settings.vision_provider != "disabled",
         }
@@ -86,7 +92,7 @@ def create_app(
     async def places(q: Annotated[str, Query(max_length=100)] = ""):
         return {
             "simulation_only": repository.simulation_only,
-            "places": repository.search_places(q.strip()),
+            "places": await run_in_threadpool(repository.search_places, q.strip()),
         }
 
     @app.post(
@@ -96,14 +102,14 @@ def create_app(
         tags=["routes"],
     )
     async def routes(payload: RouteRequest):
-        return plan_routes(repository, payload)
+        return await run_in_threadpool(plan_routes, repository, payload)
 
     @app.post("/noise", dependencies=[Depends(authenticate)], tags=["noise"])
     async def noise(payload: NoiseRequest):
         return {
             "accepted": True,
             "simulation_only": repository.simulation_only,
-            "summary": repository.add_noise(payload),
+            "summary": await run_in_threadpool(repository.add_noise, payload),
         }
 
     @app.post(

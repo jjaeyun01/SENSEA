@@ -4,6 +4,7 @@ from math import inf
 
 from app.errors import APIError
 from app.models import Graph, NoiseSummary, Route, RouteRequest, RouteResponse, Segment
+from app.repository import Repository
 
 
 def find_route(
@@ -94,21 +95,21 @@ def summarize(route_id: str, segments: list[Segment], simulation: bool) -> Route
     )
 
 
-def plan_routes(repository, request: RouteRequest) -> RouteResponse:
+def plan_routes(repository: Repository, request: RouteRequest) -> RouteResponse:
     if repository.simulation_only and not request.simulation:
         raise APIError(
             409,
             "simulation_required",
             "현재 데이터는 가상 예제입니다. simulation=true가 필요합니다.",
         )
-    graph = repository.graph
+    graph = repository.get_graph()
     known = {waypoint.id for waypoint in graph.waypoints}
     if request.start_waypoint not in known or request.end_waypoint not in known:
         raise APIError(404, "unknown_waypoint", "등록되지 않은 출발지 또는 목적지입니다.")
     if request.start_waypoint == request.end_waypoint:
         raise APIError(422, "same_waypoint", "출발지와 목적지가 같습니다.")
     now = datetime.now(UTC)
-    noise = {edge.id: repository.noise_summary(edge.id, now) for edge in graph.edges}
+    noise = repository.noise_summaries([edge.id for edge in graph.edges], now)
     candidates = []
     seen = set()
     for route_id, weight in [("shortest", 0.0), ("quiet", 2.0)]:
