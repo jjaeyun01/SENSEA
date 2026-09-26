@@ -375,3 +375,8 @@ Agree on request/response schemas before coding in parallel. Make a working end-
 ## 13. Definition of done
 
 The hackathon MVP is complete when a tester can use accessible controls or speech to select a destination, hear and choose between verified route alternatives informed by measured noise, follow a simulated spoken journey, and request a spoken camera description of a stationary landmark. The team must also be able to explain the limits of its location, noise, and AI measurements without claiming real-world navigation safety.
+
+
+## Backend implementation
+
+A runnable FastAPI foundation is available in [backend/README.md](backend/README.md), with setup instructions, API examples, tests, and an initial Supabase schema. The included route/noise dataset is synthetic and simulation-only; camera descriptions require a configured server-side model key. Supabase persistence and speech transcription remain integration points.
