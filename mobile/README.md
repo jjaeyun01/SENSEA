@@ -8,7 +8,7 @@ Android와 iPhone에서 후면 카메라 → 로컬 품질 검사 → EfficientD
 
 ## 실행
 
-Node.js 22를 사용합니다. 네이티브 카메라 모듈이 있으므로 **Expo Go에서는 실행할 수 없습니다**.
+Node.js 22를 사용합니다. Android는 8.0(API 26) 이상이며, GPU 프레임 변환의 기기 호환성은 실기기에서 확인해야 합니다. 네이티브 카메라 모듈이 있으므로 **Expo Go에서는 실행할 수 없습니다**.
 
 ```sh
 cd mobile
