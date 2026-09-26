@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
@@ -93,5 +94,26 @@ class VisionScene(Model):
     sidewalk: Literal["detected", "not_detected", "uncertain"]
 
 
-class VisionResponse(VisionScene):
+class ImageQuality(Model):
+    status: Literal["usable", "retake"]
+    reason: Literal["low_resolution", "too_dark", "too_bright", "low_detail"] | None
+    guidance: str | None
+
+
+class VisionDescriptionResponse(VisionScene):
+    status: Literal["described"] = "described"
+    request_id: UUID
+    quality: ImageQuality
     navigation_safe: Literal[False] = False
+
+
+class VisionRetakeResponse(Model):
+    status: Literal["retake"] = "retake"
+    request_id: UUID
+    quality: ImageQuality
+    navigation_safe: Literal[False] = False
+
+
+VisionResponse = Annotated[
+    VisionDescriptionResponse | VisionRetakeResponse, Field(discriminator="status")
+]

@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     vision_requests_per_minute: int = Field(default=6, ge=1, le=60)
     max_image_bytes: int = Field(default=5 * 1024 * 1024, gt=0, le=10 * 1024 * 1024)
     max_image_pixels: int = Field(default=12_000_000, gt=0, le=24_000_000)
+    # Prototype heuristics: calibrate with consented phone captures before deployment.
+    quality_min_short_side: int = Field(default=192, ge=32, le=1024)
+    quality_clip_fraction: float = Field(default=0.85, ge=0.5, le=1)
+    quality_min_edge_mean: float = Field(default=1.5, ge=0, le=255)
     noise_ttl_seconds: int = Field(default=3600, ge=1, le=86400)
     cors_origins: list[str] = []
 

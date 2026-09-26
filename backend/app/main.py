@@ -4,6 +4,7 @@ import time
 from collections import deque
 from contextlib import asynccontextmanager
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,7 +16,15 @@ from app.db import DemoRepository
 from app.errors import APIError, register_error_handlers
 from app.images import prepare_image
 from app.middleware import BodySizeLimitMiddleware
-from app.models import NoiseRequest, RouteRequest, RouteResponse, VisionResponse
+from app.models import (
+    NoiseRequest,
+    RouteRequest,
+    RouteResponse,
+    VisionDescriptionResponse,
+    VisionResponse,
+    VisionRetakeResponse,
+)
+from app.quality import assess_quality
 from app.routing import plan_routes
 from app.vision import DisabledVisionProvider, OpenAIVisionProvider, VisionProvider
 
@@ -47,7 +56,7 @@ def create_app(
             if owned is not None:
                 await owned.close()
 
-    app = FastAPI(title="SENSEA API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="SENSEA API", version="0.2.0", lifespan=lifespan)
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_image_bytes + 64 * 1024)
     app.add_middleware(
         CORSMiddleware,
@@ -107,6 +116,7 @@ def create_app(
         request: Request,
         image: Annotated[UploadFile, File(description="Stationary JPEG, PNG or WebP snapshot")],
         stationary: Annotated[bool, Form(description="User confirms they are stopped")],
+        request_id: Annotated[UUID, Form(description="New UUID for every capture attempt")],
         expected_place: Annotated[str | None, Form(max_length=200)] = None,
     ):
         try:
@@ -120,7 +130,6 @@ def create_app(
             await image.close()
         if len(data) > settings.max_image_bytes:
             raise APIError(413, "image_too_large", "이미지 파일 크기 제한을 초과했습니다.")
-        jpeg = await run_in_threadpool(prepare_image, data, content_type, settings.max_image_pixels)
         # Global per-process budget suits the single-worker hackathon demo.
         now = time.monotonic()
         while vision_calls and now - vision_calls[0] >= 60:
@@ -128,12 +137,18 @@ def create_app(
         if len(vision_calls) >= settings.vision_requests_per_minute:
             raise APIError(429, "vision_rate_limited", "잠시 후 카메라 설명을 다시 요청해 주세요.")
         vision_calls.append(now)
+        jpeg = await run_in_threadpool(prepare_image, data, content_type, settings.max_image_pixels)
+        quality = await run_in_threadpool(assess_quality, jpeg, settings)
+        if quality.status == "retake":
+            return VisionRetakeResponse(request_id=request_id, quality=quality)
         try:
             async with asyncio.timeout(settings.vision_timeout_seconds):
                 scene = await request.app.state.vision.describe(jpeg, expected_place)
         except TimeoutError as exc:
             raise APIError(504, "vision_timeout", "카메라 설명 시간이 초과되었습니다.") from exc
-        return VisionResponse(**scene.model_dump())
+        return VisionDescriptionResponse(
+            request_id=request_id, quality=quality, **scene.model_dump()
+        )
 
     @app.post("/speech/transcribe", dependencies=[Depends(authenticate)], tags=["speech"])
     async def transcribe():

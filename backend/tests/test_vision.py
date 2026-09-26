@@ -35,7 +35,7 @@ def upload(client, jpeg, **kwargs):
     return client.post(
         "/vision/describe",
         files={"image": ("frame.jpg", jpeg, "image/jpeg")},
-        data={"stationary": "true"},
+        data={"stationary": "true", "request_id": "00000000-0000-4000-8000-000000000001"},
         **kwargs,
     )
 
@@ -44,6 +44,9 @@ def test_success_returns_description_without_navigation_permission(settings, jpe
     with TestClient(create_app(settings, provider=FakeVision())) as client:
         response = upload(client, jpeg)
     assert response.status_code == 200
+    assert response.json()["status"] == "described"
+    assert response.json()["quality"]["status"] == "usable"
+    assert response.json()["request_id"] == "00000000-0000-4000-8000-000000000001"
     assert response.json()["recognized_text"] == ["도서관"]
     assert response.json()["navigation_safe"] is False
 
@@ -58,7 +61,7 @@ def test_user_must_be_stopped(client, jpeg):
     response = client.post(
         "/vision/describe",
         files={"image": ("frame.jpg", jpeg, "image/jpeg")},
-        data={"stationary": "false"},
+        data={"stationary": "false", "request_id": "00000000-0000-4000-8000-000000000001"},
     )
     assert response.status_code == 409
 
@@ -74,7 +77,7 @@ def test_bad_uploads(client, content, mime, status):
     response = client.post(
         "/vision/describe",
         files={"image": ("frame", content, mime)},
-        data={"stationary": "true"},
+        data={"stationary": "true", "request_id": "00000000-0000-4000-8000-000000000001"},
     )
     assert response.status_code == status
 
@@ -86,7 +89,7 @@ def test_file_and_total_request_limits(settings, jpeg):
         # The stream lacks a Content-Length and must still be bounded.
         response = client.post(
             "/vision/describe",
-            content=iter([b"x" * 40000, b"x" * 40000]),
+            content=iter([b"x" * (settings.max_image_bytes + 1), b"x" * (64 * 1024)]),
             headers={"Content-Type": "application/octet-stream"},
         )
         assert response.status_code == 413
@@ -237,3 +240,16 @@ def test_sdk_timeout_becomes_gateway_timeout():
         assert exc.value.status == 504
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("request_id", [None, "not-a-uuid", ""])
+def test_capture_id_is_required_and_validated(client, jpeg, request_id):
+    data = {"stationary": "true"}
+    if request_id is not None:
+        data["request_id"] = request_id
+    response = client.post(
+        "/vision/describe",
+        files={"image": ("image.jpg", jpeg, "image/jpeg")},
+        data=data,
+    )
+    assert response.status_code == 422

@@ -1,9 +1,9 @@
-name: Backend checks
+name: SENSEA checks
 on:
   push:
-    paths: ["backend/**", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "mobile/vision/**", ".github/workflows/backend.yml"]
   pull_request:
-    paths: ["backend/**", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "mobile/vision/**", ".github/workflows/backend.yml"]
 permissions:
   contents: read
 jobs:
@@ -21,3 +21,12 @@ jobs:
       - run: python -m ruff check .
       - run: python -m ruff format --check .
       - run: python -m pytest -q
+
+  mobile-vision:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --test mobile/vision/tests/*.test.mjs
