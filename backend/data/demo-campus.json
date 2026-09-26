@@ -1,0 +1,18 @@
+{
+  "simulation_only": true,
+  "description": "Fictional campus graph. Coordinates omitted intentionally. Not for real navigation.",
+  "waypoints": ["start", "plaza", "garden", "library_entrance", "cafe_entrance", "student_center"],
+  "places": [
+    {"id": "library", "name": "Library", "aliases": ["library"], "waypoint_id": "library_entrance"},
+    {"id": "cafe", "name": "Cafe", "aliases": ["cafe", "coffee shop"], "waypoint_id": "cafe_entrance"},
+    {"id": "student-center", "name": "Student Center", "aliases": ["student center"], "waypoint_id": "student_center"}
+  ],
+  "edges": [
+    {"id": "start-plaza", "from": "start", "to": "plaza", "distance_m": 100, "pedestrian_verified": false, "bidirectional": true, "instruction": "Simulating travel to the plaza waypoint.", "reverse_instruction": "Simulating a return to the starting waypoint."},
+    {"id": "plaza-library", "from": "plaza", "to": "library_entrance", "distance_m": 100, "pedestrian_verified": false, "bidirectional": true, "instruction": "Continue to the library entrance waypoint.", "reverse_instruction": "Continue to the plaza waypoint."},
+    {"id": "start-garden", "from": "start", "to": "garden", "distance_m": 140, "pedestrian_verified": false, "bidirectional": true, "instruction": "Simulating travel to the garden waypoint.", "reverse_instruction": "Return to the starting waypoint."},
+    {"id": "garden-library", "from": "garden", "to": "library_entrance", "distance_m": 140, "pedestrian_verified": false, "bidirectional": true, "instruction": "Continue through the garden to the library entrance waypoint.", "reverse_instruction": "Continue to the garden waypoint."},
+    {"id": "plaza-cafe", "from": "plaza", "to": "cafe_entrance", "distance_m": 80, "pedestrian_verified": false, "bidirectional": true, "instruction": "Continue to the cafe entrance waypoint.", "reverse_instruction": "Continue to the plaza waypoint."},
+    {"id": "garden-center", "from": "garden", "to": "student_center", "distance_m": 90, "pedestrian_verified": false, "bidirectional": true, "instruction": "Continue to the student center waypoint.", "reverse_instruction": "Continue to the garden waypoint."}
+  ]
+}

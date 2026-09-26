@@ -2,6 +2,22 @@
 
 **Voice-first, noise-aware navigation with optional AI visual assistance for blind and low-vision users.**
 
+## Implementation quick start
+
+Track implemented modules and remaining app work in [CHECKLIST.md](CHECKLIST.md).
+
+Code is separated into two folders:
+
+- [frontend/](frontend/README.md): mobile TypeScript modules and tests.
+- [backend/](backend/README.md): FastAPI server, route data, persistence, and tests.
+- [docs/](docs/team-integration.md): shared API and team integration guide.
+
+Backend APIs and independent mobile voice/navigation/noise modules are now available.
+See [팀 연결 및 실행 가이드](docs/team-integration.md) for setup, API contracts, frontend integration, and tests.
+The included graph is fictional and simulation-only. Storage currently uses local SQLite;
+Supabase, native recording/playback adapters, camera analysis, and live GPS guidance are not yet integrated.
+The roadmap below remains the original MVP plan, not a claim that every feature is implemented.
+
 > Hackathon prototype · 3–4 developers · 24 hours  
 > **Safety:** SENSEA is an experimental information aid, **not** a mobility aid or obstacle-avoidance system. Do not use it to decide whether a street crossing or route is safe. Test navigation in a controlled setting, not blindfolded in traffic. A camera description is not evidence that a route is clear.
 
@@ -230,7 +246,7 @@ Recommended project layout:
 ```text
 sensea/
 ├── README.md
-├── mobile/
+├── frontend/
 │   ├── app/
 │   │   ├── index.tsx              # Accessible destination screen
 │   │   ├── routes.tsx             # Spoken route choices
@@ -259,8 +275,8 @@ Bootstrap commands:
 
 ```bash
 # Mobile
-npx create-expo-app@latest mobile --template default
-cd mobile
+npx create-expo-app@latest frontend --template default
+cd frontend
 npx expo install expo-speech expo-camera expo-location expo-audio
 # Check the current Expo SDK's map and speech-recognition compatibility before installing them.
 npx expo start
@@ -273,7 +289,7 @@ pip install fastapi 'uvicorn[standard]' supabase python-multipart httpx
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Minimal accessible voice-output screen (`mobile/app/index.tsx`):
+Minimal accessible voice-output screen (`frontend/app/index.tsx`):
 
 ```tsx
 import React, { useState } from 'react';
