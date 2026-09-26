@@ -1,0 +1,74 @@
+name: SENSEA iPhone test package
+on:
+  push:
+    paths: ["mobile/**", ".github/workflows/ios-device.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: iphone-package-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  CI: "1"
+  EXPO_NO_TELEMETRY: "1"
+jobs:
+  iphone:
+    runs-on: macos-26
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run models:download
+      - run: npm run typecheck
+      - run: npx expo prebuild --platform ios --no-install
+      - run: cd ios && pod install
+      - name: Compile for a physical iPhone without account credentials
+        run: |
+          set -o pipefail
+          xcodebuild -workspace ios/SENSEA.xcworkspace -scheme SENSEA \
+            -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            build > iphone-build.log 2>&1 || { tail -n 160 iphone-build.log; exit 1; }
+      - name: Verify iPhone privacy permissions
+        run: python3 scripts/check-package-privacy.py ios build/Build/Products/Release-iphoneos/SENSEA.app
+      - name: Verify device target and package IPA for personal signing
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, pathlib, plistlib
+          app = pathlib.Path("build/Build/Products/Release-iphoneos/SENSEA.app")
+          info = plistlib.loads((app / "Info.plist").read_bytes())
+          assert info["CFBundleSupportedPlatforms"] == ["iPhoneOS"], info
+          assert info["CFBundleIdentifier"] == "com.sensea.app"
+          assert (app / "main.jsbundle").is_file(), "Missing offline JavaScript bundle"
+          manifest = json.loads(pathlib.Path("assets/models/manifest.json").read_text())
+          models = list(app.rglob("*.tflite"))
+          assert len(models) == 1, models
+          assert hashlib.sha256(models[0].read_bytes()).hexdigest() == manifest["sha256"]
+          print("Device package verified. Minimum iOS:", info["MinimumOSVersion"])
+          PY
+          xcrun vtool -show-build build/Build/Products/Release-iphoneos/SENSEA.app/SENSEA
+          mkdir -p package/Payload
+          ditto build/Build/Products/Release-iphoneos/SENSEA.app package/Payload/SENSEA.app
+          cd package
+          zip -qry ../SENSEA-iphone-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sensea-iphone-build-log
+          path: mobile/iphone-build.log
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sensea-iphone-unsigned
+          path: mobile/SENSEA-iphone-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14

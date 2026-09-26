@@ -1,7 +1,8 @@
 """Local persistent summaries, without audio, user IDs, or movement traces."""
+
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 FRESH_SECONDS = 3600
@@ -32,26 +33,31 @@ class NoiseStore:
         db.execute("DELETE FROM noise WHERE observed_at < ?", (cutoff,))
 
     def add(self, edge_id, score, now=None):
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(UTC)
         with self.connect() as db:
             self.prune(db, now)
             db.execute("INSERT INTO noise VALUES (?, ?, ?)", (edge_id, now.isoformat(), score))
 
     def summaries(self, edge_ids, now=None):
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(UTC)
         cutoff = (now - timedelta(seconds=FRESH_SECONDS)).isoformat()
         result = {}
         with self.connect() as db:
             self.prune(db, now)
             for edge_id in edge_ids:
                 score, count, oldest, latest = db.execute(
-                    "SELECT AVG(relative_noise), COUNT(*), MIN(observed_at), MAX(observed_at) FROM noise WHERE edge_id=? AND observed_at>=?",
+                    """SELECT AVG(relative_noise), COUNT(*), MIN(observed_at), MAX(observed_at)
+                       FROM noise WHERE edge_id=? AND observed_at>=?""",
                     (edge_id, cutoff),
                 ).fetchone()
-                last = db.execute("SELECT MAX(observed_at) FROM noise WHERE edge_id=?", (edge_id,)).fetchone()[0]
+                last = db.execute(
+                    "SELECT MAX(observed_at) FROM noise WHERE edge_id=?", (edge_id,)
+                ).fetchone()[0]
                 result[edge_id] = {
                     "status": "measured" if count else "stale" if last else "unknown",
-                    "relative_noise": score, "sample_count": count,
-                    "oldest_observed_at": oldest, "latest_observed_at": latest or last,
+                    "relative_noise": score,
+                    "sample_count": count,
+                    "oldest_observed_at": oldest,
+                    "latest_observed_at": latest or last,
                 }
         return result

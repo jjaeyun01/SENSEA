@@ -1,0 +1,37 @@
+{
+  "name": "sensea-mobile",
+  "version": "0.4.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test vision/tests/*.test.mjs src/vision/tests/*.test.mjs",
+    "models:download": "node scripts/download-model.mjs",
+    "export:check": "expo export --platform all --output-dir dist"
+  },
+  "dependencies": {
+    "expo": "57.0.25",
+    "expo-build-properties": "57.0.22",
+    "expo-dev-client": "57.0.19",
+    "expo-speech": "57.0.3",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-fast-tflite": "3.0.1",
+    "react-native-nitro-image": "0.15.2",
+    "react-native-nitro-modules": "0.37.1",
+    "react-native-safe-area-context": "5.7.0",
+    "react-native-vision-camera": "5.2.3",
+    "react-native-vision-camera-resizer": "5.2.3",
+    "react-native-vision-camera-worklets": "5.2.3",
+    "react-native-worklets": "0.10.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@types/react": "~19.2.2",
+    "babel-preset-expo": "57.0.13",
+    "typescript": "~6.0.3"
+  }
+}

@@ -97,7 +97,8 @@ curl http://localhost:8000/noise \
 
 ```bash
 cd backend
-python -m unittest discover -s tests -v
+python -m unittest tests.test_api -v
+python -m pytest -q
 ```
 
 TypeScript 모듈 테스트는 Node 22.7+에서 프로젝트 루트 기준:

@@ -2,7 +2,7 @@ import copy
 import os
 import tempfile
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,7 +16,9 @@ from app.routing import load_graph, shortest_path
 class ApiTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.env = patch.dict(os.environ, {"SENSEA_WRITE_TOKEN": "test-token", "OPENAI_API_KEY": ""})
+        self.env = patch.dict(
+            os.environ, {"SENSEA_WRITE_TOKEN": "test-token", "OPENAI_API_KEY": ""}
+        )
         self.env.start()
         self.app = create_app(db_path=Path(self.tmp.name) / "noise.sqlite3")
         self.client = TestClient(self.app)
@@ -28,10 +30,12 @@ class ApiTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def route(self, **overrides):
-        return self.client.post("/routes", json={"start_waypoint": "start", "end_waypoint": "library_entrance", **overrides})
+        payload = {"start_waypoint": "start", "end_waypoint": "library_entrance", **overrides}
+        return self.client.post("/routes", json=payload)
 
     def test_places_and_unknown_nodes(self):
-        self.assertEqual(self.client.get("/places?q=library").json()["places"][0]["name"], "Library")
+        places = self.client.get("/places?q=library").json()["places"]
+        self.assertEqual(places[0]["name"], "Library")
         self.assertEqual(self.client.get("/places?q=missing").json()["places"], [])
         self.assertEqual(self.route(end_waypoint="missing").status_code, 404)
 
@@ -45,8 +49,18 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.route(mode="live").status_code, 409)
 
     def test_noise_changes_route_and_persists(self):
-        for edge, score in [("start-plaza", .9), ("plaza-library", .9), ("start-garden", .1), ("garden-library", .1)]:
-            result = self.client.post("/noise", headers=self.headers, json={"edge_id": edge, "relative_noise": score, "consent": True})
+        samples = [
+            ("start-plaza", 0.9),
+            ("plaza-library", 0.9),
+            ("start-garden", 0.1),
+            ("garden-library", 0.1),
+        ]
+        for edge, score in samples:
+            result = self.client.post(
+                "/noise",
+                headers=self.headers,
+                json={"edge_id": edge, "relative_noise": score, "consent": True},
+            )
             self.assertEqual(result.status_code, 201)
         result = self.route().json()
         self.assertEqual(len(result["routes"]), 2)
@@ -57,15 +71,21 @@ class ApiTests(unittest.TestCase):
         other.close()
 
     def test_consent_auth_validation(self):
-        body = {"edge_id": "start-plaza", "relative_noise": .5, "consent": True}
+        body = {"edge_id": "start-plaza", "relative_noise": 0.5, "consent": True}
         self.assertEqual(self.client.post("/noise", json=body).status_code, 401)
-        for changes, expected in [({"consent": False}, 403), ({"relative_noise": 2}, 422), ({"edge_id": "missing"}, 404)]:
-            self.assertEqual(self.client.post("/noise", headers=self.headers, json={**body, **changes}).status_code, expected)
+        cases = [
+            ({"consent": False}, 403),
+            ({"relative_noise": 2}, 422),
+            ({"edge_id": "missing"}, 404),
+        ]
+        for changes, expected in cases:
+            response = self.client.post("/noise", headers=self.headers, json={**body, **changes})
+            self.assertEqual(response.status_code, expected)
 
     def test_stale_and_expired_measurements(self):
-        now = datetime.now(timezone.utc)
-        self.app.state.noise_store.add("start-plaza", .1, now - timedelta(hours=2))
-        self.app.state.noise_store.add("start-garden", .1, now - timedelta(days=8))
+        now = datetime.now(UTC)
+        self.app.state.noise_store.add("start-plaza", 0.1, now - timedelta(hours=2))
+        self.app.state.noise_store.add("start-garden", 0.1, now - timedelta(days=8))
         edges = self.client.get("/noise").json()["edges"]
         self.assertEqual(edges["start-plaza"]["status"], "stale")
         self.assertIsNone(edges["start-plaza"]["relative_noise"])
@@ -73,7 +93,8 @@ class ApiTests(unittest.TestCase):
 
     def test_reverse_instruction_and_same_start(self):
         result = self.route(start_waypoint="library_entrance", end_waypoint="start").json()
-        self.assertEqual(result["routes"][0]["segments"][0]["instruction"], "Continue to the plaza waypoint.")
+        instruction = result["routes"][0]["segments"][0]["instruction"]
+        self.assertEqual(instruction, "Continue to the plaza waypoint.")
         arrived = self.route(end_waypoint="start").json()
         self.assertTrue(arrived["arrived"])
         self.assertEqual(arrived["routes"][0]["segments"], [])
@@ -81,7 +102,8 @@ class ApiTests(unittest.TestCase):
     def test_live_ignores_unverified_edges_and_one_way_is_respected(self):
         graph = load_graph(ROOT / "data/demo-campus.json")
         noise = self.app.state.noise_store.summaries(e["id"] for e in graph["edges"])
-        self.assertIsNone(shortest_path(graph, "start", "library_entrance", noise, simulation=False))
+        missing = shortest_path(graph, "start", "library_entrance", noise, simulation=False)
+        self.assertIsNone(missing)
         graph = copy.deepcopy(graph)
         for edge in graph["edges"]:
             edge["bidirectional"] = False
@@ -95,36 +117,71 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(len(response["routes"]), 2)
 
     def test_speech_validation_and_missing_key(self):
-        self.assertEqual(self.client.post("/speech/transcribe", headers=self.headers, content=b"x").status_code, 415)
-        self.assertEqual(self.client.post("/speech/transcribe", headers={**self.headers, "Content-Type": "audio/mp4"}, content=b"x").status_code, 503)
+        rejected = self.client.post("/speech/transcribe", headers=self.headers, content=b"x")
+        self.assertEqual(rejected.status_code, 415)
+        unconfigured = self.client.post(
+            "/speech/transcribe",
+            headers={**self.headers, "Content-Type": "audio/mp4"},
+            content=b"x",
+        )
+        self.assertEqual(unconfigured.status_code, 503)
 
     def test_speech_mocked_provider_success_and_limits(self):
         provider_requests = []
+
         class Provider:
-            async def __aenter__(self): return self
-            async def __aexit__(self, *args): pass
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                pass
+
             async def post(self, url, **kwargs):
                 provider_requests.append(kwargs)
-                return httpx.Response(200, json={"text": "Take me to the library"}, request=httpx.Request("POST", url))
+                return httpx.Response(
+                    200, json={"text": "Take me to the library"}, request=httpx.Request("POST", url)
+                )
+
         headers = {**self.headers, "Content-Type": "audio/mp4"}
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"}), patch("app.main.httpx.AsyncClient", return_value=Provider()):
-            self.assertEqual(self.client.post("/speech/transcribe", headers=headers, content=b"").status_code, 400)
-            self.assertEqual(self.client.post("/speech/transcribe", headers=headers, content=b"x" * (5 * 1024 * 1024 + 1)).status_code, 413)
+        env = patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+        client = patch("app.main.httpx.AsyncClient", return_value=Provider())
+        with env, client:
+            empty = self.client.post("/speech/transcribe", headers=headers, content=b"")
+            self.assertEqual(empty.status_code, 400)
+            oversized = b"x" * (5 * 1024 * 1024 + 1)
+            too_large = self.client.post("/speech/transcribe", headers=headers, content=oversized)
+            self.assertEqual(too_large.status_code, 413)
             result = self.client.post("/speech/transcribe", headers=headers, content=b"fake-audio")
             self.assertEqual(result.json()["transcript"], "Take me to the library")
             self.assertEqual(provider_requests[0]["data"]["language"], "en")
             for _ in range(7):
                 self.client.post("/speech/transcribe", headers=headers, content=b"fake-audio")
-            self.assertEqual(self.client.post("/speech/transcribe", headers=headers, content=b"fake-audio").status_code, 429)
+            limited = self.client.post("/speech/transcribe", headers=headers, content=b"fake-audio")
+            self.assertEqual(limited.status_code, 429)
 
     def test_provider_failure_returns_accessible_fallback_without_details(self):
         class Provider:
-            async def __aenter__(self): return self
-            async def __aexit__(self, *args): pass
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                pass
+
             async def post(self, url, **kwargs):
-                return httpx.Response(401, json={"error": "private-provider-detail"}, request=httpx.Request("POST", url))
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"}), patch("app.main.httpx.AsyncClient", return_value=Provider()):
-            response = self.client.post("/speech/transcribe", headers={**self.headers, "Content-Type": "audio/mp4"}, content=b"fake-audio")
+                return httpx.Response(
+                    401,
+                    json={"error": "private-provider-detail"},
+                    request=httpx.Request("POST", url),
+                )
+
+        env = patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+        client = patch("app.main.httpx.AsyncClient", return_value=Provider())
+        with env, client:
+            response = self.client.post(
+                "/speech/transcribe",
+                headers={**self.headers, "Content-Type": "audio/mp4"},
+                content=b"fake-audio",
+            )
             self.assertEqual(response.status_code, 502)
             self.assertNotIn("private-provider-detail", response.text)
 
