@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "SENSEA",
+    "slug": "sensea",
+    "version": "0.3.0",
+    "orientation": "portrait",
+    "scheme": "sensea",
+    "ios": {
+      "bundleIdentifier": "com.sensea.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "주변 사물을 기기에서 분석하고 음성으로 알려드리기 위해 카메라를 사용합니다."
+      }
+    },
+    "android": {
+      "package": "com.sensea.app",
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
+    },
+    "platforms": [
+      "ios",
+      "android"
+    ]
+  }
+}

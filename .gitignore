@@ -23,3 +23,9 @@ __pycache__/
 .coverage
 htmlcov/
 build/
+
+# Local package/model inspection
+.scratch/
+mobile/android/
+mobile/ios/
+mobile/assets/models/*.tflite

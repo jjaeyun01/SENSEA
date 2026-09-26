@@ -1,0 +1,48 @@
+# SENSEA 모바일 카메라
+
+Android와 iPhone에서 후면 카메라 → 로컬 품질 검사 → EfficientDet Lite0 객체 탐지 → 한국어 음성 안내를 연결한 Expo/React Native 앱입니다. 카메라를 켜면 분석을 시작하고, 끄거나 앱이 백그라운드로 이동하면 입력과 음성을 중지하고 네이티브 자원을 반환합니다.
+
+최대 초당 5회만 분석하며 처리 중 들어오는 프레임은 네이티브에서 버립니다. 이미지 파일·base64·영상 기록을 만들거나 서버로 전송하지 않습니다. 모델은 앱에 포함되므로 설치 후 분석에 네트워크가 필요하지 않습니다.
+
+현재 모델은 사람·차량 등 COCO 객체를 분류합니다. 차도/인도 영역 분할, 거리·충돌 시간 계산, OCR, GPS 길안내는 아직 연결하지 않았습니다. 신호등 객체 인식은 신호 색이나 횡단 가능 판정이 아닙니다.
+
+## 실행
+
+Node.js 22를 사용합니다. 네이티브 카메라 모듈이 있으므로 **Expo Go에서는 실행할 수 없습니다**.
+
+```sh
+cd mobile
+npm ci
+npm run models:download
+# Android SDK/JDK가 있는 컴퓨터 + USB 디버깅 휴대폰
+npm run android -- --device
+# macOS + Xcode + 개발용 서명 설정 + 연결된 iPhone
+npm run ios -- --device
+```
+
+최초 모델 다운로드는 SHA-256과 파일 크기를 검증합니다. 모델을 지웠으면 다시 다운로드한 뒤 빌드합니다. 개발 빌드를 설치한 후에는 `npm start`로 Metro에 연결합니다. Google Drive 같은 동기화 폴더에서 npm 설치 오류가 나면 저장소를 일반 로컬 디스크에 복제해 실행하세요.
+
+GitHub Actions의 **SENSEA native camera**는 두 OS의 네이티브 컴파일을 수행합니다. Android 성공 실행의 `sensea-android-arm64-demo` 아티팩트는 개발 키로 서명된 테스트 APK이며 앱스토어 배포용이 아닙니다. iOS 아티팩트는 시뮬레이터용으로, iPhone 설치에는 별도 Apple 개발 서명 또는 TestFlight 구성이 필요합니다.
+
+## 조작
+
+- **카메라 켜기**: 권한 요청 후 기기에서 분석합니다.
+- **음성 안내**: 같은 결과가 연속 확인된 경우, 최소 4초 간격으로 달라진 내용을 읽습니다.
+- **다시 듣기**: 1초 이내의 현재 결과만 읽습니다.
+- **카메라 끄기**: 처리 중인 프레임의 사용이 끝난 뒤 카메라·모델·변환 자원을 반환합니다. 앱 복귀 후 자동으로 카메라를 다시 켜지 않습니다.
+- **오픈소스 안내**: 사용 모델과 직접 의존 라이브러리의 라이선스를 확인합니다.
+
+## 검증
+
+```sh
+npm run typecheck
+npm test
+npm run export:check
+# Linux/macOS에서 실제 모델 계약 확인 (CI에도 포함)
+python -m pip install ai-edge-litert==1.4.0 numpy==2.2.6
+python scripts/check-model.py
+```
+
+단위 검사는 오류·스킵·1만 프레임 유입 시 메모리 반환, 작은 출력만 전달, 음성 반복 제한을 확인합니다. 번들·컴파일 성공은 실기기 성능 검증을 대체하지 않습니다. 실제 Android/iPhone에서 권한 거절·재허용, 카메라 50회 열기/닫기, 앱 전환, 20분 연속 실행, VoiceOver/TalkBack과 큰 글꼴, 지연·발열·메모리 추이를 확인해야 합니다.
+
+구조와 한계: [실시간 처리](../docs/realtime-camera.md), [모델 출처](assets/models/README.md).
