@@ -121,6 +121,12 @@ export async function createNativeSession(
           interruptions.remove();
           await new Promise<void>((resolve, reject) => {
             const complete = (failure?: string) => {
+              // Nitro creates a separate JS wrapper in each runtime. Release the
+              // RN wrappers too, after the worker has stopped using the resources.
+              for (const resource of [converter, detector, previewOutput]) {
+                try { resource.dispose(); }
+                catch { failure = "카메라 자원 정리에 실패했습니다."; }
+              }
               occupied = Boolean(failure);
               if (failure) reject(new Error(failure)); else resolve();
             };
