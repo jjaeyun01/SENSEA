@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   KeyboardAvoidingView,
@@ -18,13 +18,17 @@ import { speak, stopSpeaking } from '@/src/voice/speak';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const destinationInput = useRef<TextInput>(null);
   const [destination, setDestination] = useState('');
   const [pendingDestination, setPendingDestination] = useState<string | null>(null);
   const [message, setMessage] = useState('목적지를 입력한 뒤 확인 버튼을 누르세요.');
 
   useEffect(() => {
     Vibration.vibrate(80);
-    void speak('SENSEA가 실행되었습니다. 목적지를 입력해주세요.', false);
+    void speak(
+      'SENSEA가 실행되었습니다. 화면 읽기 기능으로 목적지 입력, 목적지 확인, 음성 입력 안내 버튼을 탐색할 수 있습니다. 어디로 가시겠습니까?',
+      false,
+    );
     return () => {
       void stopSpeaking();
     };
@@ -55,6 +59,14 @@ export default function HomeScreen() {
   const changeDestination = () => {
     setPendingDestination(null);
     setMessage('목적지를 다시 입력해주세요.');
+    destinationInput.current?.focus();
+  };
+
+  const showVoiceInputHelp = () => {
+    destinationInput.current?.focus();
+    const help = '목적지 입력 칸을 열었습니다. 휴대폰 키보드의 마이크 받아쓰기 버튼으로 목적지를 말하거나 직접 입력하세요.';
+    setMessage(help);
+    void speak(help);
   };
 
   return (
@@ -76,7 +88,14 @@ export default function HomeScreen() {
           <Text accessibilityRole="header" style={styles.prompt}>어디로 갈까요?</Text>
           <Text style={styles.help}>건물이나 캠퍼스 장소를 입력하세요.</Text>
 
+          <View style={styles.screenReaderHelp}>
+            <Text style={styles.screenReaderHelpText}>
+              VoiceOver 또는 TalkBack 사용자는 좌우 쓸기로 조작 항목을 이동하고 두 번 탭해 선택하세요.
+            </Text>
+          </View>
+
           <TextInput
+            ref={destinationInput}
             accessibilityLabel="목적지"
             accessibilityHint="건물 또는 장소 이름을 입력합니다"
             autoCapitalize="none"
@@ -121,10 +140,9 @@ export default function HomeScreen() {
           )}
 
           <LargeActionButton
-            label="음성 입력, 준비 중"
-            accessibilityHint="데모 기기에서 음성 인식 호환성을 확인한 뒤 제공됩니다"
-            onPress={() => undefined}
-            disabled
+            label="음성으로 목적지 입력"
+            accessibilityHint="목적지 입력 칸을 열고 키보드 받아쓰기 사용법을 안내합니다"
+            onPress={showVoiceInputHelp}
             variant="secondary"
           />
         </View>
@@ -146,6 +164,8 @@ const styles = StyleSheet.create({
   panel: { backgroundColor: colors.surface, borderRadius: 20, padding: 20, gap: 18 },
   prompt: { color: colors.text, fontSize: 28, fontWeight: '700' },
   help: { color: colors.muted, fontSize: 18, lineHeight: 26 },
+  screenReaderHelp: { backgroundColor: colors.surfaceRaised, borderRadius: 12, padding: 14 },
+  screenReaderHelpText: { color: colors.muted, fontSize: 16, lineHeight: 24 },
   input: {
     minHeight: 64,
     backgroundColor: colors.text,
@@ -162,4 +182,3 @@ const styles = StyleSheet.create({
   actions: { gap: 12 },
   safety: { color: colors.warning, fontSize: 16, lineHeight: 24 },
 });
-

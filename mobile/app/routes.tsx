@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  AccessibilityInfo,
   ActivityIndicator,
   Pressable,
   ScrollView,
@@ -11,11 +10,21 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { requestRoutes, type RouteOption } from '@/src/api/client';
+import { LargeActionButton } from '@/src/components/LargeActionButton';
 import { colors } from '@/src/theme';
 import { speak } from '@/src/voice/speak';
 
 function firstParam(value: string | string[] | undefined, fallback: string): string {
   return Array.isArray(value) ? (value[0] ?? fallback) : (value ?? fallback);
+}
+
+function routeSpeechSummary(destination: string, routes: RouteOption[]): string {
+  const choices = routes.map((route, index) => (
+    `${index + 1}번 ${route.name}. ${route.durationMinutes}분, ${route.distanceMeters}미터, ` +
+    `계단 ${route.hasStairs ? '있음' : '없음'}, 측정 소음 ${route.noiseLevel}. ` +
+    `${route.dataFreshness}. 불확실성 안내: ${route.uncertainty}`
+  ));
+  return `${destination}까지 두 가지 검증된 데모 경로입니다. ${choices.join(' 다음 선택지. ')} 원하는 경로 버튼을 선택하세요.`;
 }
 
 export default function RoutesScreen() {
@@ -34,9 +43,7 @@ export default function RoutesScreen() {
       setRoutes(loadedRoutes);
       setIsDemo(source === 'demo');
       setIsLoading(false);
-      const summary = `${destination}까지 ${loadedRoutes.length}개의 경로를 찾았습니다. 원하는 경로를 선택하세요.`;
-      AccessibilityInfo.announceForAccessibility(summary);
-      void speak(summary, false);
+      void speak(routeSpeechSummary(destination, loadedRoutes), false);
     });
 
     return () => {
@@ -75,7 +82,7 @@ export default function RoutesScreen() {
             <Pressable
               key={route.id}
               accessibilityRole="button"
-              accessibilityLabel={`${index + 1}번 ${route.name}, ${route.durationMinutes}분, ${route.distanceMeters}미터, 계단 ${route.hasStairs ? '있음' : '없음'}, 측정 소음 ${route.noiseLevel}`}
+              accessibilityLabel={`${index + 1}번 ${route.name}, ${route.durationMinutes}분, ${route.distanceMeters}미터, 계단 ${route.hasStairs ? '있음' : '없음'}, 측정 소음 ${route.noiseLevel}, ${route.dataFreshness}, 불확실성: ${route.uncertainty}`}
               accessibilityHint="이 경로로 모의 안내를 시작합니다"
               onPress={() => chooseRoute(route, index)}
               style={({ pressed }) => [styles.routeCard, pressed && styles.pressed]}
@@ -89,8 +96,16 @@ export default function RoutesScreen() {
                 <Text style={styles.metric}>{route.hasStairs ? '계단 있음' : '계단 없음'}</Text>
                 <Text style={styles.metric}>소음 {route.noiseLevel}</Text>
               </View>
+              <Text style={styles.freshness}>{route.dataFreshness}</Text>
+              <Text style={styles.uncertainty}>불확실성: {route.uncertainty}</Text>
             </Pressable>
           ))}
+          <LargeActionButton
+            label="경로 선택지 다시 듣기"
+            accessibilityHint="두 경로의 시간, 계단, 소음, 데이터 최신성과 불확실성을 다시 읽습니다"
+            onPress={() => void speak(routeSpeechSummary(destination, routes))}
+            variant="secondary"
+          />
         </View>
       )}
 
@@ -116,6 +131,7 @@ const styles = StyleSheet.create({
   routeSummary: { color: colors.muted, fontSize: 17, lineHeight: 25 },
   metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   metric: { color: colors.text, backgroundColor: colors.surfaceRaised, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, fontSize: 16 },
+  freshness: { color: colors.primary, fontSize: 15, lineHeight: 22, marginTop: 4 },
+  uncertainty: { color: colors.warning, fontSize: 15, lineHeight: 22 },
   note: { color: colors.warning, fontSize: 15, lineHeight: 23 },
 });
-

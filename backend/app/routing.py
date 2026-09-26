@@ -24,12 +24,16 @@ class NavigationStep(BaseModel):
 
 class RouteOption(BaseModel):
     id: str
+    routeType: Literal["shortest", "quiet"]
     name: str
     summary: str
     durationMinutes: int = Field(gt=0)
     distanceMeters: int = Field(gt=0)
     hasStairs: bool
     noiseLevel: Literal["낮음", "보통", "높음"]
+    verificationStatus: Literal["verified-demo"]
+    dataFreshness: str
+    uncertainty: str
     steps: list[NavigationStep]
 
 
@@ -45,12 +49,16 @@ def build_demo_routes(destination: str) -> RoutesResponse:
     routes = [
         RouteOption(
             id="flat-safe",
-            name="평지 위주 경로",
-            summary="계단 없이 검토된 보행로와 횡단보도를 이용합니다.",
+            routeType="quiet",
+            name="소음이 적은 평지 경로",
+            summary="계단 없이 검토된 보행로를 이용하며 측정 소음이 더 낮습니다.",
             durationMinutes=5,
             distanceMeters=360,
             hasStairs=False,
             noiseLevel="낮음",
+            verificationStatus="verified-demo",
+            dataFreshness="오늘 측정한 데모 데이터",
+            uncertainty="현재 공사나 일시적 장애물은 반영되지 않을 수 있습니다.",
             steps=[
                 NavigationStep(
                     id="f1",
@@ -80,12 +88,16 @@ def build_demo_routes(destination: str) -> RoutesResponse:
         ),
         RouteOption(
             id="fast",
-            name="빠른 경로",
+            routeType="shortest",
+            name="가장 짧은 경로",
             summary="이동 시간은 짧지만 중간에 계단이 포함됩니다.",
             durationMinutes=3,
             distanceMeters=240,
             hasStairs=True,
             noiseLevel="보통",
+            verificationStatus="verified-demo",
+            dataFreshness="오늘 확인한 데모 경로",
+            uncertainty="계단과 GPS 오차 때문에 수동 확인이 필요할 수 있습니다.",
             steps=[
                 NavigationStep(
                     id="q1",

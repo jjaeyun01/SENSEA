@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  AccessibilityInfo,
   ActivityIndicator,
   ScrollView,
   StyleSheet,
@@ -41,6 +40,9 @@ export default function NavigateScreen() {
   const [stepIndex, setStepIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [arrived, setArrived] = useState(false);
+  const [navigationStarted, setNavigationStarted] = useState(false);
+  const [stopped, setStopped] = useState(false);
+  const [locationMode, setLocationMode] = useState<'checking' | 'live' | 'manual'>('checking');
   const [locationStatus, setLocationStatus] = useState('위치를 확인하고 있습니다.');
   const [lastMessage, setLastMessage] = useState('안내를 준비하고 있습니다.');
 
@@ -50,7 +52,6 @@ export default function NavigateScreen() {
     if (!next) return;
     vibrateForPriority(next.priority);
     setLastMessage(next.text);
-    AccessibilityInfo.announceForAccessibility(next.text);
     void speak(next.text);
   };
 
@@ -64,7 +65,7 @@ export default function NavigateScreen() {
         return;
       }
       setRoute(selected);
-      const startMessage = `${selected.name} 안내를 시작합니다. 현재 화면은 경유지 이동을 모의 실행합니다.`;
+      const startMessage = `${selected.name}을 준비했습니다. 위치 확인이 끝나면 안내 시작 버튼을 누르세요.`;
       setLastMessage(startMessage);
       void speak(startMessage);
     });
@@ -73,13 +74,19 @@ export default function NavigateScreen() {
       if (cancelled) return;
       if (!result.ok) {
         setLocationStatus(result.reason);
+        setLocationMode('manual');
+        void speak(`${result.reason} 현재 위치를 직접 확인한 후 시뮬레이션 안내를 시작할 수 있습니다.`);
         return;
       }
       const accuracy = result.accuracyMeters;
       if (accuracy !== null && accuracy > 30) {
-        setLocationStatus(`현재 위치 오차가 약 ${Math.round(accuracy)}미터로 큽니다. 방향 안내가 부정확할 수 있습니다.`);
+        const warning = `현재 위치 오차가 약 ${Math.round(accuracy)}미터로 큽니다. 정확한 회전 방향을 제공하지 않습니다. 현재 위치를 직접 확인한 후 시뮬레이션을 시작하세요.`;
+        setLocationStatus(warning);
+        setLocationMode('manual');
+        void speak(warning);
       } else {
-        setLocationStatus('현재 위치를 확인했습니다.');
+        setLocationStatus('현재 위치를 확인했습니다. 안내를 시작할 수 있습니다.');
+        setLocationMode('live');
       }
     });
 
@@ -92,17 +99,42 @@ export default function NavigateScreen() {
 
   const currentStep: NavigationStep | undefined = route?.steps[stepIndex];
 
+  const instructionForCurrentAccuracy = (step: NavigationStep): string => {
+    if (locationMode !== 'manual') return step.instruction;
+    const isFinalStep = route ? step.id === route.steps[route.steps.length - 1]?.id : false;
+    if (isFinalStep) {
+      return `${destination} 근처의 마지막 검증 지점입니다. 위치 정확도가 낮으므로 정확한 출입구는 직접 확인하세요.`;
+    }
+    return '위치 정확도가 낮아 정확한 회전 방향은 생략합니다. 다음 검증된 경유지를 수동으로 확인한 뒤 다음 안내 버튼을 누르세요.';
+  };
+
+  const startNavigation = () => {
+    if (!currentStep || locationMode === 'checking' || stopped) return;
+    setNavigationStarted(true);
+    const prefix = locationMode === 'manual'
+      ? '수동 위치 확인을 선택했습니다. 시뮬레이션 안내를 시작합니다. '
+      : '안내를 시작합니다. ';
+    issueGuidance({
+      id: `start-${currentStep.id}-${Date.now()}`,
+      priority: currentStep.priority,
+      text: `${prefix}${instructionForCurrentAccuracy(currentStep)}`,
+    });
+  };
+
   const repeatInstruction = () => {
-    if (!currentStep) return;
+    if (!currentStep || !navigationStarted) {
+      void speak(lastMessage);
+      return;
+    }
     issueGuidance({
       id: `repeat-${currentStep.id}-${Date.now()}`,
       priority: currentStep.priority,
-      text: currentStep.instruction,
+      text: instructionForCurrentAccuracy(currentStep),
     });
   };
 
   const advanceStep = () => {
-    if (!route || !currentStep || paused) return;
+    if (!route || !currentStep || paused || stopped || !navigationStarted) return;
     if (stepIndex >= route.steps.length - 1) {
       const arrivalMessage = `${destination} 근처에 도착했습니다. 정확한 출입구와 주변 안전을 직접 확인하세요.`;
       setArrived(true);
@@ -114,10 +146,11 @@ export default function NavigateScreen() {
     const nextStep = route.steps[nextIndex];
     if (!nextStep) return;
     setStepIndex(nextIndex);
-    issueGuidance({ id: nextStep.id, priority: nextStep.priority, text: nextStep.instruction });
+    issueGuidance({ id: nextStep.id, priority: nextStep.priority, text: instructionForCurrentAccuracy(nextStep) });
   };
 
   const togglePause = () => {
+    if (!navigationStarted || stopped) return;
     const nextPaused = !paused;
     setPaused(nextPaused);
     const message = nextPaused ? '안내를 일시 정지했습니다.' : '안내를 다시 시작합니다.';
@@ -125,18 +158,23 @@ export default function NavigateScreen() {
   };
 
   const simulateUrgentHazard = () => {
-    if (currentStep) {
-      queue.current.enqueue({
-        id: `pending-${currentStep.id}-${Date.now()}`,
-        priority: currentStep.priority,
-        text: currentStep.instruction,
-      });
-    }
+    if (!navigationStarted || stopped) return;
     issueGuidance({
       id: `hazard-${Date.now()}`,
       priority: 0,
       text: '긴급 위험 알림 데모입니다. 전방 장애물 가능성이 있습니다. 즉시 멈추고 주변을 확인하세요.',
     });
+  };
+
+  const stopNavigation = () => {
+    if (stopped) return;
+    queue.current.clear();
+    Vibration.cancel();
+    setPaused(true);
+    setStopped(true);
+    const message = '내비게이션을 종료했습니다. 더 이상 경로 안내를 제공하지 않습니다.';
+    setLastMessage(message);
+    void speak(message);
   };
 
   if (!route) {
@@ -170,10 +208,24 @@ export default function NavigateScreen() {
 
       <View style={styles.actions}>
         <LargeActionButton
-          label={arrived ? '안내 완료' : paused ? '일시 정지 중' : '다음 경유지 안내'}
-          accessibilityHint="모의 이동을 다음 경유지로 진행합니다"
-          onPress={advanceStep}
-          disabled={paused || arrived}
+          label={
+            stopped
+              ? '안내 종료됨'
+              : !navigationStarted
+                ? locationMode === 'checking'
+                  ? 'GPS 확인 중'
+                  : locationMode === 'manual'
+                    ? '수동 확인 후 시뮬레이션 시작'
+                    : '안내 시작'
+                : arrived
+                  ? '안내 완료'
+                  : paused
+                    ? '일시 정지 중'
+                    : '다음 경유지 안내'
+          }
+          accessibilityHint={navigationStarted ? '다음 경유지로 진행합니다' : '현재 위치 확인 결과에 따라 안내를 시작합니다'}
+          onPress={navigationStarted ? advanceStep : startNavigation}
+          disabled={locationMode === 'checking' || paused || arrived || stopped}
         />
         <LargeActionButton
           label="현재 안내 다시 듣기"
@@ -184,19 +236,36 @@ export default function NavigateScreen() {
           label={paused ? '안내 계속하기' : '안내 일시 정지'}
           onPress={togglePause}
           variant="secondary"
+          disabled={!navigationStarted || stopped}
         />
         <LargeActionButton
           label="카메라로 주변 확인"
           accessibilityHint="사용자가 요청할 때만 카메라 화면을 엽니다"
           onPress={() => router.push('/camera')}
           variant="secondary"
+          disabled={stopped}
         />
         <LargeActionButton
           label="P0 긴급 알림 시험"
           accessibilityHint="우선순위 큐의 긴급 경고 진동과 음성을 시험합니다"
           onPress={simulateUrgentHazard}
           variant="danger"
+          disabled={!navigationStarted || stopped}
         />
+        {!stopped ? (
+          <LargeActionButton
+            label="내비게이션 종료"
+            accessibilityHint="모든 경로 안내와 진동을 중단합니다"
+            onPress={stopNavigation}
+            variant="danger"
+          />
+        ) : (
+          <LargeActionButton
+            label="처음 화면으로 돌아가기"
+            onPress={() => router.replace('/')}
+            variant="secondary"
+          />
+        )}
       </View>
 
       <Text style={styles.footnote}>긴급 알림 버튼은 우선순위 큐 동작을 보여주기 위한 데모이며 실제 장애물을 감지하지 않습니다.</Text>
@@ -223,4 +292,3 @@ const styles = StyleSheet.create({
   actions: { gap: 12 },
   footnote: { color: colors.danger, fontSize: 15, lineHeight: 23 },
 });
-

@@ -9,11 +9,11 @@ import { speak, stopSpeaking } from '@/src/voice/speak';
 
 export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
-  const [description, setDescription] = useState('휴대폰을 가슴 높이에서 정면을 향하도록 들어주세요.');
+  const [description, setDescription] = useState('먼저 걸음을 멈추고 휴대폰을 가슴 높이에서 정면을 향하도록 들어주세요.');
   const [isDescribing, setIsDescribing] = useState(false);
 
   useEffect(() => {
-    void speak('카메라 주변 확인 화면입니다. 휴대폰을 가슴 높이에서 정면을 향하도록 들어주세요.');
+    void speak('카메라 주변 확인 화면입니다. 먼저 걸음을 멈추세요. 휴대폰을 가슴 높이에서 정면을 향하도록 들어주세요.');
     return () => {
       void stopSpeaking();
     };
@@ -23,9 +23,10 @@ export default function CameraScreen() {
     setIsDescribing(true);
     setDescription('주변 정보를 확인하고 있습니다.');
     const result = await requestSceneDescription();
-    setDescription(result);
+    const announcement = `${result.isDemo ? '데모 결과입니다. ' : ''}${result.description} 불확실성은 ${result.uncertainty}입니다. 설명만으로 이동 안전을 판단하지 마세요.`;
+    setDescription(announcement);
     setIsDescribing(false);
-    void speak(result);
+    void speak(announcement);
   };
 
   if (!permission) {
@@ -63,11 +64,11 @@ export default function CameraScreen() {
         <Text accessibilityLiveRegion="assertive" style={styles.description}>{description}</Text>
         <LargeActionButton
           label="현재 장면 설명하기"
-          accessibilityHint="현재는 데모 장면 설명을 음성으로 들려줍니다"
+          accessibilityHint="멈춘 상태에서 현재 장면의 랜드마크 설명과 불확실성을 음성으로 들려줍니다"
           onPress={() => void describeScene()}
           loading={isDescribing}
         />
-        <Text style={styles.safety}>현재 버전은 카메라 프레임을 분석하지 않는 데모입니다. 설명만으로 장애물 회피나 횡단 여부를 판단하지 마세요.</Text>
+        <Text style={styles.safety}>현재 버전은 카메라 프레임을 분석하지 않는 데모입니다. 반드시 걸음을 멈춘 상태에서 사용하고, 설명만으로 장애물 회피나 횡단 여부를 판단하지 마세요.</Text>
       </View>
     </View>
   );
@@ -83,4 +84,3 @@ const styles = StyleSheet.create({
   description: { color: colors.text, fontSize: 20, lineHeight: 30, minHeight: 60 },
   safety: { color: colors.warning, fontSize: 15, lineHeight: 23 },
 });
-

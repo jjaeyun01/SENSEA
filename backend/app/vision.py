@@ -1,8 +1,11 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 
 class VisionResponse(BaseModel):
     description: str
+    uncertainty: Literal["낮음", "보통", "높음"] = "높음"
     is_demo: bool = True
     safety_notice: str
 
@@ -15,7 +18,7 @@ def describe_demo_scene(filename: str | None = None) -> VisionResponse:
             "데모 설명입니다. 정면에 건물 출입구로 보이는 문과 오른쪽 벽면의 "
             f"표지판이 있습니다.{file_note} 이 설명만으로 이동 안전을 판단하지 마세요."
         ),
+        uncertainty="높음",
         is_demo=True,
         safety_notice="실시간 위험 감지 또는 안전한 경로를 보장하지 않습니다.",
     )
-
