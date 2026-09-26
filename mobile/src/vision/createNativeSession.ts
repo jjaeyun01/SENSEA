@@ -1,5 +1,5 @@
 import { loadTensorflowModel, type TfliteModel } from "react-native-fast-tflite";
-import { VisionCamera, type CameraFrameOutput, type CameraPreviewOutput, type CameraSession } from "react-native-vision-camera";
+import { VisionCamera, type CameraPreviewOutput } from "react-native-vision-camera";
 import { createResizer, type Resizer } from "react-native-vision-camera-resizer";
 import { createWorkletRuntimeForThread } from "react-native-vision-camera-worklets";
 import { createSynchronizable, scheduleOnRN, scheduleOnRuntime } from "react-native-worklets";
@@ -18,9 +18,8 @@ export async function createNativeSession(
   occupied = true;
   let model: TfliteModel | undefined;
   let resizer: Resizer | undefined;
-  let output: CameraFrameOutput | undefined;
   let preview: CameraPreviewOutput | undefined;
-  let camera: CameraSession | undefined;
+  let pipeline: Awaited<ReturnType<typeof getPipeline>> | undefined;
   try {
     model = await loadTensorflowModel(require("../../assets/models/efficientdet-lite0.tflite"), []);
     const input = model.inputs[0];
@@ -33,22 +32,11 @@ export async function createNativeSession(
       width: 320, height: 320, channelOrder: "rgb", dataType: "uint8",
       scaleMode: "contain", pixelLayout: "interleaved",
     });
-    output = VisionCamera.createFrameOutput({
-      targetResolution: { width: 640, height: 480 },
-      pixelFormat: "yuv",
-      dropFramesWhileBusy: true,
-      enablePreviewSizedOutputBuffers: true,
-      enableCameraMatrixDelivery: false,
-      enablePhysicalBufferRotation: true,
-      allowDeferredStart: false,
-    });
+    pipeline = await getPipeline();
+    const { frameOutput, runtime, cameraSession } = pipeline;
     preview = VisionCamera.createPreviewOutput();
-    camera = await VisionCamera.createCameraSession(false);
-    const frameOutput = output, detector = model, converter = resizer;
-    const previewOutput = preview, cameraSession = camera;
-    frameOutput.outputOrientation = "up";
+    const detector = model, converter = resizer, previewOutput = preview;
     previewOutput.outputOrientation = "up";
-    const runtime = createWorkletRuntimeForThread(frameOutput.thread);
     const active = createSynchronizable(true);
     const notificationPending = createSynchronizable(false);
     let disposed = false;
@@ -126,7 +114,9 @@ export async function createNativeSession(
         active.setBlocking(false);
         closing = (async () => {
           try { await starting; } catch { /* A failed start still needs cleanup. */ }
-          try { await cameraSession.stop(); } catch { /* Dispose also closes the session. */ }
+          let detachFailed = false;
+          try { await cameraSession.stop(); } catch { detachFailed = true; }
+          try { await cameraSession.configure([]); } catch { detachFailed = true; }
           errors.remove();
           interruptions.remove();
           await new Promise<void>((resolve, reject) => {
@@ -136,13 +126,11 @@ export async function createNativeSession(
             };
             scheduleOnRuntime(runtime, () => {
               "worklet";
-              let failure = false;
+              let failure = detachFailed;
               try { frameOutput.setOnFrameCallback(undefined); } catch { failure = true; }
               try { converter.dispose(); } catch { failure = true; }
               try { detector.dispose(); } catch { failure = true; }
-              try { cameraSession.dispose(); } catch { failure = true; }
               try { previewOutput.dispose(); } catch { failure = true; }
-              try { frameOutput.dispose(); } catch { failure = true; }
               scheduleOnRN(complete, failure ? "카메라 자원 정리에 실패했습니다." : undefined);
             });
           });
@@ -152,10 +140,55 @@ export async function createNativeSession(
     };
   } catch (error) {
     let cleanupFailed = false;
-    for (const resource of [camera, preview, output, resizer, model]) {
+    if (pipeline) {
+      const { cameraSession, frameOutput, runtime } = pipeline;
+      try { await cameraSession.stop(); } catch { cleanupFailed = true; }
+      try { await cameraSession.configure([]); } catch { cleanupFailed = true; }
+      try {
+        await new Promise<void>((resolve, reject) => {
+          scheduleOnRuntime(runtime, () => {
+            "worklet";
+            try { frameOutput.setOnFrameCallback(undefined); scheduleOnRN(resolve); }
+            catch { scheduleOnRN(reject, new Error("프레임 입력을 해제하지 못했습니다.")); }
+          });
+        });
+      } catch { cleanupFailed = true; }
+    }
+    for (const resource of [preview, resizer, model]) {
       try { resource?.dispose(); } catch { cleanupFailed = true; }
     }
     occupied = cleanupFailed;
     throw error;
   }
+}
+
+// Keep one idle pipeline for the app lifetime. VisionCamera 5.2.3's Android
+// FrameOutput.dispose() clears the analyzer but does not shut down its executor.
+// Reusing the output/runtime avoids a new native thread for every camera open.
+// stop() + configure([]) explicitly release the camera hardware between sessions.
+let pipelinePromise: Promise<{
+  frameOutput: ReturnType<typeof VisionCamera.createFrameOutput>;
+  runtime: ReturnType<typeof createWorkletRuntimeForThread>;
+  cameraSession: Awaited<ReturnType<typeof VisionCamera.createCameraSession>>;
+}> | undefined;
+function getPipeline() {
+  pipelinePromise ??= (async () => {
+    const frameOutput = VisionCamera.createFrameOutput({
+      targetResolution: { width: 640, height: 480 },
+      pixelFormat: "yuv", dropFramesWhileBusy: true,
+      enablePreviewSizedOutputBuffers: true, enableCameraMatrixDelivery: false,
+      enablePhysicalBufferRotation: true, allowDeferredStart: false,
+    });
+    try {
+      frameOutput.outputOrientation = "up";
+      const runtime = createWorkletRuntimeForThread(frameOutput.thread);
+      const cameraSession = await VisionCamera.createCameraSession(false);
+      return { frameOutput, runtime, cameraSession };
+    } catch (error) {
+      frameOutput.dispose();
+      // Retain the rejected promise: initialization cannot repeatedly allocate threads.
+      throw error;
+    }
+  })();
+  return pipelinePromise;
 }
