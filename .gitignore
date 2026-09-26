@@ -1,19 +1,31 @@
-# macOS
+# macOS / Windows
 .DS_Store
+Thumbs.db
 
-# Dependencies
+# Mobile dependencies / Expo
 node_modules/
+.expo/
+dist/
 
 # Environment variables
 .env
 .env.local
 .env.*
-
-# Expo / React Native
-.expo/
-dist/
+!.env.example
 
 # Python
-__pycache__/
-*.pyc
 .venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+
+# Local package/model inspection
+.scratch/
+mobile/android/
+mobile/ios/
+mobile/assets/models/*.tflite

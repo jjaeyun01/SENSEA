@@ -26,7 +26,7 @@ Traditional maps optimize for time or distance, but do not always provide the ha
 | UI/accessibility | React Native `accessibilityLabel`, `accessibilityRole`, `AccessibilityInfo`; large touch targets | VoiceOver/TalkBack support |
 | Voice output | `expo-speech` | Read navigation instructions aloud |
 | Voice input | Native speech-recognition Expo-compatible module **only after verifying Expo SDK and device support**; otherwise a press-to-record flow using `expo-audio` + backend speech-to-text | Speech recognition is the main platform risk; avoid assuming browser Web Speech API works in native apps |
-| Camera | `expo-camera` | Permission-based still capture / periodic snapshots |
+| Camera | VisionCamera 5 + fast-tflite | Native Android/iOS frames with local object detection; see mobile/README.md |
 | Location | `expo-location` | GPS with reported accuracy |
 | Map | `react-native-maps` (if compatible with chosen Expo SDK) | Visual fallback for sighted/low-vision users; map must not be the sole UI |
 | Backend | FastAPI, Python 3.11+ | Clear API contracts and easy route algorithms |
@@ -258,12 +258,12 @@ sensea/
 Bootstrap commands:
 
 ```bash
-# Mobile
-npx create-expo-app@latest mobile --template default
+# Existing mobile camera app (native development build, not Expo Go)
 cd mobile
-npx expo install expo-speech expo-camera expo-location expo-audio
-# Check the current Expo SDK's map and speech-recognition compatibility before installing them.
-npx expo start
+npm ci
+npm run models:download
+npm run android -- --device
+# On macOS with Xcode: npm run ios -- --device
 
 # Backend (separate terminal, from project root)
 cd backend
@@ -375,3 +375,12 @@ Agree on request/response schemas before coding in parallel. Make a working end-
 ## 13. Definition of done
 
 The hackathon MVP is complete when a tester can use accessible controls or speech to select a destination, hear and choose between verified route alternatives informed by measured noise, follow a simulated spoken journey, and request a spoken camera description of a stationary landmark. The team must also be able to explain the limits of its location, noise, and AI measurements without claiming real-world navigation safety.
+
+
+## Backend implementation
+
+A runnable FastAPI foundation is available in [backend/README.md](backend/README.md), with setup instructions, API examples, tests, and an initial Supabase schema. The included route/noise dataset is synthetic and simulation-only; camera descriptions require a configured server-side model key. Supabase persistence and speech transcription remain integration points.
+
+### Camera processing modules
+
+The [Android/iPhone camera app](mobile/README.md) connects native live frames, local quality checks, EfficientDet Lite0 object detection, and Korean speech. It drops frames while busy, limits analysis to 5 Hz, and releases camera/model resources on close or background. See [real-time frame handling](docs/realtime-camera.md) for ownership and verification limits. Road/sidewalk segmentation, distance estimation, GPS navigation UI, and the stationary server-description flow remain separate integration work; the earlier sections describe the broader product roadmap.

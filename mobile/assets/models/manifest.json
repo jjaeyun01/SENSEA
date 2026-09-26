@@ -1,0 +1,25 @@
+{
+  "name": "EfficientDet Lite0 V1 (TensorFlow Lite metadata, NMS)",
+  "url": "https://storage.googleapis.com/download.tensorflow.org/models/tflite/task_library/object_detection/android/lite-model_efficientdet_lite0_detection_metadata_1.tflite",
+  "file": "efficientdet-lite0.tflite",
+  "sha256": "2e04c53bfeac0ac2a30c057c7e2a777594ce39baaac35a92f74fb1e8c4fc4e0b",
+  "bytes": 4563519,
+  "license": "Apache-2.0",
+  "licenseEvidence": "Model's TFLITE_METADATA: author=TensorFlow, license=Apache License. Version 2.0 http://www.apache.org/licenses/LICENSE-2.0.",
+  "input": {
+    "shape": [
+      1,
+      320,
+      320,
+      3
+    ],
+    "type": "uint8"
+  },
+  "outputs": [
+    "location",
+    "category",
+    "score",
+    "number of detections"
+  ],
+  "labelFile": "labels.json"
+}

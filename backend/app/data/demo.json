@@ -1,0 +1,90 @@
+{
+  "places": [
+    {
+      "id": "demo-library",
+      "name": "예시 도서관 / Demo Library",
+      "waypoint_id": "library_entrance",
+      "entrance_notes": "가상 데이터입니다. 실제 입구 위치가 아닙니다."
+    },
+    {
+      "id": "demo-cafe",
+      "name": "예시 카페 / Demo Cafe",
+      "waypoint_id": "cafe_entrance",
+      "entrance_notes": "가상 데이터입니다. 실제 입구 위치가 아닙니다."
+    }
+  ],
+  "waypoints": [
+    {
+      "id": "start",
+      "landmark_description": "가상 출발점"
+    },
+    {
+      "id": "quad",
+      "landmark_description": "가상 광장"
+    },
+    {
+      "id": "garden",
+      "landmark_description": "가상 정원"
+    },
+    {
+      "id": "library_entrance",
+      "landmark_description": "가상 도서관 입구"
+    },
+    {
+      "id": "cafe_entrance",
+      "landmark_description": "가상 카페 입구"
+    }
+  ],
+  "edges": [
+    {
+      "id": "start-quad",
+      "from_waypoint": "start",
+      "to_waypoint": "quad",
+      "distance_m": 100,
+      "pedestrian_verified": false,
+      "instruction": "광장 지점으로 시뮬레이션을 진행합니다.",
+      "reverse_instruction": "출발점으로 시뮬레이션을 진행합니다.",
+      "bidirectional": true
+    },
+    {
+      "id": "quad-library",
+      "from_waypoint": "quad",
+      "to_waypoint": "library_entrance",
+      "distance_m": 100,
+      "pedestrian_verified": false,
+      "instruction": "도서관 입구 지점으로 시뮬레이션을 진행합니다.",
+      "reverse_instruction": "광장 지점으로 시뮬레이션을 진행합니다.",
+      "bidirectional": true
+    },
+    {
+      "id": "start-garden",
+      "from_waypoint": "start",
+      "to_waypoint": "garden",
+      "distance_m": 140,
+      "pedestrian_verified": false,
+      "instruction": "정원 지점으로 시뮬레이션을 진행합니다.",
+      "reverse_instruction": "출발점으로 시뮬레이션을 진행합니다.",
+      "bidirectional": true
+    },
+    {
+      "id": "garden-library",
+      "from_waypoint": "garden",
+      "to_waypoint": "library_entrance",
+      "distance_m": 140,
+      "pedestrian_verified": false,
+      "instruction": "도서관 입구 지점으로 시뮬레이션을 진행합니다.",
+      "reverse_instruction": "정원 지점으로 시뮬레이션을 진행합니다.",
+      "bidirectional": true
+    },
+    {
+      "id": "quad-cafe",
+      "from_waypoint": "quad",
+      "to_waypoint": "cafe_entrance",
+      "distance_m": 80,
+      "pedestrian_verified": false,
+      "instruction": "카페 입구 지점으로 시뮬레이션을 진행합니다.",
+      "reverse_instruction": "광장 지점으로 시뮬레이션을 진행합니다.",
+      "bidirectional": true
+    }
+  ]
+}

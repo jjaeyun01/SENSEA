@@ -1,0 +1,114 @@
+name: SENSEA native camera
+on:
+  push:
+    paths: ["mobile/**", ".github/workflows/mobile.yml"]
+  pull_request:
+    paths: ["mobile/**", ".github/workflows/mobile.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  CI: "1"
+  EXPO_NO_TELEMETRY: "1"
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm ci --no-audit --no-fund
+      - run: npm run models:download
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run export:check
+      - run: pip install ai-edge-litert==1.4.0 numpy==2.2.6
+      - run: python scripts/check-model.py
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci --no-audit --no-fund
+      - run: npm run models:download
+      - run: npx expo prebuild --platform android --no-install
+      - name: Compile installable ARM64 demo (development signing)
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon --max-workers=2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sensea-android-arm64-demo
+          path: mobile/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run models:download
+      - run: npx expo prebuild --platform ios --no-install
+      - run: cd ios && pod install
+      - name: Compile iOS simulator app without signing
+        run: |
+          set -o pipefail
+          xcodebuild -workspace ios/SENSEA.xcworkspace -scheme SENSEA \
+            -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO \
+            build > xcodebuild.log 2>&1 || { tail -n 160 xcodebuild.log; exit 1; }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sensea-ios-build-log
+          path: mobile/xcodebuild.log
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sensea-ios-simulator
+          path: mobile/build/Build/Products/Release-iphonesimulator/SENSEA.app
+          if-no-files-found: error
+          retention-days: 14
