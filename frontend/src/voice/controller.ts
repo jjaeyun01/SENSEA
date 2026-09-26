@@ -18,7 +18,7 @@ export class VoiceController {
 
   get isSpeaking() { return this.speaking; }
 
-  async say(text: string): Promise<void> {
+  async say(text: string, options: { remember?: boolean } = {}): Promise<void> {
     if (!text.trim()) return;
     const revision = ++this.revision;
     this.speaking = true;
@@ -27,7 +27,7 @@ export class VoiceController {
       if (revision !== this.revision) return;
       await this.ports.stopSpeaking();
       if (revision !== this.revision) return;
-      this.last = text;
+      if (options.remember !== false) this.last = text;
       await this.ports.speak(text);
     } finally {
       if (revision === this.revision) this.speaking = false;

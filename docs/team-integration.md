@@ -1,5 +1,7 @@
 # 팀 연결 가이드
 
+호출어 정책: 앱 실행 후 음성 조작을 활성화하면 앱 이용 중 **SENSEA**로 명령 입력을 시작합니다. 초기 버전은 포그라운드만 지원 대상으로 하며, 앱 종료·화면 잠금·백그라운드 호출은 포함하지 않습니다. 제어 모듈과 네이티브 연결 작업은 [호출어 가이드](wake-word.md)를 참고하세요.
+
 현재 구현은 **백엔드 + 화면과 독립적인 TypeScript 모듈**입니다. 프론트 담당자는 기존 파일을 유지한 채 `frontend/`에 Expo 앱을 구성하면 됩니다. 실제 마이크 권한·녹음·스피커·GPS 하드웨어 연결은 선택한 Expo SDK에 맞춰 프론트에서 연결해야 합니다.
 
 ## 백엔드 실행
@@ -101,7 +103,7 @@ python -m unittest discover -s tests -v
 TypeScript 모듈 테스트는 Node 22.7+에서 프로젝트 루트 기준:
 
 ```bash
-node --experimental-transform-types --test frontend/tests/modules.test.ts
+node --experimental-transform-types --test frontend/tests/*.test.ts
 ```
 
 실제 휴대폰 녹음·재생, 스크린리더, OpenAI 실전사 호출은 별도 기기/키 검증이 필요합니다. API 테스트는 외부 전사를 mock하여 비용 없이 확인합니다.

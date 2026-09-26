@@ -8,6 +8,7 @@ frontend/
 │   ├── api/client.ts          # Backend HTTP client and response types
 │   ├── voice/commands.ts      # English voice command parsing
 │   ├── voice/controller.ts    # Voice input and output control
+│   ├── voice/wakeWordSession.ts # Foreground wake-word coordination (adapters required)
 │   ├── navigation/session.ts  # Destination confirmation, routes, and simulation
 │   └── noise/noiseMeter.ts    # Device noise measurement summaries
 └── tests/modules.test.ts
@@ -16,7 +17,7 @@ frontend/
 Run module tests from this directory (Node 22.7+):
 
 ```bash
-node --experimental-transform-types --test tests/modules.test.ts
+node --experimental-transform-types --test tests/*.test.ts
 ```
 
 Pass the backend URL to `SenseaApi`. On a physical phone, use your development computer's LAN IP. Never put the server's `OPENAI_API_KEY` in this folder.
@@ -26,3 +27,5 @@ There is no Expo app or package.json yet; these tests run directly with Node. Pr
 Supported commands include “Take me to library,” “Yes,” “Start navigation,” “Repeat,” “Pause,” “Stop,” “Back,” “Describe surroundings,” “Shortest route,” and “Quiet route.”
 
 API contracts and integration steps: [Team integration guide](../docs/team-integration.md).
+
+Agreed voice activation: open the app, enable voice control, then say **SENSEA** while using the app in the foreground. See [wake-word integration](../docs/wake-word.md) for implemented coordination and remaining native adapter work.

@@ -59,6 +59,11 @@ Owner: you, with frontend teammates connecting the UI.
 - [x] Add transcription timeout, MIME allowlist, 5 MiB upload limit, and English error responses.
 - [x] Require a demo bearer token and cap transcription requests per server process.
 - [x] Keep the provider API key on the backend and avoid persisting uploaded audio there.
+- [x] Agree on foreground in-app SENSEA activation after the user opens the app and enables voice control. See [wake-word scope](docs/wake-word.md).
+- [x] Implement adapter-based wake-word coordination: pause detection, prompt, capture/dispatch one command, and rearm; support cancellation and duplicate detection suppression.
+- [ ] Integrate a native wake-word engine and custom SENSEA models for iOS and Android.
+- [ ] Connect microphone opt-in, listening status, app lifecycle cancellation, and an accessible voice-control off button.
+- [ ] Validate SENSEA detection on both platforms with real microphones; background/locked/terminated activation is outside the initial scope.
 - [ ] Implement native microphone permission and press-to-record/stop adapters.
 - [ ] Enforce a short recording duration and delete local recordings after success or failure.
 - [ ] Explain external transcription and obtain consent before recording/uploading.
@@ -133,7 +138,7 @@ Owner: camera teammate, with frontend and voice integration.
 ## 8. Verification, privacy, and demo delivery
 
 - [x] Backend automated tests: **11 passed** in the latest run, including routing, consent/auth, persistence, stale data, and mocked transcription behavior.
-- [x] Frontend module tests: **5 passed** in the latest run, including English commands, noise calculation, voice control, and navigation state.
+- [x] Frontend module tests: **11 passed** in the latest run, including English commands, noise calculation, navigation state, and wake-word coordination with fake adapters.
 - [ ] Add TypeScript type checking and app build validation once the Expo project exists.
 - [ ] Test denied microphone, camera, and location permissions on-device.
 - [ ] Test offline behavior, unknown destinations, stale noise, poor GPS, and uncertain camera results through the UI.
