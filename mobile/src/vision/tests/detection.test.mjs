@@ -135,9 +135,9 @@ test("unexpected large camera buffers are rejected before conversion", () => {
 
 test("announcements require stability and a cooldown, without repeating unchanged observations", () => {
   const gate = new AnnouncementGate();
-  assert.equal(gate.offer(result(), 0), null);
-  assert.match(gate.offer(result(), 200), /사람/);
-  assert.equal(gate.offer(result(), 5000), null);
+  assert.equal(gate.offer(result(["bench"]), 0), null);
+  assert.match(gate.offer(result(["bench"]), 200), /벤치/);
+  assert.equal(gate.offer(result(["bench"]), 5000), null);
   assert.equal(gate.offer(result(["car"]), 5200), null);
   assert.match(gate.offer(result(["car"]), 5400), /자동차/);
   assert.equal(gate.offer(result(["bicycle"]), 5600), null);

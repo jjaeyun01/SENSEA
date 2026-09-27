@@ -61,7 +61,9 @@ test("people and dogs entering the central image region receive directional moti
     assert.equal(value.status, "priority", label);
     assert.equal(value.hazards[0].motion, "toward_center");
     assert.equal(value.hazards[0].mobility, "dynamic_capable");
-    assert.match(new HazardAnnouncementGate().offer(value, 400), /화면 중앙 쪽/);
+    const speech = new HazardAnnouncementGate().offer(value, 400);
+    if (label === "person") assert.equal(speech, null);
+    else assert.match(speech, /화면 중앙 쪽/);
     assert.doesNotMatch(value.summary, /다가오|충돌까지|미터|접근 속도/);
   }
 });
@@ -86,7 +88,7 @@ test("notice to caution escalation produces a warning and priority stays above s
   const gate = new HazardAnnouncementGate(), tracker = new HazardTracker();
   const notice = observe(tracker, [object("bench", box(0.1, 0.65, 0.16, 0.3))]);
   assert.equal(gate.offer(notice, 200), null);
-  const warning = observe(new HazardTracker(), [object("person", box(0.5, 0.7, 0.3, 0.4))]);
+  const warning = observe(new HazardTracker(), [object("dog", box(0.5, 0.7, 0.3, 0.4))]);
   assert.match(gate.offer({ ...warning, observedAt: 400 }, 400), /^주의/);
   const ranked = observe(new HazardTracker(), [object("truck", box(0.5, 0.65, 0.5), 0.86), object("bench", box(0.10, 0.65, 0.16, 0.3), 0.99)]);
   assert.equal(ranked.hazards[0].level, "priority");

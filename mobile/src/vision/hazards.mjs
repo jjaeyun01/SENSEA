@@ -1,5 +1,7 @@
 import { getHazardProfile, hazardLabel, evaluateHazardPolicy, movesTowardScreenCenter, guidanceFor, LEVEL_RANK } from "./hazard-policy.mjs";
 
+import { automaticWarnings } from "./automatic-speech.mjs";
+
 /**
  * Image-only attention cues, not a collision predictor or a navigable-path model.
  * All thresholds below are provisional, uncalibrated heuristics. They need
@@ -322,7 +324,7 @@ export class HazardAnnouncementGate {
     if (assessment.observedAt <= this.lastFrameAt) return null;
     this.lastFrameAt = assessment.observedAt;
     // Informational side objects remain on screen/manual replay and never interrupt warnings.
-    const hazards = assessment.hazards.slice(0, HAZARD_LIMITS.maxHazards).filter(h => h.level !== "notice");
+    const hazards = automaticWarnings(assessment).slice(0, HAZARD_LIMITS.maxHazards);
     const activeIds = new Set(hazards.map(h => h.trackId));
     this.entries = this.entries.filter(entry => now - entry.seenAt <= 12000);
     for (const entry of this.entries) {

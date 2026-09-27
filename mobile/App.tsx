@@ -14,6 +14,7 @@ import { HAZARD_COVERAGE, hazardLabel, describeScreenRelation, describeHazardKin
 import { buildObjectOverlays } from "./src/vision/overlay.mjs";
 import { UrbanVisionPanel } from "./src/vision/UrbanVisionPanel";
 import urbanLabels from "./assets/models/urban-labels.json";
+import { automaticWarnings, isAutomaticSpeechTarget } from "./src/vision/automatic-speech.mjs";
 import { LatestSpeechChannel } from "./src/vision/speech-channel.mjs";
 import type { HazardAssessment, LiveResult, NativeSession, UrbanResult } from "./src/vision/types";
 import notices from "./assets/third-party-notices.json";
@@ -169,8 +170,8 @@ function CameraScreen() {
     const assessment = hazardTracker.current.update(next, Date.now());
     // Dispatch touch feedback immediately, independently of speech availability.
     hapticChannel.current?.offer("base", assessment.observedAt, hasPriorityObstacle(assessment.hazards));
-    const previousWarning = latestHazard.current?.hazards.find(item => item.level !== "notice");
-    const nextWarning = assessment.hazards.find(item => item.level !== "notice");
+    const previousWarning = automaticWarnings(latestHazard.current)[0];
+    const nextWarning = automaticWarnings(assessment)[0];
     if (previousWarning && (!nextWarning || previousWarning.trackId !== nextWarning.trackId ||
         previousWarning.direction !== nextWarning.direction ||
         (previousWarning.level === "priority" && nextWarning.level !== "priority"))) silence();
@@ -189,7 +190,7 @@ function CameraScreen() {
             hazardAnnouncement.current.reset();
         };
         if (!say(warning, assessment.observedAt, false, true, retryIfUndelivered)) retryIfUndelivered();
-      } else if (assessment.hazards.length === 0 &&
+      } else if (!assessment.hazards.some(isAutomaticSpeechTarget) &&
           (!screenReaderEnabled.current || next.quality.status !== "usable")) {
         // Screen readers still need dark/obscured-camera status; only ordinary
         // object lists are kept manual while TalkBack/VoiceOver is enabled.
@@ -355,7 +356,8 @@ function CameraScreen() {
   const hasWarning = hazard?.status === "caution" || hazard?.status === "priority";
   const overlayBoxes = useMemo(() => buildObjectOverlays(result, hazard, urban, previewSize), [result, hazard, urban, previewSize]);
   const canAnnounceUrban = useCallback(() => wanted.current && screenReaderReady.current &&
-    !(latestHazard.current?.status === "priority" && isFreshResult({ receivedAt: latestHazard.current.observedAt }, Date.now())), []);
+    !(automaticWarnings(latestHazard.current).some(item => item.level === "priority") &&
+      isFreshResult({ receivedAt: latestHazard.current?.observedAt }, Date.now())), []);
   const overlayName = (label: string) => urbanLabels.find(item => item.label === label)?.name ?? labelInKorean(label);
 
 
@@ -466,7 +468,7 @@ function CameraScreen() {
         <Text style={styles.note}>화면 중앙에 크게 보이거나 중앙으로 다가오는 징후가 반복되면 두 번 진동합니다. 실제 거리는 측정하지 않습니다.</Text>
         <Pressable style={styles.secondary} accessibilityRole="switch"
           accessibilityLabel="자동 음성 안내"
-          accessibilityHint="주의 알림을 먼저 전달합니다. 화면 읽기 기능 사용 시 해당 기능으로 주의 알림을 전달합니다."
+          accessibilityHint="사람을 제외한 주의 대상을 먼저 알려드립니다. 사람 인식과 가까운 위험 진동은 유지합니다."
           accessibilityState={{ checked: voice, disabled: screenReader === null }}
           disabled={screenReader === null}
           onPress={() => {
@@ -479,6 +481,7 @@ function CameraScreen() {
           }}>
           <Text style={styles.secondaryText}>{screenReader === null ? "음성 설정 확인 중" : `${screenReader ? "화면 읽기 주의 알림" : "자동 음성"} ${voice ? "켜짐" : "꺼짐"}`}</Text>
         </Pressable>
+        <Text style={styles.note}>사람은 인식·표시하되 자동으로 읽지 않습니다. 가까운 위험 진동은 유지하며, 다시 듣기를 누르면 사람도 확인할 수 있습니다.</Text>
         <Pressable style={styles.secondary} accessibilityRole="button"
           accessibilityLabel="현재 분석 결과 다시 듣기"
           accessibilityState={{ disabled: !live }}
