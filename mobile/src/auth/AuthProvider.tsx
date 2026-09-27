@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { AppState, Platform } from 'react-native';
 
 import type { Place, Route } from '@/src/navigation/campusApi';
+import { clearOfflineCache } from '@/src/navigation/offlineCache';
 import { isSupabaseConfigured, supabase } from './supabase';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -81,6 +82,13 @@ type AuthContextValue = {
   setPlaceFlag: (place: UserPlace, flag: PlaceFlag, value: boolean) => Promise<void>;
   recordRouteStart: (destination: Place, route: Route) => Promise<string | null>;
   completeRoute: (historyId: string) => Promise<void>;
+  deletePlace: (id: string) => Promise<void>;
+  deleteRouteHistory: (id: string) => Promise<void>;
+  exportUserData: () => Promise<string>;
+  deleteAllUserData: () => Promise<void>;
+  sendPasswordReset: (email?: string) => Promise<void>;
+  updatePassword: (password: string) => Promise<void>;
+  deleteAccount: () => Promise<void>;
   currentNoisePreference: () => 'quiet' | 'active';
 };
 
@@ -308,11 +316,85 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await loadUserData(userId);
   }, [loadUserData, session?.user.id]);
 
+  const deletePlace = useCallback(async (id: string) => {
+    const userId = session?.user.id;
+    if (!userId) throw new Error('Please sign in first.');
+    const { error } = await supabase.from('user_places').delete().eq('id', id).eq('user_id', userId);
+    if (error) throw error;
+    await loadUserData(userId);
+  }, [loadUserData, session?.user.id]);
+
+  const deleteRouteHistory = useCallback(async (id: string) => {
+    const userId = session?.user.id;
+    if (!userId) throw new Error('Please sign in first.');
+    const { error } = await supabase.from('route_history').delete().eq('id', id).eq('user_id', userId);
+    if (error) throw error;
+    await loadUserData(userId);
+  }, [loadUserData, session?.user.id]);
+
+  const exportUserData = useCallback(async () => {
+    const userId = session?.user.id;
+    if (!userId) throw new Error('Please sign in first.');
+    const [profileResult, preferencesResult, placesResult, routesResult, consentResult, noiseResult] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+      supabase.from('user_preferences').select('*').eq('user_id', userId).maybeSingle(),
+      supabase.from('user_places').select('*').eq('user_id', userId).order('created_at', { ascending: true }),
+      supabase.from('route_history').select('*').eq('user_id', userId).order('started_at', { ascending: true }),
+      supabase.from('noise_collection_consents').select('*').eq('user_id', userId).maybeSingle(),
+      supabase.from('noise_measurements').select('*').eq('user_id', userId).order('measured_at', { ascending: true }),
+    ]);
+    const error = profileResult.error || preferencesResult.error || placesResult.error || routesResult.error || consentResult.error || noiseResult.error;
+    if (error) throw error;
+    return JSON.stringify({
+      exported_at: new Date().toISOString(),
+      account: { id: session.user.id, email: session.user.email ?? null },
+      profile: profileResult.data,
+      preferences: preferencesResult.data,
+      places: placesResult.data ?? [],
+      route_history: routesResult.data ?? [],
+      noise_consent: consentResult.data,
+      noise_measurements: noiseResult.data ?? [],
+    }, null, 2);
+  }, [session?.user.email, session?.user.id]);
+
+  const deleteAllUserData = useCallback(async () => {
+    const userId = session?.user.id;
+    if (!userId) throw new Error('Please sign in first.');
+    const { error } = await supabase.rpc('delete_own_sensea_data');
+    if (error) throw error;
+    await clearOfflineCache();
+    await loadUserData(userId);
+  }, [loadUserData, session?.user.id]);
+
+  const sendPasswordReset = useCallback(async (requestedEmail?: string) => {
+    const email = requestedEmail?.trim().toLowerCase() || session?.user.email;
+    if (!email) throw new Error('Enter your email address first.');
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: Linking.createURL('auth/callback') });
+    if (error) throw error;
+  }, [session?.user.email]);
+
+  const updatePassword = useCallback(async (password: string) => {
+    if (!session?.user.id) throw new Error('Please sign in first.');
+    if (password.length < 8) throw new Error('Password must contain at least 8 characters.');
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
+  }, [session?.user.id]);
+
+  const deleteAccount = useCallback(async () => {
+    if (!session?.user.id) throw new Error('Please sign in first.');
+    const { error } = await supabase.rpc('delete_own_account');
+    if (error) throw error;
+    await clearOfflineCache();
+    await supabase.auth.signOut({ scope: 'local' });
+    clearUserData();
+  }, [clearUserData, session?.user.id]);
+
   const value = useMemo<AuthContextValue>(() => ({
     configured: isSupabaseConfigured, loading, session, user: session?.user ?? null, profile, preferences, places, routeHistory,
     signUp, signIn, signInWithGoogle, signOut, refreshUserData, updateProfile, updatePreferences, saveRecentPlace,
-    setPlaceFlag, recordRouteStart, completeRoute, currentNoisePreference,
-  }), [currentNoisePreference, loading, places, preferences, profile, routeHistory, recordRouteStart, completeRoute, refreshUserData, saveRecentPlace, session, setPlaceFlag, signIn, signInWithGoogle, signOut, signUp, updatePreferences, updateProfile]);
+    setPlaceFlag, recordRouteStart, completeRoute, deletePlace, deleteRouteHistory, exportUserData, deleteAllUserData,
+    sendPasswordReset, updatePassword, deleteAccount, currentNoisePreference,
+  }), [currentNoisePreference, loading, places, preferences, profile, routeHistory, recordRouteStart, completeRoute, deletePlace, deleteRouteHistory, exportUserData, deleteAllUserData, sendPasswordReset, updatePassword, deleteAccount, refreshUserData, saveRecentPlace, session, setPlaceFlag, signIn, signInWithGoogle, signOut, signUp, updatePreferences, updateProfile]);
 
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

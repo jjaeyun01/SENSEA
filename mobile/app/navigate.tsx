@@ -8,6 +8,7 @@ import { CameraPreview, useCamera } from '@/src/camera/CameraProvider';
 import { useJourney } from '@/src/navigation/JourneyProvider';
 import { colors, radii, spacing, typography } from '@/src/theme';
 import { useNoise } from '@/src/noise/NoiseProvider';
+import { directionCue } from '@/src/navigation/direction';
 export default function NavigateScreen() {
   const router = useRouter(); const pathname = usePathname(); const insets = useSafeAreaInsets(); const journey = useJourney(); const cameraState = useCamera(); const noise = useNoise();
   const cameraRequested = useRef(false);
@@ -23,6 +24,7 @@ export default function NavigateScreen() {
   const paused = journey.stage !== 'navigating';
   const arrivalPending = journey.arrivalStatus !== 'none' && journey.stage !== 'arrived';
   const segment = route?.steps[journey.stepIndex];
+  const direction = journey.position && segment?.end ? directionCue(journey.position, segment.end) : null;
   const remaining = route ? Math.max(0, Math.round(route.distance_m - route.steps.slice(0, journey.stepIndex).reduce((sum, item) => sum + (item.distance_m ?? 0), 0))) : 0;
   const location = journey.message;
   const noiseMessage = noise.collecting ? 'Aggregating a five-second live sound window. No audio file is created.' : noise.latest ? `${noise.latest.label} relative sound level. Private preview until three users contribute to this area.` : noise.status;
@@ -40,13 +42,13 @@ export default function NavigateScreen() {
     <Text accessibilityLiveRegion="polite" style={styles.cameraStatus}>{cameraState.message}</Text>
     <View style={styles.preflightActions}>
       {!cameraState.ready && <LargeActionButton label={cameraState.phase === 'opening' ? 'Preparing camera…' : 'Retry camera'} loading={cameraState.phase === 'opening'} onPress={() => void cameraState.open()} />}
-      <LargeActionButton label="Start navigating" disabled={journey.busy || !cameraState.ready} onPress={() => void start()} icon={<Text style={styles.darkIcon}>→</Text>} />
+      <LargeActionButton label="Start navigating" disabled={journey.busy} onPress={() => void start()} icon={<Text style={styles.darkIcon}>→</Text>} />
       {cameraState.phase === 'closed' && <LargeActionButton label="Camera permission settings" onPress={() => void Linking.openSettings()} variant="ghost" />}
       <LargeActionButton label="Back to routes" onPress={() => { journey.reviewRoutes(); router.replace('/routes'); }} variant="ghost" />
     </View>
     <RouteMap route={route} position={journey.position} noiseCells={noise.cells} latestNoise={noise.latest} />
     <View style={styles.summaryCard}><View style={styles.routeLine}><View style={styles.routeDot} /><View style={styles.routeStem} /><View style={[styles.routeDot, styles.routeDotEnd]} /></View><View style={styles.summaryCopy}><Text style={styles.summaryLabel}>{route.label}</Text><Text style={styles.summaryMetric}>{Math.max(1, Math.ceil(route.duration_seconds / 60))} min · {route.distance_m} m</Text><Text style={styles.summaryHint}>Google Maps · Accessibility unverified</Text></View></View>
-    <View style={styles.notice}><Text style={styles.noticeIcon}>i</Text><Text style={styles.noticeText}>{route.arrivalTarget?.verifiedEntrance ? 'This route ends at a manually verified entrance coordinate. Stop and visually confirm before entering.' : 'Hold the phone upright facing forward. No verified entrance or VPS alignment is available; the route ends at a representative building point.'}</Text></View>
+    <View style={styles.notice}><Text style={styles.noticeIcon}>i</Text><Text style={styles.noticeText}>{route.arrivalTarget?.verifiedEntrance ? 'This route ends at a manually verified entrance coordinate. Stop and confirm before entering. Camera observations are optional.' : 'Camera observations are optional. No verified entrance or VPS alignment is available; the route ends at a representative building point.'}</Text></View>
 
   </ScrollView>;
 
@@ -56,14 +58,14 @@ export default function NavigateScreen() {
 
       <View style={styles.cameraFrame}>{pathname === '/navigate' && <CameraPreview />}</View><Text accessibilityLiveRegion="polite" style={styles.cameraStatus}>{cameraState.message}</Text>
       <View style={[styles.guidanceCard, paused && styles.guidancePaused]}>
-        <View style={styles.turnIcon}><Text style={styles.turnArrow}>↑</Text></View>
+        <View style={styles.turnIcon}><Text style={styles.turnArrow}>{direction?.arrow ?? '↑'}</Text></View>
         <Text style={styles.instruction} accessibilityLiveRegion="assertive">{journey.rerouting ? 'Finding a new route. Please stop.' : journey.stage === 'arrived' ? 'Arrival confirmed' : arrivalPending ? journey.arrivalStatus === 'verified_entrance_nearby' ? 'Near the verified entrance coordinate' : 'Near the mapped building location' : paused ? 'Guidance paused' : segment?.instruction ?? `Final waypoint near ${state.destination?.name}`}</Text>
         <Text style={styles.instructionMeta}>{arrivalPending ? 'Stop and confirm the entrance or continue guidance if this is not your destination.' : paused ? 'Resume when you are ready to continue.' : `Step ${Math.min(state.stepIndex + 1, route.steps.length)} of ${route.steps.length}`}</Text>
       </View>
 
       <RouteMap route={route} position={journey.position} noiseCells={noise.cells} latestNoise={noise.latest} />
 
-      <View style={styles.headingOrb}><Text style={styles.orbLabel}>HEADING</Text><Text style={styles.orbValue}>GPS guidance</Text><Text style={styles.orbPulse}>◉</Text></View>
+      <View style={styles.headingOrb}><Text style={styles.orbLabel}>HEADING</Text><Text style={styles.orbValue}>{direction ? `${direction.clock} o'clock` : 'GPS guidance'}</Text><Text style={styles.orbDirection}>{direction?.label ?? 'Waiting for movement direction'}</Text><Text style={styles.orbPulse}>◉</Text></View>
 
       <View style={styles.conditions}><View style={styles.conditionIcon}><Text style={styles.conditionIconText}>⌖</Text></View><View style={styles.conditionCopy}><Text style={styles.conditionTitle}>Location status</Text><Text style={styles.conditionText}>{location}</Text></View></View>
       <View style={styles.conditions}><View style={styles.conditionIcon}><Text style={styles.conditionIconText}>◎</Text></View><View style={styles.conditionCopy}><Text style={styles.conditionTitle}>Position alignment</Text><Text style={styles.conditionText}>{cameraState.alignmentStatus === 'unavailable' ? 'GPS with inertial jump filtering. Verified VPS alignment is not available.' : 'Verified visual alignment active.'}</Text></View></View>
@@ -84,6 +86,7 @@ const styles = StyleSheet.create({
   navTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, navStatus: { color: colors.primary, fontFamily: typography.family, fontSize: 11, fontWeight: '900', letterSpacing: 1.3 }, destination: { color: colors.text, fontFamily: typography.family, fontSize: 20, fontWeight: '800', marginTop: 3 }, cameraButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }, cameraIcon: { color: colors.primary, fontSize: 22 },
   guidanceCard: { backgroundColor: colors.primarySoft, borderWidth: 2, borderColor: colors.primary, borderRadius: radii.lg, padding: 14, gap: 6 }, guidancePaused: { backgroundColor: colors.warningSoft, borderColor: colors.warning }, turnIcon: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', marginBottom: 2 }, turnArrow: { color: colors.primary, fontSize: 36, lineHeight: 42, fontWeight: '400' }, instruction: { color: colors.text, fontFamily: typography.family, fontSize: 22, lineHeight: 28, fontWeight: '900' }, instructionMeta: { color: colors.muted, fontFamily: typography.family, fontSize: 14 },
   headingOrb: { width: 188, height: 188, borderRadius: 94, alignSelf: 'center', borderWidth: 3, borderColor: colors.primary, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', gap: 4, marginVertical: 8 }, orbLabel: { color: colors.muted, fontFamily: typography.family, fontSize: 12, fontWeight: '800', letterSpacing: 1.1 }, orbValue: { color: colors.text, fontFamily: typography.family, fontSize: 24, fontWeight: '900' }, orbPulse: { color: colors.primary, fontSize: 21 },
+  orbDirection: { maxWidth: 140, color: colors.muted, fontFamily: typography.family, fontSize: 12, lineHeight: 16, textAlign: 'center' },
   conditions: { flexDirection: 'row', gap: 12, padding: 15, borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, conditionIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }, conditionIconText: { color: colors.primary, fontSize: 21 }, conditionCopy: { flex: 1, gap: 3 }, conditionTitle: { color: colors.textSoft, fontFamily: typography.family, fontSize: 14, fontWeight: '800' }, conditionText: { color: colors.muted, fontFamily: typography.family, fontSize: 13, lineHeight: 18 },
   secondaryGrid: { flexDirection: 'row', gap: 10 }, smallButton: { flex: 1, minHeight: 76, borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', gap: 4 }, smallIcon: { color: colors.primary, fontSize: 22, fontWeight: '800' }, smallLabel: { color: colors.textSoft, fontFamily: typography.family, fontSize: 12, fontWeight: '800' },
   disabled: { opacity: 0.5 },

@@ -152,6 +152,8 @@ Supabase SQL Editor에서 다음 파일을 순서대로 실행한다.
 1. `backend/migrations/001_initial.sql`
 2. `backend/migrations/002_user_accounts.sql`
 3. `backend/migrations/003_crowdsourced_noise_map.sql`
+4. `backend/migrations/004_uw_directory_read.sql`
+5. `backend/migrations/005_account_management.sql`
 
 현재 최종 `public` 테이블은 다음과 같다.
 
@@ -192,12 +194,14 @@ drop function if exists public.refresh_noise_grid_hourly() cascade;
 drop function if exists public.can_submit_noise_measurement(uuid) cascade;
 drop function if exists public.handle_new_user() cascade;
 drop function if exists public.set_updated_at() cascade;
+drop function if exists public.delete_own_sensea_data() cascade;
+drop function if exists public.delete_own_account() cascade;
 drop schema if exists sensea_archive cascade;
 
 commit;
 ```
 
-초기화 후 `001`, `002`, `003`을 다시 순서대로 실행한다. `002`가 남아 있는
+초기화 후 `001`부터 `005`까지 다시 순서대로 실행한다. `002`가 남아 있는
 `auth.users` 계정을 기반으로 기본 프로필과 환경설정을 다시 생성한다.
 
 ## 9. 실행 환경과 설정
@@ -256,6 +260,16 @@ npx expo export --platform ios --output-dir /tmp/sensea-export
 
 ## 11. 현재 제한사항 및 다음 작업
 
+- 네트워크가 끊기면 기기에 저장된 캠퍼스 디렉터리를 검색하고, 같은 목적지에
+  대해 24시간 이내에 저장되었으며 현재 출발점이 기존 출발점에서 200m 이내인
+  경로만 오프라인 경로로 제시한다. 현재 통제·공사 정보가 갱신되지 않음을
+  화면과 음성으로 알린다.
+- GPS가 유효한 진행 방향을 제공하면 다음 경로 지점과 비교해 시계 방향 문구,
+  방향 화살표와 좌·우·직진·유턴별 햅틱 패턴을 제공한다. 진행 방향을 알 수
+  없으면 방향을 추측하지 않는다.
+- 계정 화면은 비상 연락처 전화, 확인 후 현재 위치 공유, 사용자 데이터 내보내기,
+  장소·경로 개별 삭제, 전체 데이터 삭제, 비밀번호 복구·변경과 계정 삭제를
+  제공한다. 삭제 RPC에는 `005_account_management.sql` 적용이 필요하다.
 - 실제 기기마다 마이크 감도가 다르므로 상대 소음값은 기기 간 편차가 있다.
 - 소음 집계가 지도에 표시되려면 같은 격자·시간대에 최소 3명의 기여자가
   필요하다.
