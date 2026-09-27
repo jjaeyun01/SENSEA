@@ -8,8 +8,11 @@ import { AppHeader } from '@/src/components/AppHeader';
 import { LargeActionButton } from '@/src/components/LargeActionButton';
 import { colors, radii, spacing, typography } from '@/src/theme';
 import { useAppPreferences } from '@/src/state/AppPreferences';
+import { noiseLabel } from '@/src/noise/noiseMath.mjs';
 function noiseText(route: RouteOption) {
-  return route.source === 'demo' ? `Demo noise: ${route.noiseStatus ?? 'unknown'}` : 'Noise level unknown';
+  if (route.source === 'demo') return `Demo noise: ${route.noiseStatus ?? 'unknown'}`;
+  if (route.relativeNoise == null) return 'Crowdsourced noise coverage unavailable';
+  return `${noiseLabel(route.relativeNoise)} relative sound · ${route.noiseMeasurementCount ?? 0} samples`;
 }
 export default function RoutesScreen() {
   const router = useRouter(); const pathname = usePathname(); const insets = useSafeAreaInsets();

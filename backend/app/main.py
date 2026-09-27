@@ -4,6 +4,8 @@ import time
 from collections import deque
 from pathlib import Path
 from typing import Literal
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -13,6 +15,7 @@ from .campus import router as campus_router
 from .demo_api import router as demo_router
 from .noise import NoiseStore
 from .routing import load_graph, shortest_path, summarize_route
+from .user_preferences import resolve_noise_preference
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_AUDIO_BYTES = 5 * 1024 * 1024
@@ -21,7 +24,8 @@ MAX_AUDIO_BYTES = 5 * 1024 * 1024
 class RouteRequest(BaseModel):
     start_waypoint: str = Field(min_length=1, max_length=100)
     end_waypoint: str = Field(min_length=1, max_length=100)
-    noise_preference: Literal["shortest", "quiet"] = "quiet"
+    noise_preference: Literal["shortest", "quiet", "active", "automatic"] = "quiet"
+    local_hour: int | None = Field(default=None, ge=0, le=23)
     mode: Literal["simulation", "live"] = "simulation"
 
 
@@ -77,8 +81,16 @@ def create_app(graph_path=None, db_path=None):
         if body.mode == "live" and graph.get("simulation_only", True):
             raise HTTPException(409, "The demo map is available in simulation mode only.")
         noise = store.summaries(edge_ids)
+        effective_noise_preference = body.noise_preference
+        if effective_noise_preference == "automatic":
+            hour = body.local_hour
+            if hour is None:
+                hour = datetime.now(ZoneInfo(os.getenv("SENSEA_TIMEZONE", "America/Chicago"))).hour
+            effective_noise_preference = resolve_noise_preference(hour)
         options = []
-        for kind, weight in [("shortest", 0.0), ("noise-weighted", 2.0)]:
+        strategy = "active" if effective_noise_preference == "active" else "quiet"
+        weighted_id = "active-noise-weighted" if strategy == "active" else "noise-weighted"
+        for kind, weight in [("shortest", 0.0), (weighted_id, 2.0)]:
             segments = shortest_path(
                 graph,
                 body.start_waypoint,
@@ -86,6 +98,7 @@ def create_app(graph_path=None, db_path=None):
                 noise,
                 weight,
                 body.mode == "simulation",
+                strategy,
             )
             if segments is None:
                 raise HTTPException(404, "No pedestrian route is available.")
@@ -96,13 +109,16 @@ def create_app(graph_path=None, db_path=None):
                     continue
             options.append(summarize_route(segments, kind))
         preferred = options[0]["id"]
-        if body.noise_preference == "quiet" and len(options) > 1:
+        if effective_noise_preference in {"quiet", "active"} and len(options) > 1:
             a, b = options
-            # Claim lower measured noise only with complete fresh coverage.
+            # Make a noise claim only with complete fresh coverage.
             if (
                 a["relative_noise"] is not None
                 and b["relative_noise"] is not None
-                and b["relative_noise"] < a["relative_noise"]
+                and (
+                    (effective_noise_preference == "quiet" and b["relative_noise"] < a["relative_noise"])
+                    or (effective_noise_preference == "active" and b["relative_noise"] > a["relative_noise"])
+                )
             ):
                 preferred = b["id"]
         if body.mode == "simulation":
@@ -116,6 +132,8 @@ def create_app(graph_path=None, db_path=None):
             "mode": body.mode,
             "routes": options,
             "recommended_route_id": preferred,
+            "applied_noise_preference": effective_noise_preference,
+            "noise_safety_notice": "Relative noise does not prove crowd presence or route safety.",
             "arrived": body.start_waypoint == body.end_waypoint,
             "notice": notice,
         }

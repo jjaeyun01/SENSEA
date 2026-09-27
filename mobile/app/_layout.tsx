@@ -6,6 +6,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { JourneyProvider } from '@/src/navigation/JourneyProvider';
 import { CameraProvider } from '@/src/camera/CameraProvider';
 import { AppPreferencesProvider } from '@/src/state/AppPreferences';
+import { AuthProvider } from '@/src/auth/AuthProvider';
+import { NoiseProvider } from '@/src/noise/NoiseProvider';
 import { setFeedbackScreenReader, stopFeedback } from '@/src/navigation/feedback';
 import { colors } from '@/src/theme';
 export default function RootLayout() {
@@ -15,10 +17,11 @@ export default function RootLayout() {
     void AccessibilityInfo.isScreenReaderEnabled().then(value => { if (mounted && !changed) setFeedbackScreenReader(value); });
     return () => { mounted = false; listener.remove(); };
   }, []);
-  return <SafeAreaProvider><CameraProvider><JourneyProvider><AppPreferencesProvider><StatusBar style="dark" /><Stack screenOptions={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: colors.background } }}>
+  return <SafeAreaProvider><AuthProvider><NoiseProvider><CameraProvider><JourneyProvider><AppPreferencesProvider><StatusBar style="dark" /><Stack screenOptions={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: colors.background } }}>
     <Stack.Screen name="index" /><Stack.Screen name="routes" /><Stack.Screen name="navigate" />
     <Stack.Screen name="camera" /><Stack.Screen name="settings" /><Stack.Screen name="map" />
     <Stack.Screen name="preferences" /><Stack.Screen name="profile" />
     <Stack.Screen name="destination" /><Stack.Screen name="scan" />
-  </Stack></AppPreferencesProvider></JourneyProvider></CameraProvider></SafeAreaProvider>;
+    <Stack.Screen name="auth" /><Stack.Screen name="account" />
+  </Stack></AppPreferencesProvider></JourneyProvider></CameraProvider></NoiseProvider></AuthProvider></SafeAreaProvider>;
 }

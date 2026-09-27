@@ -10,7 +10,8 @@
       "bundleIdentifier": "com.sensea.app",
       "supportsTablet": false,
       "infoPlist": {
-        "NSCameraUsageDescription": "주변 사물을 기기에서 분석하고 음성으로 알려드리기 위해 카메라를 사용합니다."
+        "NSCameraUsageDescription": "주변 사물을 기기에서 분석하고 음성으로 알려드리기 위해 카메라를 사용합니다.",
+        "NSMicrophoneUsageDescription": "SENSEA는 음성 명령과 선택적 소음지도 기여를 위해 마이크를 사용합니다. 소음 샘플은 기기에서 처리 후 즉시 삭제되며 숫자 데이터만 업로드됩니다."
       },
       "buildNumber": "2"
     },
@@ -54,7 +55,7 @@
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "SENSEA uses your microphone for destination and navigation commands.",
+          "microphonePermission": "SENSEA uses your microphone for voice commands and optional foreground noise-map contribution. Noise audio is processed on-device and immediately deleted.",
           "speechRecognitionPermission": "SENSEA converts speech into destination and navigation commands."
         }
       ],
