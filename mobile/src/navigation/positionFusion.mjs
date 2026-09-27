@@ -23,19 +23,47 @@ export function distanceToSegmentMeters(point, start, end) {
   return Math.hypot(a.x + t * dx, a.y + t * dy);
 }
 
+// Google provides per-step geometry; never substitute the endpoint chord for it.
+export function decodePolyline(encoded) {
+  const points = []; let index = 0, lat = 0, lon = 0;
+  function read() {
+    let result = 0, shift = 0, byte;
+    do {
+      if (index >= encoded.length || shift > 30) throw new Error('Invalid polyline');
+      byte = encoded.charCodeAt(index++) - 63;
+      if (byte < 0 || byte > 63) throw new Error('Invalid polyline');
+      result |= (byte & 31) << shift; shift += 5;
+    } while (byte >= 32);
+    return result & 1 ? ~(result >> 1) : result >> 1;
+  }
+  while (index < encoded.length) {
+    lat += read(); lon += read();
+    const point = { latitude: lat / 1e5, longitude: lon / 1e5 };
+    if (Math.abs(point.latitude) > 90 || Math.abs(point.longitude) > 180) throw new Error('Invalid polyline');
+    points.push(point);
+  }
+  return points;
+}
+export function stepPoints(step) {
+  if (step?.encoded_polyline) {
+    try { const points = decodePolyline(step.encoded_polyline); if (points.length >= 2) return points; }
+    catch { return []; }
+  }
+  return step?.start && step?.end ? [step.start, step.end] : [];
+}
 export function routeDistanceMeters(route, point, initialStep = 0) {
-  const segments = [];
-  const remaining = (route.steps ?? []).slice(Math.max(0, initialStep));
-  for (const step of remaining) {
-    if (step.start && step.end) segments.push([step.start, step.end]);
+  const remaining = (route.steps ?? []).slice(Math.max(0, initialStep - 1), initialStep + 3);
+  let lines = remaining.map(stepPoints);
+  // Older servers expose only whole-route geometry. Prefer it to endpoint chords.
+  if (route.encoded_polyline && !remaining.some(step => step.encoded_polyline)) {
+    try { lines = [decodePolyline(route.encoded_polyline)]; } catch { return Infinity; }
   }
-  const finalEnd = remaining[remaining.length - 1]?.end;
-  if (finalEnd && route.arrivalTarget &&
-      Number.isFinite(route.arrivalTarget.latitude) && Number.isFinite(route.arrivalTarget.longitude)) {
-    segments.push([finalEnd, route.arrivalTarget]);
+  const distances = lines.flatMap(points => points.slice(1).map((end, i) => distanceToSegmentMeters(point, points[i], end)));
+  const finalEnd = initialStep + 3 >= (route.steps?.length ?? 0) ? route.steps?.at(-1)?.end : null;
+  if (finalEnd && route.arrivalTarget && Number.isFinite(route.arrivalTarget.latitude) && Number.isFinite(route.arrivalTarget.longitude)) {
+    distances.push(distanceToSegmentMeters(point, finalEnd, route.arrivalTarget));
   }
-  if (!segments.length) return Infinity;
-  return Math.min(...segments.map(([start, end]) => distanceToSegmentMeters(point, start, end)));
+  return distances.length ? Math.min(...distances) : Infinity;
 }
 
 /**
@@ -44,7 +72,7 @@ export function routeDistanceMeters(route, point, initialStep = 0) {
  * VPS provider marks it verified and it agrees with a recent GPS fix.
  */
 export class PositionFusion {
-  constructor() { this.last = null; this.motion = null; }
+  constructor() { this.last = null; this.motion = null; this.recovery = null; this.latestGpsAt = -Infinity; }
   offerMotion(sample) {
     if (!sample || !Number.isFinite(sample.timestamp) || !Number.isFinite(sample.acceleration)) return;
     this.motion = sample;
@@ -52,6 +80,8 @@ export class PositionFusion {
   updateGps(fix, visual = null) {
     if (!fix || !Number.isFinite(fix.latitude) || !Number.isFinite(fix.longitude) ||
         !Number.isFinite(fix.timestamp) || !Number.isFinite(fix.accuracy) || fix.accuracy < 0) return fix;
+    if (fix.timestamp <= this.latestGpsAt) return this.recovery && this.last ? { ...this.last, source: 'inertial-jump-rejected', trusted: false } : this.last ?? fix;
+    this.latestGpsAt = fix.timestamp;
     let candidate = { ...fix, source: 'gps' };
     if (visual?.verified === true && visual.confidence >= 0.9 &&
         Number.isFinite(visual.latitude) && Number.isFinite(visual.longitude) &&
@@ -70,13 +100,23 @@ export class PositionFusion {
       const jump = distanceMeters(this.last, candidate);
       const recentMotion = this.motion && candidate.timestamp >= this.motion.timestamp && candidate.timestamp - this.motion.timestamp <= 1500;
       const stationary = recentMotion && this.motion.acceleration < 0.12;
-      const maximum = stationary ? Math.max(8, candidate.accuracy + this.last.accuracy) : Math.max(25, elapsed * 4 + candidate.accuracy);
+      const maximum = stationary ? Math.max(8, candidate.accuracy + this.last.accuracy) : Math.max(25, Math.min(elapsed, 5) * 4 + candidate.accuracy);
       if (jump > maximum) {
-        const rejected = { ...this.last, timestamp: candidate.timestamp,
-          accuracy: Math.max(candidate.accuracy, this.last.accuracy), source: 'inertial-jump-rejected' };
-        this.last = rejected;
-        return rejected;
+        const recovery = this.recovery;
+        if (candidate.accuracy <= 10 && recovery && candidate.timestamp - recovery.lastAt <= 3000 &&
+            distanceMeters(recovery.fix, candidate) <= Math.max(10, candidate.accuracy + recovery.fix.accuracy)) {
+          recovery.count++; recovery.lastAt = candidate.timestamp;
+        } else {
+          this.recovery = candidate.accuracy <= 10 ? { fix: candidate, firstAt: candidate.timestamp, lastAt: candidate.timestamp, count: 1 } : null;
+        }
+        if (this.recovery?.count >= 3 && candidate.timestamp - this.recovery.firstAt >= 2000) {
+          this.last = { ...candidate, source: 'gps-reacquired' }; this.recovery = null;
+          return this.last;
+        }
+        // Preserve the time of the actual accepted fix and explicitly prohibit guidance.
+        return { ...this.last, source: 'inertial-jump-rejected', trusted: false };
       }
+      this.recovery = null;
       const weight = candidate.accuracy <= 5 ? 0.8 : 0.55;
       candidate = { ...candidate,
         latitude: this.last.latitude * (1 - weight) + candidate.latitude * weight,
@@ -86,5 +126,5 @@ export class PositionFusion {
     this.last = candidate;
     return candidate;
   }
-  reset() { this.last = null; this.motion = null; }
+  reset() { this.last = null; this.motion = null; this.recovery = null; this.latestGpsAt = -Infinity; }
 }

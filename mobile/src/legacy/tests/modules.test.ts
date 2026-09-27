@@ -1,10 +1,10 @@
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { parseCommand } from '../src/voice/commands.ts';
-import { VoiceController } from '../src/voice/controller.ts';
-import { summarizeMetering } from '../src/noise/noiseMeter.ts';
-import { NavigationSession } from '../src/navigation/session.ts';
-import type { SenseaApi } from '../src/api/client.ts';
+import { parseCommand } from '../voice/commands';
+import { VoiceController } from '../voice/controller';
+import { summarizeMetering } from '../noise/noiseMeter';
+import { NavigationSession } from '../navigation/session';
+import type { SenseaApi } from '../api/client';
 
 test('English commands and unknown speech', () => {
   assert.deepEqual(parseCommand('Take me to library.'), { type: 'SET_DESTINATION', query: 'library' });

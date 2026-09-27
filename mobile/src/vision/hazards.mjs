@@ -303,6 +303,7 @@ export class HazardTracker {
 export class HazardAnnouncementGate {
   constructor() { this.reset(); }
   reset() {
+    this.pending = null;
     this.entries = [];
     this.lastFrameAt = -Infinity;
     this.lastNow = -Infinity;
@@ -311,7 +312,7 @@ export class HazardAnnouncementGate {
   }
   getDiagnostics() { return { entryCount: this.entries.length }; }
   /** @param {import('./types').HazardAssessment} assessment @returns {string | null} */
-  offer(assessment, now) {
+  offer(assessment, now, deferDelivery = false) {
     const age = now - assessment?.observedAt;
     if (!Number.isFinite(now) || now < this.lastNow || !Number.isFinite(age) || age < 0 ||
         age > HAZARD_LIMITS.freshnessMs || assessment?.status === "unavailable") {
@@ -319,6 +320,9 @@ export class HazardAnnouncementGate {
       return null;
     }
     this.lastNow = now;
+    if (this.pending && (now - this.pending.at > 1000 ||
+        !assessment.hazards.some(h => h.trackId === this.pending.id && h.direction === this.pending.direction && h.level === this.pending.level))) this.pending = null;
+    if (this.pending) return null;
     if (assessment.observedAt <= this.lastFrameAt) return null;
     this.lastFrameAt = assessment.observedAt;
     // Informational side objects remain on screen/manual replay and never interrupt warnings.
@@ -351,11 +355,30 @@ export class HazardAnnouncementGate {
       // Priority escalation bypasses the ordinary four-second cooldown. A short
       // priority-only guard stops several new tracks interrupting speech at once.
       if (escalation ? now - this.lastPriorityAt < 1500 : now - this.lastAt < 4000) continue;
-      entry.level = hazard.level; entry.direction = hazard.direction; entry.spokenAt = now; entry.rearmed = false;
-      this.lastAt = now;
-      if (hazard.level === "priority") this.lastPriorityAt = now;
+      const pending = { id: hazard.trackId, level: hazard.level, direction: hazard.direction, at: now };
+      this.pending = pending;
+      if (!deferDelivery) this.markDelivered(pending, now);
       return describeHazardForSpeech(hazard);
     }
     return null;
   }
+  markDelivered(pending, now) {
+    if (this.pending !== pending) return;
+    const entry = this.entries.find(e => e.id === pending.id);
+    if (entry) {
+      entry.level = pending.level; entry.direction = pending.direction; entry.spokenAt = now; entry.rearmed = false;
+      this.lastAt = now;
+      if (pending.level === 'priority') this.lastPriorityAt = now;
+    }
+    this.pending = null;
+  }
+  reserve(assessment, now) {
+    const text = this.offer(assessment, now, true);
+    const pending = this.pending;
+    if (!text || !pending) return null;
+    return { text, trackId: pending.id, direction: pending.direction, level: pending.level,
+      onDelivered: () => this.markDelivered(pending, Date.now()),
+      onDropped: () => { if (this.pending === pending) this.pending = null; } };
+  }
+
 }

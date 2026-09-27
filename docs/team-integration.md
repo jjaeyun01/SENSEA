@@ -2,7 +2,9 @@
 
 호출어 정책: 앱 실행 후 음성 조작을 활성화하면 앱 이용 중 **SENSEA**로 명령 입력을 시작합니다. 초기 버전은 포그라운드만 지원 대상으로 하며, 앱 종료·화면 잠금·백그라운드 호출은 포함하지 않습니다. 제어 모듈과 네이티브 연결 작업은 [호출어 가이드](wake-word.md)를 참고하세요.
 
-현재 구현은 **백엔드 + 화면과 독립적인 TypeScript 모듈**입니다. 프론트 담당자는 기존 파일을 유지한 채 `frontend/`에 Expo 앱을 구성하면 됩니다. 실제 마이크 권한·녹음·스피커·GPS 하드웨어 연결은 선택한 Expo SDK에 맞춰 프론트에서 연결해야 합니다.
+현재 실행 앱은 `mobile/`의 Expo Router 앱입니다. 서버는 `backend/`에 있습니다. UI는 `mobile/app/`, 실제 UW/Google 경로 연결은 `mobile/src/navigation/`, 인증과 소음 수집은 각각 `mobile/src/auth/`와 `mobile/src/noise/`에 있습니다.
+
+아래 API·음성 어댑터 설명은 `mobile/src/legacy/`로 보존한 초기 시뮬레이션 모듈을 위한 참고입니다. 이 모듈은 실제 앱에서 사용하지 않습니다. 실제 길찾기는 `/campus/places`와 `/campus/routes`를 사용하며 Google Routes 키가 필요합니다. Supabase 계정·소음 데이터는 현재 모바일에서 연결합니다. 아래의 가상 그래프 설명과 구현 예정 항목을 현재 앱 상태로 해석하지 마세요.
 
 ## 백엔드 실행
 
@@ -47,7 +49,7 @@ curl http://localhost:8000/routes \
 
 ## 프론트 담당자: 음성 연결
 
-`frontend/src/api/client.ts`의 `SenseaApi`를 생성하고, 다음 흐름으로 연결하세요.
+`mobile/src/legacy/api/client.ts`의 `SenseaApi`를 생성하고, 다음 흐름으로 연결하세요.
 
 1. 접근 가능한 마이크 버튼 → `voice.prepareToListen()` → 녹음 시작. 마이크 권한 거부 시 텍스트 입력 제공.
 2. 버튼으로 녹음 종료(최대 15초 권장) → 녹음 파일을 Blob/ArrayBuffer로 읽기.
@@ -104,7 +106,8 @@ python -m pytest -q
 TypeScript 모듈 테스트는 Node 22.7+에서 프로젝트 루트 기준:
 
 ```bash
-node --experimental-transform-types --test frontend/tests/*.test.ts
+cd mobile
+npm run test:ui
 ```
 
 실제 휴대폰 녹음·재생, 스크린리더, OpenAI 실전사 호출은 별도 기기/키 검증이 필요합니다. API 테스트는 외부 전사를 mock하여 비용 없이 확인합니다.

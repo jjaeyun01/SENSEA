@@ -336,7 +336,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
         lastFixAt.current = fix.timestamp;
         const fused = fusion.current.updateGps({ ...fix.coords, accuracy: fix.coords.accuracy ?? Infinity, timestamp: fix.timestamp }, cameraAlignmentRef.current);
         setPosition(fused);
-        noise.offerLocation(fused);
+        if (fused.trusted !== false) noise.offerLocation(fused);
         const event = guidance.current?.update(fused);
         if (event?.kind === "uncertain") {
           if (!uncertain.current) { uncertain.current = true; say(event.text, 1); recordEvent("location_uncertain"); }

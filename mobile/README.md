@@ -78,3 +78,7 @@ python scripts/check-model.py
 ## Integrated foundation camera (0.4.6)
 
 Production still uses Expo Router and the main UI, account, noise, and UW/Google routes providers. CameraProvider now starts preview before model analysis and uses bounded HazardTracker observations with shared voice and vibration priorities. Android uses the pinned fast-tflite CPU/XNNPACK patch and local expo-asset model loading; preview remains available if analysis fails. CameraSmokeApp and index.smoke are a separate camera-only emulator harness, never the production entrypoint. Hazard observations cannot establish real distance, collision risk, stairs, or safe passage. Native device performance and the combined navigation/camera flow still require device validation.
+
+## Source layout
+
+The server lives in ../backend; all mobile UI and TypeScript code lives here. The former frontend directory has been removed. Its independent simulation/API and wake-word prototypes are preserved in [src/legacy](src/legacy/README.md), with their tests included in npm run test:ui. Production screens and providers continue using their current implementations. No native wake-word engine was added by this reorganization.

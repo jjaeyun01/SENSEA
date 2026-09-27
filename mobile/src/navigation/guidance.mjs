@@ -1,17 +1,18 @@
-import { distanceMeters, routeDistanceMeters } from './positionFusion.mjs';
+import { distanceMeters, routeDistanceMeters, distanceToSegmentMeters, stepPoints } from './positionFusion.mjs';
 export { distanceMeters } from './positionFusion.mjs';
 
 /** Sequential GPS cues, not visual positioning or an entrance/safety verifier. */
 export class Guidance {
   constructor(route, initialStep = 0) {
     this.route = route; this.step = Math.max(0, Math.min(initialStep, Math.max(0, (route.steps?.length ?? 1) - 1)));
+    this.turnFixes = 0; this.turnSince = null;
     this.warned = new Set(); this.nearDestination = false;
     this.offRouteFixes = 0; this.offRouteSince = null; this.offRouteAnnounced = false;
     this.arrivalFixes = 0; this.arrivalSince = null;
     this.lastCountedFixAt = -Infinity;
   }
   update(fix, now = Date.now()) {
-    if (!fix || !Number.isFinite(fix.accuracy) || fix.accuracy < 0 || fix.accuracy > 10 ||
+    if (!fix || fix.trusted === false || fix.source === 'inertial-jump-rejected' || !Number.isFinite(fix.accuracy) || fix.accuracy < 0 || fix.accuracy > 10 ||
         !Number.isFinite(fix.timestamp) || now - fix.timestamp > 5000 || now < fix.timestamp ||
         !Number.isFinite(fix.latitude) || !Number.isFinite(fix.longitude)) {
       return { kind: 'uncertain', text: 'Location accuracy is too low. Guidance is paused. Please stop and check your surroundings.' };
@@ -56,9 +57,21 @@ export class Guidance {
     } else if (!next) {
       this.arrivalFixes = 0; this.arrivalSince = null;
     }
-    if (next && distance + fix.accuracy <= 3) {
-      this.step++;
-      return { kind: 'turn', text: `Near the next turn. ${next.instruction}`, step: this.step };
+    if (next) {
+      const nextPoints = stepPoints(next);
+      const nextDistance = nextPoints.length > 1 ? Math.min(...nextPoints.slice(1).map((end, i) => distanceToSegmentMeters(fix, nextPoints[i], end))) : Infinity;
+      const nearTurn = distance <= Math.max(8, fix.accuracy);
+      // A consistent fix near the waypoint or a short distance along the next
+      // segment is evidence of progress, not a claim of three-metre precision.
+      const enteredNext = distance > Math.max(8, fix.accuracy) && distance <= 30 && nextDistance <= 6 &&
+        distanceMeters(fix, next.end) < distanceMeters(current.end, next.end) - 5;
+      if ((nearTurn || enteredNext) && isNewFix) {
+        this.turnFixes++; this.turnSince ??= fix.timestamp;
+      } else if (!nearTurn && !enteredNext) { this.turnFixes = 0; this.turnSince = null; }
+      if (this.turnFixes >= 3 && fix.timestamp - this.turnSince >= 1500) {
+        this.step++; this.turnFixes = 0; this.turnSince = null;
+        return { kind: 'turn', text: `Near the next turn. ${next.instruction}`, step: this.step };
+      }
     }
     if (next && distance + fix.accuracy <= 10 && !this.warned.has(this.step)) {
       this.warned.add(this.step);
@@ -76,23 +89,4 @@ export class Guidance {
   }
 }
 
-export function decodePolyline(encoded) {
-  const points = [];
-  let index = 0, lat = 0, lon = 0;
-  function read() {
-    let result = 0, shift = 0, byte;
-    do {
-      if (index >= encoded.length || shift > 30) throw new Error('Invalid polyline');
-      byte = encoded.charCodeAt(index++) - 63;
-      if (byte < 0 || byte > 63) throw new Error('Invalid polyline');
-      result |= (byte & 31) << shift;
-      shift += 5;
-    } while (byte >= 32);
-    return result & 1 ? ~(result >> 1) : result >> 1;
-  }
-  while (index < encoded.length) {
-    lat += read(); lon += read();
-    points.push({ latitude: lat / 1e5, longitude: lon / 1e5 });
-  }
-  return points;
-}
+export { decodePolyline } from './positionFusion.mjs';

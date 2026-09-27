@@ -15,7 +15,8 @@ test('10m warning does not claim 3m precision and is emitted once', () => {
  assert.equal(guide.update(fix(4, 0.00003), 10000).kind, 'approaching');
  assert.equal(guide.update(fix(4, 0.00003), 10000), null);
  assert.equal(guide.step, 0);
- assert.equal(guide.update(fix(1), 10000).kind, 'turn');
+ assert.equal(guide.update({ ...fix(1), timestamp: 11000 }, 11000), null);
+ assert.equal(guide.update({ ...fix(1), timestamp: 12000 }, 12000).kind, 'turn');
  assert.equal(guide.step, 1);
 });
 test('last point announces proximity rather than verified arrival', () => {
@@ -80,4 +81,27 @@ test('decode route polyline and reject truncation', async () => {
    { latitude: 43.252, longitude: -126.453 },
  ]);
  assert.throws(() => decodePolyline('_p~iF~'));
+});
+
+test('five-metre GPS accuracy advances only after consistent waypoint fixes', () => {
+ const guide = new Guidance(route);
+ guide.update(fix(5), 10000);
+ assert.equal(guide.step, 0);
+ guide.update({ ...fix(5), timestamp: 11000 }, 11000);
+ assert.equal(guide.update({ ...fix(5), timestamp: 12000 }, 12000).kind, 'turn');
+ assert.equal(guide.step, 1);
+});
+test('duplicate turn fixes and rejected GPS locations never advance', () => {
+ const guide = new Guidance(route);
+ for (let n=0;n<5;n++) guide.update(fix(5), 10000);
+ assert.equal(guide.step, 0);
+ const rejected = { ...fix(2), timestamp: 12000, trusted: false };
+ assert.equal(guide.update(rejected, 12000).kind, 'uncertain');
+ assert.equal(guide.step, 0);
+});
+test('progress along the next segment advances even if the turn waypoint was missed', () => {
+ const local = { steps: [{ start: { latitude:43,longitude:-89.001 }, end:endpoint }, { start:endpoint, end:{ latitude:43.001,longitude:-89 }, instruction:'Continue north.' }] };
+ const guide = new Guidance(local);
+ for (let n=0;n<3;n++) guide.update({ latitude:43.00012, longitude:-89,accuracy:5,timestamp:10000+n*1000 },10000+n*1000);
+ assert.equal(guide.step,1);
 });

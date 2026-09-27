@@ -1,5 +1,5 @@
-import { parseCommand } from './commands.ts';
-import type { VoiceCommand } from './commands.ts';
+import { parseCommand } from './commands';
+import type { VoiceCommand } from './commands';
 
 /** Ports let the frontend choose its Expo SDK, audio module and screen layout. */
 export interface VoicePorts {

@@ -156,3 +156,22 @@ def test_no_route_is_explicit(client, monkeypatch):
         monkeypatch, lambda req: httpx.Response(200, json=BUILDING if req.method == "GET" else {})
     )
     assert client.post("/campus/routes", headers=HEADERS, json=PAYLOAD).status_code == 404
+
+
+def test_step_geometry_is_requested_and_preserved(client, monkeypatch):
+    import copy
+
+    response = copy.deepcopy(ROUTE)
+    encoded = "_p~iF~ps|U_ulLnnqC_mqNvxq`@"
+    response["routes"][0]["legs"][0]["steps"][0]["polyline"] = {"encodedPolyline": encoded}
+
+    def handler(request):
+        if request.method == "GET":
+            return httpx.Response(200, json=BUILDING)
+        assert "routes.legs.steps.polyline.encodedPolyline" in request.headers["X-Goog-FieldMask"]
+        return httpx.Response(200, json=response)
+
+    upstream(monkeypatch, handler)
+    result = client.post("/campus/routes", headers=HEADERS, json=PAYLOAD)
+    assert result.status_code == 200
+    assert result.json()["routes"][0]["steps"][0]["encoded_polyline"] == encoded

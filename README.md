@@ -16,7 +16,7 @@ Track implemented modules and remaining app work in [CHECKLIST.md](CHECKLIST.md)
 
 Code is separated into two folders:
 
-- [frontend/](frontend/README.md): mobile TypeScript modules and tests.
+- [mobile/src/legacy/](mobile/src/legacy/README.md): preserved simulation and wake-word prototypes; not imported by the running app.
 - [backend/](backend/README.md): FastAPI server, route data, persistence, and tests.
 - [docs/](docs/team-integration.md): shared API and team integration guide.
 
@@ -249,34 +249,23 @@ Here `noise_weight` is a dimensionless multiplier. Missing measurements should c
 
 ## 9. Mobile app implementation starter
 
-Recommended project layout:
+Current project layout (two application directories):
 
 ```text
-sensea/
-├── README.md
-├── frontend/
-│   ├── app/
-│   │   ├── index.tsx              # Accessible destination screen
-│   │   ├── routes.tsx             # Spoken route choices
-│   │   ├── navigate.tsx           # Guidance + repeat/pause
-│   │   └── camera.tsx             # User-triggered scene description
-│   ├── src/
-│   │   ├── api/client.ts
-│   │   ├── voice/commands.ts
-│   │   ├── voice/speechInput.ts
-│   │   ├── navigation/location.ts
-│   │   ├── noise/noiseMeter.ts
-│   │   └── components/LargeActionButton.tsx
+SENSEA/
+├── backend/                    # Python APIs and server tests
+├── mobile/
+│   ├── app/                    # Expo Router UI screens
+│   ├── src/navigation/         # UW/Google routes, GPS, voice/haptics
+│   ├── src/camera/             # Integrated camera provider
+│   ├── src/vision/             # On-device image analysis
+│   ├── src/auth/               # Supabase accounts
+│   ├── src/noise/              # Foreground sound measurement
+│   ├── src/components/         # Shared UI
+│   ├── src/legacy/             # Preserved independent prototypes and tests
 │   └── package.json
-├── backend/
-│   ├── app/main.py
-│   ├── app/routing.py
-│   ├── app/vision.py
-│   ├── app/db.py
-│   └── requirements.txt
-└── docs/
-    ├── demo-script.md
-    └── accessibility-test-plan.md
+├── docs/                       # Shared documentation
+└── .github/                    # CI workflows
 ```
 
 Bootstrap commands:
@@ -289,13 +278,6 @@ npm run models:download
 npm run android -- --device
 # On macOS with Xcode: npm run ios -- --device
 
-# Expo frontend shell, if it is not created yet
-npx create-expo-app@latest frontend --template default
-cd frontend
-npx expo install expo-speech expo-camera expo-location expo-audio
-# Check the current Expo SDK's map and speech-recognition compatibility before installing them.
-npx expo start
-
 # Backend (separate terminal, from project root)
 cd backend
 python -m venv .venv
@@ -304,7 +286,7 @@ pip install fastapi 'uvicorn[standard]' supabase python-multipart httpx
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Minimal accessible voice-output screen (`frontend/app/index.tsx`):
+Minimal accessible voice-output screen (`mobile/app/index.tsx`):
 
 ```tsx
 import React, { useState } from 'react';

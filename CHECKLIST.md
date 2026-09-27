@@ -1,12 +1,12 @@
 # SENSEA Implementation Checklist
 
-Last reviewed: September 26, 2026.
+Initial checklist: September 26, 2026. Historical items below remain a planning record.
 
 This checklist reflects files in this repository. Work on teammates' machines or branches has not been reviewed. The initial app release supports English only.
 
 ## Current status
 
-**Backend APIs and frontend logic modules are implemented. A runnable mobile app and an integrated end-to-end journey are not yet implemented in this repository.**
+**Current code is organized under backend/ and mobile/. The Expo app includes screens and integrated navigation/camera features; real-device validation is separate. Earlier standalone TypeScript prototypes and their tests are preserved under mobile/src/legacy/.**
 
 `[x]` means the specific code or document exists; it does not imply device validation. Device tests, external service checks, and integration are separate unchecked items. Suggested ownership below follows the team's current split; the two frontend teammates can divide their screens as needed.
 
@@ -21,7 +21,7 @@ This checklist reflects files in this repository. Work on teammates' machines or
 
 ## 1. Project setup and team contracts
 
-- [x] Separate frontend and backend code into `frontend/` and `backend/`.
+- [x] Separate server and mobile application code into `backend/` and `mobile/`.
 - [x] Document backend dependencies, environment variables, and local startup.
 - [x] Add frontend API client and response types.
 - [x] Document team integration steps in [docs/team-integration.md](docs/team-integration.md).
@@ -52,9 +52,9 @@ Owners: frontend teammates 1 and 2.
 
 Owner: you, with frontend teammates connecting the UI.
 
-- [x] Parse English destination, confirmation, route selection, start, repeat, pause, stop, back, and surroundings commands. See [commands.ts](frontend/src/voice/commands.ts).
+- [x] Parse English destination, confirmation, route selection, start, repeat, pause, stop, back, and surroundings commands. See [commands.ts](mobile/src/legacy/voice/commands.ts).
 - [x] Keep unrecognized commands from starting navigation.
-- [x] Implement injected voice input/output control, last-message repetition, and speech-echo suppression. See [controller.ts](frontend/src/voice/controller.ts).
+- [x] Implement injected voice input/output control, last-message repetition, and speech-echo suppression. See [controller.ts](mobile/src/legacy/voice/controller.ts).
 - [x] Implement `POST /speech/transcribe` with English input language configuration.
 - [x] Add transcription timeout, MIME allowlist, 5 MiB upload limit, and English error responses.
 - [x] Require a demo bearer token and cap transcription requests per server process.
@@ -98,7 +98,7 @@ Owner: you.
 
 Owners: you + frontend teammates.
 
-- [x] Implement destination confirmation, route selection, start, pause/resume, reset, and simulated arrival states. See [session.ts](frontend/src/navigation/session.ts).
+- [x] Implement destination confirmation, route selection, start, pause/resume, reset, and simulated arrival states. See [session.ts](mobile/src/legacy/navigation/session.ts).
 - [x] Reject starting navigation before destination confirmation and route selection.
 - [x] Discard pending route responses after a reset or destination change.
 - [x] Implement manual simulated waypoint advancement.
@@ -112,7 +112,7 @@ Owners: you + frontend teammates.
 
 Owner: you.
 
-- [x] Convert valid dBFS samples into a relative noise index using a power average. See [noiseMeter.ts](frontend/src/noise/noiseMeter.ts).
+- [x] Convert valid dBFS samples into a relative noise index using a power average. See [noiseMeter.ts](mobile/src/legacy/noise/noiseMeter.ts).
 - [x] Implement `POST /noise` with consent, range, edge ID, and bearer-token checks.
 - [x] Implement `GET /noise` with averages, sample counts, and observation timestamps.
 - [x] Persist summary observations in SQLite across server restarts.

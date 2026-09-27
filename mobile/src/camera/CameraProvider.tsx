@@ -25,11 +25,12 @@ function useCameraController() {
   const wanted = useRef(false), opening = useRef(false), mounted = useRef(true);
   const closing = useRef<Promise<void> | null>(null);
   const [hazard, setHazard] = useState<HazardAssessment | null>(null);
+  const latestAssessment = useRef<HazardAssessment | null>(null);
   const tracker = useRef(new HazardTracker());
   const hazardGate = useRef(new HazardAnnouncementGate());
   const gate = useRef(new AnnouncementGate());
   const close = useCallback(() => {
-    wanted.current = false; latest.current = null; owned.current?.pause(); gate.current.reset(); tracker.current.reset(); hazardGate.current.reset(); stopFeedback();
+    wanted.current = false; latest.current = null; latestAssessment.current = null; owned.current?.pause(); gate.current.reset(); tracker.current.reset(); hazardGate.current.reset(); stopFeedback();
     if (mounted.current) { setResult(null); setHazard(null); setPhase('closing'); }
     if (opening.current || closing.current) return;
     const active = owned.current; owned.current = null;
@@ -48,13 +49,14 @@ function useCameraController() {
     if (!mounted.current || !wanted.current || !isFreshResult(next, Date.now())) return;
     latest.current = next; setResult(next);
     const assessment = tracker.current.update(next, Date.now());
-    setHazard(assessment);
-    const warning = hazardGate.current.offer(assessment, Date.now());
+    latestAssessment.current = assessment; setHazard(assessment);
+    const warning = hazardGate.current.reserve(assessment, Date.now());
     if (warning) {
-      const observed = assessment.hazards.find(item => item.level !== 'notice');
-      announce(warning, assessment.status === 'priority' ? 0 : 1, 'ko-KR', undefined, true, () =>
+      announce(warning.text, warning.level === 'priority' ? 0 : 1, 'ko-KR', undefined, true, () =>
         wanted.current && !!latest.current && isFreshResult(latest.current, Date.now()) &&
-        Date.now() - assessment.observedAt <= 1000 && !!observed);
+        Date.now() - assessment.observedAt <= 1000 &&
+        !!latestAssessment.current?.hazards.some(item => item.trackId === warning.trackId &&
+          item.direction === warning.direction && item.level === warning.level), warning);
     }
     else if (next.quality.status !== 'usable') {
       const text = gate.current.offer(next, Date.now());
@@ -70,7 +72,7 @@ function useCameraController() {
       const granted = permission.hasPermission || (permission.canRequestPermission && await permission.requestPermission());
       if (!granted) { wanted.current = false; setMessage('Camera permission was denied. Enable it in system settings to retry.'); return; }
       if (!wanted.current || !mounted.current) return;
-      const created = await createNativeSession(receive, fail, text => { if (mounted.current && wanted.current) { latest.current = null; setResult(null); setHazard(null); tracker.current.reset(); hazardGate.current.reset(); setMessage(text); announce(text, 1, 'ko-KR'); } });
+      const created = await createNativeSession(receive, fail, text => { if (mounted.current && wanted.current) { latest.current = null; latestAssessment.current = null; setResult(null); setHazard(null); tracker.current.reset(); hazardGate.current.reset(); setMessage(text); announce(text, 1, 'ko-KR'); } });
       if (!wanted.current || !mounted.current) { await created.dispose(); return; }
       owned.current = created; setSession(created);
     } catch { wanted.current = false; if (mounted.current) setMessage('Camera analysis could not start. Please try again.'); }
@@ -95,7 +97,7 @@ function useCameraController() {
     const listener = AppState.addEventListener('change', value => { if (value === 'background') close(); });
     const timer = setInterval(() => {
       if (latest.current && !isFreshResult(latest.current, Date.now())) {
-        latest.current = null; setResult(null); setHazard(null); tracker.current.reset(); hazardGate.current.reset(); setMessage('Waiting for a fresh camera frame.');
+        latest.current = null; latestAssessment.current = null; setResult(null); setHazard(null); tracker.current.reset(); hazardGate.current.reset(); setMessage('Waiting for a fresh camera frame.');
       }
     }, 250);
     return () => { mounted.current = false; listener.remove(); clearInterval(timer); close(); };

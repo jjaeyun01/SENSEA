@@ -5,7 +5,7 @@ export type Route = { id: string; label?: string; distance_m: number; duration_s
   source?: 'google' | 'demo'; hasStairs?: boolean; noiseStatus?: 'fresh' | 'stale' | 'unknown';
   relativeNoise?: number; noiseCellCount?: number; noiseMeasurementCount?: number;
   arrivalTarget?: ArrivalTarget;
-  warnings: string[]; steps: { instruction: string; start: Point; end: Point; distance_m?: number }[] };
+  warnings: string[]; steps: { encoded_polyline?: string; instruction: string; start: Point; end: Point; distance_m?: number }[] };
 export const baseUrl = (process.env.EXPO_PUBLIC_API_BASE_URL ?? process.env.EXPO_PUBLIC_API_URL)?.replace(/\/$/, '');
 
 type JsonObject = Record<string, unknown>;

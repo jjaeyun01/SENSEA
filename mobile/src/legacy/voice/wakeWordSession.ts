@@ -1,4 +1,4 @@
-import type { VoiceController } from './controller.ts';
+import type { VoiceController } from './controller';
 
 export type WakeWordState = 'off' | 'starting' | 'waiting' | 'prompting' | 'listening' | 'processing' | 'error';
 

@@ -306,3 +306,24 @@ test("automatic warnings say screen direction and object first, with a short ima
   assert.doesNotMatch(speech, /미터|충돌까지|안전|다가오/);
   assert.match(value.summary, /실제 거리는 알 수 없습니다/);
 });
+
+test('unplayed reservations do not apply cooldown and can be retried on the next frame', () => {
+ const gate=new HazardAnnouncementGate();
+ const reserved=gate.reserve(assessment(0),0); assert.ok(reserved);
+ reserved.onDropped();
+ assert.ok(gate.reserve(assessment(200),200));
+});
+test('delivered reservations apply cooldown, while escalation bypasses it', () => {
+ const gate=new HazardAnnouncementGate();
+ const reserved=gate.reserve(assessment(0),0); assert.ok(reserved);
+ gate.markDelivered(gate.pending,0);
+ assert.equal(gate.reserve(assessment(200),200),null);
+ assert.ok(gate.reserve(assessment(400,'priority'),400));
+});
+test('late delivery of a cancelled warning cannot commit a newer reservation', () => {
+ const gate=new HazardAnnouncementGate();
+ const old=gate.reserve(assessment(0),0); old.onDropped();
+ const next=gate.reserve(assessment(200,'priority'),200); assert.ok(next);
+ old.onDelivered(); assert.ok(gate.pending);
+ next.onDropped(); assert.equal(gate.pending,null);
+});

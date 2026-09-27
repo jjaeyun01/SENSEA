@@ -156,6 +156,7 @@ class CampusRouteRequest(BaseModel):
 
 
 class Step(BaseModel):
+    polyline: dict = Field(default_factory=dict)
     startLocation: dict
     endLocation: dict
     distanceMeters: int = Field(default=0, ge=0)
@@ -210,6 +211,7 @@ async def campus_routes(body: CampusRouteRequest):
                             "routes.legs.steps.endLocation",
                             "routes.legs.steps.navigationInstruction",
                             "routes.legs.steps.distanceMeters",
+                            "routes.legs.steps.polyline.encodedPolyline",
                         ]
                     ),
                 },
@@ -229,6 +231,7 @@ async def campus_routes(body: CampusRouteRequest):
                             "start": start.model_dump(),
                             "end": end.model_dump(),
                             "distance_m": step.distanceMeters,
+                            "encoded_polyline": step.polyline.get("encodedPolyline", ""),
                             "instruction": str(step.navigationInstruction.get("instructions", "")),
                             "maneuver": str(step.navigationInstruction.get("maneuver", "")),
                         }

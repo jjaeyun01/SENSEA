@@ -8,7 +8,7 @@ The launch greeting remains a separate onboarding flow: after initialization and
 
 ## Implemented coordination
 
-`frontend/src/voice/wakeWordSession.ts` coordinates injected adapters; it does not recognize audio by itself.
+`mobile/src/legacy/voice/wakeWordSession.ts` coordinates injected adapters; it does not recognize audio by itself.
 
 ```text
 off → starting → waiting for SENSEA
@@ -28,7 +28,7 @@ off → starting → waiting for SENSEA
 - `requestCommand()`: same flow for an accessible microphone button.
 - `announce(text)`: stop detection for route/camera speech and then rearm. Returns false if busy; queue or reconsider the announcement instead of speaking concurrently.
 - `disable()`: cancel the current operation and release audio resources. Call on background/inactive transitions, unmount, or the voice-control off button. Resume only after the app becomes active and the user enables voice control again.
-- `state`: exposes off/starting/waiting/prompting/listening/processing/error for an accessible status display. The frontend still needs to wire state updates into its UI.
+- `state`: exposes off/starting/waiting/prompting/listening/processing/error for an accessible status display. The running mobile app does not import this prototype; native adapters and UI integration are still required.
 
 Duplicate detections are ignored while busy. Cancelled transcripts are not dispatched. The “How can I help?” prompt does not overwrite the last navigation instruction used by “Repeat.” Silence returns to waiting; capture errors disable the session and expose a text fallback.
 

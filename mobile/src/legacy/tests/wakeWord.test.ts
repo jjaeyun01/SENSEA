@@ -1,7 +1,7 @@
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { VoiceController } from '../src/voice/controller.ts';
-import { WakeWordSession } from '../src/voice/wakeWordSession.ts';
+import { VoiceController } from '../voice/controller';
+import { WakeWordSession } from '../voice/wakeWordSession';
 
 function setup(capture = async (_signal: AbortSignal, _duration: number) => 'pause') {
   const events: string[] = [];

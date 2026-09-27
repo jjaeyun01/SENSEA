@@ -1,4 +1,4 @@
-import type { Place, Route, RouteResponse, SenseaApi } from '../api/client.ts';
+import type { Place, Route, RouteResponse, SenseaApi } from '../api/client';
 
 /** Simulation state only: advance via a button, never from an unverified GPS fix. */
 export class NavigationSession {

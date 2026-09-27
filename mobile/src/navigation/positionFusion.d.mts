@@ -1,4 +1,4 @@
-export type PositionSource = 'gps' | 'gps+verified-vps' | 'inertial-jump-rejected';
+export type PositionSource = 'gps' | 'gps+verified-vps' | 'inertial-jump-rejected' | 'gps-reacquired';
 
 export interface NavigationPosition {
   latitude: number;
@@ -6,6 +6,7 @@ export interface NavigationPosition {
   accuracy: number;
   timestamp: number;
   source?: PositionSource;
+  trusted?: boolean;
 }
 
 export interface VerifiedVisualAlignment {
@@ -29,7 +30,7 @@ export function distanceToSegmentMeters(
 ): number;
 
 export function routeDistanceMeters(
-  route: { steps?: { start?: { latitude: number; longitude: number }; end?: { latitude: number; longitude: number } }[] },
+  route: { encoded_polyline?: string; steps?: { encoded_polyline?: string; start?: { latitude: number; longitude: number }; end?: { latitude: number; longitude: number } }[] },
   point: Pick<NavigationPosition, 'latitude' | 'longitude'>,
   initialStep?: number,
 ): number;
@@ -39,3 +40,5 @@ export class PositionFusion {
   updateGps(fix: NavigationPosition, visual?: VerifiedVisualAlignment | null): NavigationPosition;
   reset(): void;
 }
+
+export function decodePolyline(encoded: string): { latitude: number; longitude: number }[];

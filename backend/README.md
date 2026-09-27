@@ -4,7 +4,7 @@
 
 | 서버 | 명령 | 역할 |
 | --- | --- | --- |
-| 음성·경로 API | `uvicorn app.main:app` | `frontend/`가 사용하는 영어 경로, SQLite 소음 저장, 음성 전사 |
+| 음성·경로 API | `uvicorn app.main:app` | `mobile/` 및 보존된 시뮬레이션 모듈이 사용하는 영어 경로, SQLite 소음 저장, 음성 전사 |
 | 카메라 기반 API | `uvicorn app.foundation:app` | 가상 그래프, 사진 품질 검사, 비전 설명, 프라이버시 제한 |
 
 같은 포트에서 동시에 띄우지 마세요. 프론트 연결과 전사 계약은 아래 음성·경로 API를 따릅니다.
