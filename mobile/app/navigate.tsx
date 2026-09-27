@@ -4,6 +4,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   Vibration,
   View,
 } from 'react-native';
@@ -11,6 +12,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { requestRoutes, type NavigationStep, type RouteOption } from '@/src/api/client';
 import { LargeActionButton } from '@/src/components/LargeActionButton';
+import { CampusMapPreview } from '@/src/components/CampusMapPreview';
+import { AppBackdrop } from '@/src/components/AppBackdrop';
 import { GuidanceQueue, type GuidanceMessage } from '@/src/navigation/guidanceQueue';
 import { getCurrentLocation } from '@/src/navigation/location';
 import { colors } from '@/src/theme';
@@ -29,6 +32,8 @@ function vibrateForPriority(priority: GuidanceMessage['priority']) {
 
 export default function NavigateScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isWide = width >= 920;
   const params = useLocalSearchParams<{
     destination?: string | string[];
     routeId?: string | string[];
@@ -98,6 +103,11 @@ export default function NavigateScreen() {
   }, [destination, routeId]);
 
   const currentStep: NavigationStep | undefined = route?.steps[stepIndex];
+  const remainingMeters = route
+    ? route.steps
+        .slice(stepIndex)
+        .reduce((total, step) => total + step.distanceMeters, 0)
+    : 0;
 
   const instructionForCurrentAccuracy = (step: NavigationStep): string => {
     if (locationMode !== 'manual') return step.instruction;
@@ -187,108 +197,140 @@ export default function NavigateScreen() {
   }
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.container}>
-      <Text accessibilityRole="header" style={styles.title}>{destination}</Text>
-      <Text style={styles.routeName}>{route.name} · 약 {route.durationMinutes}분</Text>
+    <View style={styles.root}>
+      <AppBackdrop />
+      <ScrollView contentContainerStyle={styles.container}>
+        <View style={styles.navigationHeader}>
+          <View style={styles.headerCopy}>
+            <View style={styles.liveRow}><View style={styles.liveDot} /><Text style={styles.liveLabel}>GUIDANCE READY</Text></View>
+            <Text accessibilityRole="header" style={styles.title}>{destination}</Text>
+            <Text style={styles.routeName}>{route.name} · 약 {route.durationMinutes}분 · {route.distanceMeters}m</Text>
+          </View>
+          <View style={styles.distanceSummary} accessible accessibilityLabel={`목적지까지 남은 거리 ${remainingMeters}미터`}>
+            <Text style={styles.distanceValue}>{remainingMeters}</Text><Text style={styles.distanceUnit}>m LEFT</Text>
+          </View>
+        </View>
 
-      <View accessibilityRole="alert" style={styles.prototypeBanner}>
-        <Text style={styles.prototypeText}>모의 안내입니다. 실시간 장애물 감지나 안전한 횡단을 보장하지 않습니다.</Text>
-      </View>
+        <View style={styles.progressTrack} accessible={false}><View style={[styles.progressFill, { width: `${Math.max(8, ((stepIndex + 1) / route.steps.length) * 100)}%` }]} /></View>
 
-      <View style={styles.statusCard}>
-        <Text style={styles.statusLabel}>현재 안내</Text>
-        <Text accessibilityLiveRegion="assertive" style={styles.instruction}>{lastMessage}</Text>
-        <Text style={styles.progress}>경유지 {Math.min(stepIndex + 1, route.steps.length)} / {route.steps.length}</Text>
-      </View>
+        <View accessibilityRole="alert" style={styles.prototypeBanner}>
+          <Text style={styles.prototypeBadge}>DEMO</Text><Text style={styles.prototypeText}>모의 안내입니다. 실시간 장애물 감지나 안전한 횡단을 보장하지 않습니다.</Text>
+        </View>
 
-      <View style={styles.locationCard}>
-        <Text style={styles.locationLabel}>위치 상태</Text>
-        <Text accessibilityLiveRegion="polite" style={styles.locationText}>{locationStatus}</Text>
-      </View>
+        <View style={[styles.dashboard, isWide && styles.dashboardWide]}>
+          <View style={styles.visualColumn}>
+            <View style={styles.cameraAssistCard}>
+              <View style={styles.cameraTopRow}>
+                <View style={styles.cameraIcon} accessible={false}><Text style={styles.cameraIconText}>◎</Text></View>
+                <View style={styles.cameraCopy}><Text style={styles.cameraLabel}>CAMERA ASSIST</Text><Text style={styles.cameraText}>걸음을 멈춘 뒤 필요할 때만 주변 설명을 요청하세요.</Text></View>
+              </View>
+              <View style={styles.cameraPreview} accessible={false}>
+                <View style={[styles.frameCorner, styles.cornerTopLeft]} /><View style={[styles.frameCorner, styles.cornerTopRight]} /><View style={[styles.frameCorner, styles.cornerBottomLeft]} /><View style={[styles.frameCorner, styles.cornerBottomRight]} />
+                <View style={styles.horizonLine} /><Text style={styles.previewText}>USER-TRIGGERED VIEW</Text>
+              </View>
+              <LargeActionButton label="카메라 열기" accessibilityHint="사용자가 요청할 때만 카메라를 열어 주변 설명을 확인합니다" onPress={() => router.push({ pathname: '/camera', params: { destination, routeId, mode: 'describe' } })} variant="secondary" disabled={stopped} />
+            </View>
 
-      <View style={styles.actions}>
-        <LargeActionButton
-          label={
-            stopped
-              ? '안내 종료됨'
-              : !navigationStarted
-                ? locationMode === 'checking'
-                  ? 'GPS 확인 중'
-                  : locationMode === 'manual'
-                    ? '수동 확인 후 시뮬레이션 시작'
-                    : '안내 시작'
-                : arrived
-                  ? '안내 완료'
-                  : paused
-                    ? '일시 정지 중'
-                    : '다음 경유지 안내'
-          }
-          accessibilityHint={navigationStarted ? '다음 경유지로 진행합니다' : '현재 위치 확인 결과에 따라 안내를 시작합니다'}
-          onPress={navigationStarted ? advanceStep : startNavigation}
-          disabled={locationMode === 'checking' || paused || arrived || stopped}
-        />
-        <LargeActionButton
-          label="현재 안내 다시 듣기"
-          onPress={repeatInstruction}
-          variant="secondary"
-        />
-        <LargeActionButton
-          label={paused ? '안내 계속하기' : '안내 일시 정지'}
-          onPress={togglePause}
-          variant="secondary"
-          disabled={!navigationStarted || stopped}
-        />
-        <LargeActionButton
-          label="카메라로 주변 확인"
-          accessibilityHint="사용자가 요청할 때만 카메라 화면을 엽니다"
-          onPress={() => router.push('/camera')}
-          variant="secondary"
-          disabled={stopped}
-        />
-        <LargeActionButton
-          label="P0 긴급 알림 시험"
-          accessibilityHint="우선순위 큐의 긴급 경고 진동과 음성을 시험합니다"
-          onPress={simulateUrgentHazard}
-          variant="danger"
-          disabled={!navigationStarted || stopped}
-        />
-        {!stopped ? (
-          <LargeActionButton
-            label="내비게이션 종료"
-            accessibilityHint="모든 경로 안내와 진동을 중단합니다"
-            onPress={stopNavigation}
-            variant="danger"
-          />
-        ) : (
-          <LargeActionButton
-            label="처음 화면으로 돌아가기"
-            onPress={() => router.replace('/')}
-            variant="secondary"
-          />
-        )}
-      </View>
+            <View style={styles.mapCard}>
+              <View style={styles.sectionHeader}><Text style={styles.sectionEyebrow}>ROUTE OVERVIEW</Text><Text style={styles.mapDistance}>{remainingMeters}m remaining</Text></View>
+              <CampusMapPreview destination={destination} compact remainingMeters={remainingMeters} />
+            </View>
+          </View>
 
-      <Text style={styles.footnote}>긴급 알림 버튼은 우선순위 큐 동작을 보여주기 위한 데모이며 실제 장애물을 감지하지 않습니다.</Text>
-    </ScrollView>
+          <View style={styles.guideColumn}>
+            <View style={styles.statusCard}>
+              <View style={styles.statusTopRow}><View><Text style={styles.statusLabel}>CURRENT GUIDANCE</Text><Text style={styles.progress}>경유지 {Math.min(stepIndex + 1, route.steps.length)} / {route.steps.length}</Text></View><View style={styles.speakerGlyph}><Text style={styles.speakerGlyphText}>)))</Text></View></View>
+              <Text accessibilityLiveRegion="assertive" style={styles.instruction}>{lastMessage}</Text>
+            </View>
+
+            <View style={styles.locationCard}>
+              <View style={styles.locationIcon}><Text style={styles.locationIconText}>⌖</Text></View>
+              <View style={styles.locationCopy}><Text style={styles.locationLabel}>LOCATION STATUS</Text><Text accessibilityLiveRegion="polite" style={styles.locationText}>{locationStatus}</Text></View>
+            </View>
+
+            <View style={styles.actions}>
+              <LargeActionButton
+                label={stopped ? '안내 종료됨' : !navigationStarted ? locationMode === 'checking' ? 'GPS 확인 중' : locationMode === 'manual' ? '수동 확인 후 시뮬레이션 시작' : '안내 시작' : arrived ? '안내 완료' : paused ? '일시 정지 중' : '다음 경유지 안내'}
+                accessibilityHint={navigationStarted ? '다음 경유지로 진행합니다' : '현재 위치 확인 결과에 따라 안내를 시작합니다'}
+                onPress={navigationStarted ? advanceStep : startNavigation}
+                disabled={locationMode === 'checking' || paused || arrived || stopped}
+              />
+              <View style={styles.secondaryActions}>
+                <View style={styles.actionHalf}><LargeActionButton label="다시 듣기" onPress={repeatInstruction} variant="secondary" /></View>
+                <View style={styles.actionHalf}><LargeActionButton label={paused ? '계속하기' : '일시 정지'} onPress={togglePause} variant="secondary" disabled={!navigationStarted || stopped} /></View>
+              </View>
+              <LargeActionButton label="P0 긴급 알림 시험" accessibilityHint="우선순위 큐의 긴급 경고 진동과 음성을 시험합니다" onPress={simulateUrgentHazard} variant="danger" disabled={!navigationStarted || stopped} />
+              {!stopped ? <LargeActionButton label="내비게이션 종료" accessibilityHint="모든 경로 안내와 진동을 중단합니다" onPress={stopNavigation} variant="danger" /> : <LargeActionButton label="처음 화면으로 돌아가기" onPress={() => router.replace('/')} variant="secondary" />}
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.footnoteCard}><Text style={styles.footnoteIcon}>!</Text><Text style={styles.footnote}>긴급 알림 버튼은 우선순위 큐 동작을 보여주기 위한 데모이며 실제 장애물을 감지하지 않습니다.</Text></View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  container: { padding: 24, gap: 18, paddingBottom: 48 },
+  container: { width: '100%', maxWidth: 1220, alignSelf: 'center', padding: 24, gap: 18, paddingBottom: 56 },
   loading: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   loadingText: { color: colors.text, fontSize: 18, textAlign: 'center' },
-  title: { color: colors.text, fontSize: 30, fontWeight: '800' },
+  navigationHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
+  headerCopy: { flex: 1, gap: 5 },
+  liveRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
+  liveLabel: { color: colors.primary, fontSize: 11, fontWeight: '900', letterSpacing: 1.6 },
+  title: { color: colors.text, fontSize: 36, fontWeight: '900' },
   routeName: { color: colors.primary, fontSize: 19, fontWeight: '700' },
-  prototypeBanner: { backgroundColor: '#4A3410', borderColor: colors.warning, borderWidth: 1, borderRadius: 12, padding: 15 },
-  prototypeText: { color: colors.warning, fontSize: 16, lineHeight: 24 },
-  statusCard: { backgroundColor: colors.surface, borderRadius: 20, padding: 22, gap: 12, borderWidth: 2, borderColor: colors.primary },
-  statusLabel: { color: colors.primary, fontSize: 17, fontWeight: '700' },
+  distanceSummary: { minWidth: 100, alignItems: 'flex-end' },
+  distanceValue: { color: colors.text, fontSize: 34, lineHeight: 38, fontWeight: '900' },
+  distanceUnit: { color: colors.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
+  progressTrack: { height: 6, borderRadius: 3, backgroundColor: colors.borderSoft, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 3, backgroundColor: colors.primary },
+  prototypeBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(74,52,16,0.72)', borderColor: '#745D25', borderWidth: 1, borderRadius: 15, padding: 13 },
+  prototypeBadge: { color: '#4A3410', backgroundColor: colors.warning, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 4, fontSize: 10, fontWeight: '900' },
+  prototypeText: { flex: 1, color: colors.warning, fontSize: 14, lineHeight: 21 },
+  dashboard: { gap: 18 },
+  dashboardWide: { flexDirection: 'row', alignItems: 'flex-start' },
+  visualColumn: { flex: 1.05, gap: 18 },
+  guideColumn: { flex: 0.95, gap: 18 },
+  cameraAssistCard: { backgroundColor: colors.surfaceGlass, borderRadius: 24, padding: 18, gap: 14, borderWidth: 1, borderColor: colors.border },
+  cameraTopRow: { flexDirection: 'row', alignItems: 'center', gap: 13 },
+  cameraIcon: { width: 64, height: 48, borderRadius: 14, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  cameraIconText: { color: colors.primaryText, fontSize: 32, fontWeight: '900' },
+  cameraCopy: { gap: 4 },
+  cameraLabel: { color: colors.primary, fontSize: 14, fontWeight: '900', letterSpacing: 1.5 },
+  cameraText: { color: colors.text, fontSize: 17, lineHeight: 25 },
+  cameraPreview: { height: 138, borderRadius: 18, backgroundColor: '#07101B', borderWidth: 1, borderColor: colors.borderSoft, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  frameCorner: { position: 'absolute', width: 28, height: 28, borderColor: colors.primary },
+  cornerTopLeft: { left: 14, top: 14, borderLeftWidth: 3, borderTopWidth: 3 },
+  cornerTopRight: { right: 14, top: 14, borderRightWidth: 3, borderTopWidth: 3 },
+  cornerBottomLeft: { left: 14, bottom: 14, borderLeftWidth: 3, borderBottomWidth: 3 },
+  cornerBottomRight: { right: 14, bottom: 14, borderRightWidth: 3, borderBottomWidth: 3 },
+  horizonLine: { position: 'absolute', left: '18%', right: '18%', height: 1, backgroundColor: colors.accentSoft },
+  previewText: { color: colors.subtle, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
+  mapCard: { gap: 12, padding: 18, borderRadius: 24, backgroundColor: colors.surfaceGlass, borderWidth: 1, borderColor: colors.border },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sectionEyebrow: { color: colors.subtle, fontSize: 11, fontWeight: '900', letterSpacing: 1.4 },
+  mapDistance: { color: colors.accent, fontSize: 12, fontWeight: '800' },
+  statusCard: { backgroundColor: colors.surfaceGlass, borderRadius: 24, padding: 22, gap: 18, borderWidth: 1, borderColor: colors.primary, shadowColor: colors.primary, shadowOpacity: 0.1, shadowRadius: 18 },
+  statusTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  statusLabel: { color: colors.primary, fontSize: 12, fontWeight: '900', letterSpacing: 1.4 },
   instruction: { color: colors.text, fontSize: 26, lineHeight: 38, fontWeight: '700' },
-  progress: { color: colors.muted, fontSize: 16 },
-  locationCard: { backgroundColor: colors.surfaceRaised, borderRadius: 14, padding: 16, gap: 6 },
-  locationLabel: { color: colors.muted, fontSize: 15, fontWeight: '700' },
-  locationText: { color: colors.text, fontSize: 17, lineHeight: 25 },
+  progress: { color: colors.subtle, fontSize: 12, marginTop: 3 },
+  speakerGlyph: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  speakerGlyphText: { color: colors.primary, fontSize: 11, fontWeight: '900' },
+  locationCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceRaised, borderRadius: 18, padding: 16, gap: 13, borderWidth: 1, borderColor: colors.borderSoft },
+  locationIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  locationIconText: { color: colors.accent, fontSize: 23, fontWeight: '900' },
+  locationCopy: { flex: 1, gap: 4 },
+  locationLabel: { color: colors.subtle, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
+  locationText: { color: colors.text, fontSize: 15, lineHeight: 22 },
   actions: { gap: 12 },
-  footnote: { color: colors.danger, fontSize: 15, lineHeight: 23 },
+  secondaryActions: { flexDirection: 'row', gap: 10 },
+  actionHalf: { flex: 1 },
+  footnoteCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 15, padding: 13, backgroundColor: 'rgba(83,27,27,0.66)', borderWidth: 1, borderColor: '#7F3838' },
+  footnoteIcon: { width: 24, height: 24, borderRadius: 12, textAlign: 'center', lineHeight: 24, backgroundColor: colors.danger, color: '#4C1D1D', fontWeight: '900' },
+  footnote: { flex: 1, color: colors.danger, fontSize: 13, lineHeight: 20 },
 });

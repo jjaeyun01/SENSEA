@@ -7,7 +7,7 @@ export type NavigationStep = {
 
 export type RouteOption = {
   id: string;
-  routeType: 'shortest' | 'quiet';
+  routeType: 'shortest' | 'flat' | 'safe';
   name: string;
   summary: string;
   durationMinutes: number;
@@ -35,13 +35,20 @@ const DEMO_DESTINATION_ALIASES: Record<string, string> = {
   도서관: '도서관',
   중앙도서관: '도서관',
   공학관: '공학관',
+  Morgridge: 'Morgridge Hall',
+  'Morgridge Hall': 'Morgridge Hall',
+  '모그리지 홀': 'Morgridge Hall',
 };
+
+export function getVerifiedDemoDestination(destination: string): string | null {
+  return DEMO_DESTINATION_ALIASES[destination.trim()] ?? null;
+}
 
 const DEMO_ROUTES: RouteOption[] = [
   {
     id: 'flat-safe',
-    routeType: 'quiet',
-    name: '소음이 적은 평지 경로',
+    routeType: 'flat',
+    name: '평지 우선 경로',
     summary: '계단 없이 검토된 보행로를 이용하며 측정 소음이 더 낮습니다.',
     durationMinutes: 5,
     distanceMeters: 360,
@@ -78,6 +85,26 @@ const DEMO_ROUTES: RouteOption[] = [
       { id: 'q4', instruction: '학생회관 측면 입구 근처에 도착했습니다.', distanceMeters: 0, priority: 2 },
     ],
   },
+  {
+    id: 'safe',
+    routeType: 'safe',
+    name: '안전 우선 검토 경로',
+    summary: '팀이 확인한 보행 구간과 횡단보도를 우선하지만 현재 안전을 보장하지 않습니다.',
+    durationMinutes: 6,
+    distanceMeters: 410,
+    hasStairs: false,
+    noiseLevel: '보통',
+    noiseDataStatus: 'unknown',
+    verificationStatus: 'verified-demo',
+    dataFreshness: '일부 구간의 소음 데이터 없음',
+    uncertainty: '현재 공사, 차량, 신호 상태와 임시 장애물은 반영되지 않습니다.',
+    steps: [
+      { id: 's1', instruction: '검토된 보행로를 따라 다음 경유지까지 이동하세요.', distanceMeters: 90, priority: 3 },
+      { id: 's2', instruction: '10미터 앞 횡단보도입니다. 앱만으로 횡단 여부를 판단하지 마세요.', distanceMeters: 10, priority: 1 },
+      { id: 's3', instruction: '횡단 후 다음 검증된 랜드마크로 이동하세요.', distanceMeters: 120, priority: 2 },
+      { id: 's4', instruction: '학생회관 정문 근처의 검증 지점에 도착했습니다.', distanceMeters: 0, priority: 2 },
+    ],
+  },
 ];
 
 function demoRoutesFor(destination: string): RouteOption[] {
@@ -87,7 +114,7 @@ function demoRoutesFor(destination: string): RouteOption[] {
       index === route.steps.length - 1
         ? {
             ...step,
-            instruction: `${destination} ${route.routeType === 'quiet' ? '정문' : '측면 입구'} 근처에 도착했습니다.`,
+            instruction: `${destination} ${route.routeType === 'shortest' ? '측면 입구' : '정문'} 근처의 검증 지점에 도착했습니다.`,
           }
         : step
     )),
@@ -111,12 +138,12 @@ export async function requestRoutes(destination: string): Promise<{
   error?: string;
 }> {
   const requestedDestination = destination.trim();
-  const verifiedDestination = DEMO_DESTINATION_ALIASES[requestedDestination];
+  const verifiedDestination = getVerifiedDemoDestination(requestedDestination);
   if (!verifiedDestination) {
     return {
       routes: [],
       source: 'unavailable',
-      error: `'${requestedDestination}'은 현재 검증된 데모 목적지가 아닙니다. 학생회관, 도서관 또는 공학관을 선택해주세요.`,
+      error: `'${requestedDestination}'은 현재 검증된 데모 목적지가 아닙니다. Morgridge Hall, 학생회관, 도서관 또는 공학관을 선택해주세요.`,
     };
   }
 

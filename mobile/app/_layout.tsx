@@ -18,11 +18,12 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false, title: 'SENSEA' }} />
+        <Stack.Screen name="destination" options={{ title: '목적지 확인', headerBackTitle: '검색' }} />
         <Stack.Screen name="routes" options={{ title: '경로 선택', headerBackTitle: '뒤로' }} />
         <Stack.Screen name="navigate" options={{ title: '음성 안내', headerBackTitle: '경로' }} />
-        <Stack.Screen name="camera" options={{ title: '주변 설명', headerBackTitle: '안내' }} />
+        <Stack.Screen name="camera" options={{ title: '카메라', headerBackTitle: '안내' }} />
+        <Stack.Screen name="scan" options={{ title: '360° 정렬', headerBackTitle: '카메라' }} />
       </Stack>
     </SafeAreaProvider>
   );
 }
-

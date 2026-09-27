@@ -10,14 +10,14 @@ class RoutingTests(unittest.TestCase):
         response = build_demo_routes("학생회관")
 
         self.assertEqual(response.destination, "학생회관")
-        self.assertGreaterEqual(len(response.routes), 2)
+        self.assertEqual(len(response.routes), 3)
         self.assertTrue(any(not route.hasStairs for route in response.routes))
         self.assertTrue(all(route.steps for route in response.routes))
-        self.assertEqual({route.routeType for route in response.routes}, {"shortest", "quiet"})
+        self.assertEqual({route.routeType for route in response.routes}, {"shortest", "flat", "safe"})
         self.assertTrue(all(route.verificationStatus == "verified-demo" for route in response.routes))
         self.assertTrue(all(route.dataFreshness for route in response.routes))
         self.assertTrue(all(route.uncertainty for route in response.routes))
-        self.assertEqual({route.noiseDataStatus for route in response.routes}, {"fresh", "stale"})
+        self.assertEqual({route.noiseDataStatus for route in response.routes}, {"fresh", "stale", "unknown"})
 
     def test_destination_is_trimmed(self) -> None:
         response = build_demo_routes("  도서관  ")
@@ -34,6 +34,10 @@ class RoutingTests(unittest.TestCase):
     def test_known_alias_resolves_to_verified_destination(self) -> None:
         response = build_demo_routes("중앙도서관")
         self.assertEqual(response.destination, "도서관")
+
+    def test_morgridge_design_destination_is_supported(self) -> None:
+        response = build_demo_routes("Morgridge")
+        self.assertEqual(response.destination, "Morgridge Hall")
 
 
 if __name__ == "__main__":

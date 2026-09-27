@@ -60,19 +60,24 @@ export function LargeActionButton({
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 64,
-    borderRadius: 14,
+    minHeight: 66,
+    borderRadius: 18,
     paddingHorizontal: 20,
     paddingVertical: 16,
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 1,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 5,
   },
   primary: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
   secondary: {
-    backgroundColor: colors.surfaceRaised,
+    backgroundColor: 'rgba(24, 49, 77, 0.82)',
     borderColor: colors.border,
   },
   danger: {
@@ -97,11 +102,10 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   pressed: {
-    opacity: 0.78,
-    transform: [{ scale: 0.99 }],
+    opacity: 0.84,
+    transform: [{ scale: 0.985 }],
   },
   disabled: {
     opacity: 0.48,
   },
 });
-

@@ -13,6 +13,9 @@ KNOWN_DESTINATIONS = {
     "도서관": "도서관",
     "중앙도서관": "도서관",
     "공학관": "공학관",
+    "Morgridge": "Morgridge Hall",
+    "Morgridge Hall": "Morgridge Hall",
+    "모그리지 홀": "Morgridge Hall",
 }
 
 
@@ -37,7 +40,7 @@ class NavigationStep(BaseModel):
 
 class RouteOption(BaseModel):
     id: str
-    routeType: Literal["shortest", "quiet"]
+    routeType: Literal["shortest", "flat", "safe"]
     name: str
     summary: str
     durationMinutes: int = Field(gt=0)
@@ -64,13 +67,13 @@ def build_demo_routes(destination: str) -> RoutesResponse:
     if normalized_destination is None:
         raise UnknownDestinationError(
             f"'{requested_destination}'은 현재 검증된 데모 목적지가 아닙니다. "
-            "학생회관, 도서관 또는 공학관을 선택해주세요."
+            "Morgridge Hall, 학생회관, 도서관 또는 공학관을 선택해주세요."
         )
     routes = [
         RouteOption(
             id="flat-safe",
-            routeType="quiet",
-            name="소음이 적은 평지 경로",
+            routeType="flat",
+            name="평지 우선 경로",
             summary="계단 없이 검토된 보행로를 이용하며 측정 소음이 더 낮습니다.",
             durationMinutes=5,
             distanceMeters=360,
@@ -142,6 +145,46 @@ def build_demo_routes(destination: str) -> RoutesResponse:
                 NavigationStep(
                     id="q4",
                     instruction=f"{normalized_destination} 측면 입구 근처에 도착했습니다.",
+                    distanceMeters=0,
+                    priority=2,
+                ),
+            ],
+        ),
+        RouteOption(
+            id="safe",
+            routeType="safe",
+            name="안전 우선 검토 경로",
+            summary="팀이 확인한 보행 구간과 횡단보도를 우선하지만 현재 안전을 보장하지 않습니다.",
+            durationMinutes=6,
+            distanceMeters=410,
+            hasStairs=False,
+            noiseLevel="보통",
+            noiseDataStatus="unknown",
+            verificationStatus="verified-demo",
+            dataFreshness="일부 구간의 소음 데이터 없음",
+            uncertainty="현재 공사, 차량, 신호 상태와 임시 장애물은 반영되지 않습니다.",
+            steps=[
+                NavigationStep(
+                    id="s1",
+                    instruction="검토된 보행로를 따라 다음 경유지까지 이동하세요.",
+                    distanceMeters=90,
+                    priority=3,
+                ),
+                NavigationStep(
+                    id="s2",
+                    instruction="10미터 앞 횡단보도입니다. 앱만으로 횡단 여부를 판단하지 마세요.",
+                    distanceMeters=10,
+                    priority=1,
+                ),
+                NavigationStep(
+                    id="s3",
+                    instruction="횡단 후 다음 검증된 랜드마크로 이동하세요.",
+                    distanceMeters=120,
+                    priority=2,
+                ),
+                NavigationStep(
+                    id="s4",
+                    instruction=f"{normalized_destination} 정문 근처의 검증 지점에 도착했습니다.",
                     distanceMeters=0,
                     priority=2,
                 ),
