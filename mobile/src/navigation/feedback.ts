@@ -2,8 +2,9 @@ import { AccessibilityInfo, Platform, Vibration } from "react-native";
 import * as Speech from "expo-speech";
 import { ExpoSpeechRecognitionModule as Recognition } from "expo-speech-recognition";
 import { recordEvent } from "./audit";
+import type { DirectionHaptic } from './direction';
 
-type Delivery = { onDelivered?: () => void; onDropped?: () => void };
+type Delivery = { onDelivered?: () => void; onDropped?: () => void; haptic?: DirectionHaptic };
 type Notice = Delivery & { text: string; priority: number; at: number; language: string; done?: () => void; valid?: () => boolean; record: boolean; delivered: boolean };
 let active: Notice | null = null;
 let queue: Notice[] = [];
@@ -11,6 +12,13 @@ let generation = 0;
 let screenReader = false;
 let watchdog: ReturnType<typeof setTimeout> | null = null;
 let accessibilitySubscription: { remove(): void } | null = null;
+function vibrationPattern(direction: DirectionHaptic | undefined, priority: number) {
+  if (direction === 'left') return [0, 80, 70, 220];
+  if (direction === 'right') return [0, 220, 70, 80];
+  if (direction === 'straight') return [0, 90];
+  if (direction === 'uturn') return [0, 120, 70, 120, 70, 240];
+  return priority <= 1 ? [0, 250, 150, 250] : priority === 2 ? [0, 120, 100, 120] : [0, 120];
+}
 function clearCompletion() {
   if (watchdog) clearTimeout(watchdog);
   watchdog = null;
@@ -61,12 +69,12 @@ export function announce(text: string, priority = 3, language = "en-US", done?: 
   function play(next: Notice) {
     // Preserve original age and delivery metadata when dispatching queued items.
     announce(next.text, next.priority, next.language, next.done, next.record,
-      () => valid(next), { onDelivered: next.onDelivered, onDropped: next.onDropped });
+      () => valid(next), { onDelivered: next.onDelivered, onDropped: next.onDropped, haptic: next.haptic });
   }
   void Speech.stop().then(() => {
     if (token !== generation) return;
     if (!valid(notice)) { finish(); return; }
-    Vibration.vibrate(priority <= 1 ? [0, 250, 150, 250] : priority === 2 ? [0, 120, 100, 120] : [0, 120]);
+    Vibration.vibrate(vibrationPattern(notice.haptic, priority));
     if (record) recordEvent("feedback", `priority:${priority}`);
     if (screenReader) {
       // iOS provides a completion event; Android needs a conservative fallback.

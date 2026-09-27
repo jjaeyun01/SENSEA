@@ -2,12 +2,12 @@ export type Point = { latitude: number; longitude: number };
 export type ArrivalTarget = Point & { verifiedEntrance: boolean; kind: 'verified_entrance' | 'building_representative_point'; accuracyM?: number | null; surveyedAt?: string | null; description?: string | null };
 export type Place = { id: string; name: string; address?: string | null; source?: 'uw' | 'demo'; buildingName?: string; facilityCategory?: string; entrance?: (Point & { accuracyM: number; surveyedAt: string; description: string }) | null; entranceVerified?: boolean } & Partial<Point>;
 export type Route = { id: string; label?: string; distance_m: number; duration_seconds: number; encoded_polyline: string;
-  source?: 'google' | 'demo'; hasStairs?: boolean; noiseStatus?: 'fresh' | 'stale' | 'unknown';
+  source?: 'google' | 'demo' | 'offline-cache'; hasStairs?: boolean; noiseStatus?: 'fresh' | 'stale' | 'unknown';
   relativeNoise?: number; noiseCellCount?: number; noiseMeasurementCount?: number; noiseContributorCount?: number;
   noiseCoverage?: number;
   conditions?: { verified: boolean; mappedMeters?: number; moderateSlopeMeters?: number; steepSlopeMeters?: number; unpavedMeters?: number; stairsCount?: number; obstructionCount?: number; mixedTrafficMeters?: number; unprotectedCrossings?: number; litMeters?: number; unlitMeters?: number; construction?: boolean; closed?: boolean };
   arrivalTarget?: ArrivalTarget;
-  warnings: string[]; steps: { encoded_polyline?: string; instruction: string; start: Point; end: Point; distance_m?: number }[] };
+  warnings: string[]; steps: { encoded_polyline?: string; instruction: string; maneuver?: string; start: Point; end: Point; distance_m?: number }[] };
 export const baseUrl = (process.env.EXPO_PUBLIC_API_BASE_URL ?? process.env.EXPO_PUBLIC_API_URL)?.replace(/\/$/, '');
 
 type JsonObject = Record<string, unknown>;

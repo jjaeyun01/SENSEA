@@ -70,6 +70,7 @@ export default function AuthScreen() {
         <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
         <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoComplete={mode === 'signUp' ? 'new-password' : 'current-password'} hint={mode === 'signUp' ? 'At least 8 characters' : undefined} />
         <LargeActionButton disabled={!auth.configured} loading={busy} label={mode === 'signUp' ? 'Create account' : 'Sign in'} onPress={() => void submit()} />
+        {mode === 'signIn' && <LargeActionButton disabled={!auth.configured || busy} label="Forgot password" variant="ghost" onPress={() => void auth.sendPasswordReset(email).then(() => setMessage('Check your email for a secure password reset link.')).catch(error => setMessage(error instanceof Error ? error.message : 'Could not send the reset email.'))} />}
         <View style={styles.divider}><View style={styles.line} /><Text style={styles.or}>OR</Text><View style={styles.line} /></View>
         <LargeActionButton disabled={!auth.configured} loading={busy} label="Continue with Google" variant="secondary" onPress={() => void google()} icon={<Text style={styles.google}>G</Text>} />
       </View>

@@ -17,6 +17,8 @@ import { useAppPreferences } from '../state/AppPreferences';
 import { useNoiseMonitor } from '../noise/NoiseMonitorProvider';
 import { PositionFusion } from './positionFusion.mjs';
 import type { NavigationPosition, VerifiedVisualAlignment } from './positionFusion.mjs';
+import { loadRouteCache, saveRouteCache } from './offlineCache';
+import { directionCue, spokenDirection, type DirectionHaptic } from './direction';
 type Stage = 'search' | 'routes' | 'setup' | 'navigating' | 'paused' | 'arrived';
 type ArrivalStatus = 'none' | 'verified_entrance_nearby' | 'building_nearby';
 function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAlignment }: {
@@ -76,12 +78,12 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     setRecentPlaces(cloudRecent);
   }, [auth.places, auth.user]);
 
-  const say = useCallback((text: string, priority = 3, done?: () => void) => {
+  const say = useCallback((text: string, priority = 3, done?: () => void, haptic?: DirectionHaptic) => {
     noise.suspendForSpeech();
     setMessage(text); lastMessage.current = text;
     speechWanted.current = false;
     Recognition.abort();
-    announce(text, priority, "en-US", done);
+    announce(text, priority, "en-US", done, true, undefined, { haptic });
   }, [noise.suspendForSpeech]);
   const stopTracking = useCallback(() => {
     watchGeneration.current++;
@@ -140,8 +142,6 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     });
     return () => subscription.remove();
   }, [pause]);
-  useEffect(() => { if (!cameraReady && stage === "navigating") pause(); }, [cameraReady, stage, pause]);
-
   useEffect(() => {
     if (stage !== "search") return;
     const current = ++revision.current;
@@ -238,14 +238,31 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
       if (fix.coords.accuracy == null || fix.coords.accuracy > 30 || Date.now() - fix.timestamp > 10000) throw new Error("Your location is not accurate enough. Please retry outdoors.");
       setPosition({ latitude: fix.coords.latitude, longitude: fix.coords.longitude,
         accuracy: fix.coords.accuracy, timestamp: fix.timestamp, source: 'gps' });
-      const result = await request<{ routes: Route[]; arrival_target?: { latitude: number; longitude: number; verified_entrance: boolean; kind: 'verified_entrance' | 'building_representative_point'; accuracy_m?: number | null; surveyed_at?: string | null; description?: string | null } }>("/campus/routes", signal, { origin: { latitude: fix.coords.latitude, longitude: fix.coords.longitude }, destination_id: Number(place.id) });
-      if (signal.aborted || !mounted.current) return;
       const preference = auth.currentNoisePreference();
-      const scored = prepareLiveRoutes(result.routes, result.arrival_target);
+      const origin = { latitude: fix.coords.latitude, longitude: fix.coords.longitude };
+      let scored: Route[];
+      let offline = false;
+      try {
+        const result = await request<{ routes: Route[]; arrival_target?: { latitude: number; longitude: number; verified_entrance: boolean; kind: 'verified_entrance' | 'building_representative_point'; accuracy_m?: number | null; surveyed_at?: string | null; description?: string | null } }>("/campus/routes", signal, { origin, destination_id: Number(place.id) });
+        if (signal.aborted || !mounted.current) return;
+        scored = prepareLiveRoutes(result.routes, result.arrival_target);
+        const target = scored[0]?.arrivalTarget;
+        void saveRouteCache(place, origin, scored, target).catch(() => {});
+      } catch (error) {
+        if (signal.aborted) throw error;
+        const cached = await loadRouteCache(place, origin);
+        if (!cached) throw error;
+        offline = true;
+        scored = cached.routes.map(route => ({
+          ...route,
+          source: 'offline-cache' as const,
+          warnings: ['Offline copy: conditions and closures may have changed.', ...(route.warnings ?? [])],
+        }));
+      }
       if (!scored.length) throw new Error('No walking route is available for this destination.');
       setRoutes(scored); setStage("routes");
       if (scored.length === 1) { choose(scored[0]); return; }
-      say(scored.map((route: Route, index: number) => `Option ${index + 1}: ${Math.ceil(route.duration_seconds / 60)} minutes, ${route.distance_m} meters${route.relativeNoise == null ? ', noise coverage unavailable' : `, ${preference === 'quiet' ? 'daytime quieter-route' : 'nighttime active-sound-route'} preference applied`}.`).join(" ") + " Noise does not prove crowd presence or safety. Stairs, slopes, and route safety have not been verified. Choose a route.", 3, () => void listen());
+      say(`${offline ? 'Network unavailable. Using a recent route saved on this device. Conditions may have changed. ' : ''}${scored.map((route: Route, index: number) => `Option ${index + 1}: ${Math.ceil(route.duration_seconds / 60)} minutes, ${route.distance_m} meters${route.relativeNoise == null ? ', noise coverage unavailable' : `, ${preference === 'quiet' ? 'daytime quieter-route' : 'nighttime active-sound-route'} preference applied`}.`).join(" ")} Noise does not prove crowd presence or safety. Stairs, slopes, and route safety have not been verified. Choose a route.`, 3, () => void listen());
   }
   function confirm() {
     if (!destination || busy) return;
@@ -255,7 +272,9 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     recordEvent("route_selected", route.id);
     routeRecorded.current = false; routeHistoryWrite.current = null;
     setArrivalStatus('none'); setSelected(route); setStepIndex(0); guidance.current = new Guidance(route); setStage("setup");
-    say("Hold your phone upright at chest level, facing forward. Turn on the camera below, then start guidance when it is ready.");
+    say(route.source === 'offline-cache'
+      ? "Using a recent route saved on this device. Network updates and current closures are unavailable. You can start GPS guidance now."
+      : "Your route is selected. You can start GPS guidance now. Camera observations are optional.");
   }
   async function rerouteFrom(origin: Point) {
     if (!destination || rerouteInFlight.current) return;
@@ -309,7 +328,6 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
         });
       }
     };
-    if (!cameraReady) { say("Prepare the camera first using the button below."); return; }
     if (arrivalStatus !== 'none') {
       setArrivalStatus('none');
       guidance.current?.clearArrival();
@@ -335,7 +353,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
       const subscription = await Location.watchPositionAsync({ accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 1 }, fix => {
         if (current !== watchGeneration.current) return;
         lastFixAt.current = fix.timestamp;
-        const fused = fusion.current.updateGps({ ...fix.coords, accuracy: fix.coords.accuracy ?? Infinity, timestamp: fix.timestamp }, cameraAlignmentRef.current);
+        const fused = fusion.current.updateGps({ ...fix.coords, accuracy: fix.coords.accuracy ?? Infinity, heading: fix.coords.heading, speed: fix.coords.speed, timestamp: fix.timestamp }, cameraAlignmentRef.current);
         setPosition(fused);
         if (fused.trusted !== false) noise.offerLocation(fused);
         const event = guidance.current?.update(fused);
@@ -357,11 +375,21 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
           recordEvent('arrival_candidate', event.kind);
           return;
         }
-        if (event) { setStepIndex(guidance.current?.step ?? 0); say(event.text, 2); recordEvent("guidance", event.kind); }
+        if (event) {
+          // A pre-turn cue describes the segment after the corner. Once the
+          // turn is confirmed, event.step already points at that segment.
+          const directionStep = event.kind === 'turn' || event.kind === 'approaching'
+            ? selected.steps[event.kind === 'approaching' ? event.step + 1 : event.step]
+            : undefined;
+          const cue = directionCue(fused, directionStep?.end);
+          setStepIndex(guidance.current?.step ?? 0);
+          say(`${event.text}${cue ? ` ${spokenDirection(cue)}` : ''}`, 2, undefined, cue?.haptic);
+          recordEvent("guidance", event.kind);
+        }
       }, () => { if (current === watchGeneration.current) { pause(); say("Location tracking failed. Guidance is paused.", 1); } });
       if (current !== watchGeneration.current || !mounted.current) { subscription.remove(); return; }
       watcher.current = subscription; setStage("navigating");
-      say(`Camera feed is ready. Guidance will begin when location accuracy is sufficient. ${selected.steps[guidance.current?.step ?? 0]?.instruction ?? ""}`, 2);
+      say(`${cameraReady ? 'Optional camera observations are active.' : 'Camera observations are off.'} GPS guidance will begin when location accuracy is sufficient. ${selected.steps[guidance.current?.step ?? 0]?.instruction ?? ""}`, 2);
     } catch { if (current === watchGeneration.current) say("Could not start location tracking. Please try again."); }
     finally { if (mounted.current) setBusy(false); }
   }

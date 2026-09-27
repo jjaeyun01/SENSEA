@@ -5,6 +5,8 @@ export interface NavigationPosition {
   longitude: number;
   accuracy: number;
   timestamp: number;
+  heading?: number | null;
+  speed?: number | null;
   source?: PositionSource;
   trusted?: boolean;
 }
