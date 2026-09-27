@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { startUrbanAnalysis } from "./urban-native";
+import { startUrbanAnalysis, updateSignalHints } from "./urban-native";
 import { CrossingTracker, CrossingAnnouncementGate, StopScan, boxOverlap } from "./crossing.mjs";
 import { FacilityAttention } from "./facility-attention.mjs";
-import type { UrbanResult } from "./types";
+import { SignalSearchGate } from "./signal-search.mjs";
+import { signalFocusHints } from "./signal-hints.mjs";
+import type { Detection, LiveResult, UrbanResult } from "./types";
 import vocabulary from "../../assets/models/urban-labels.json";
 const name=(label:string)=>vocabulary.find(x=>x.label===label)?.name??label;
 type Mode="unknown"|"waiting"|"crossing";
-type Observation={status:string;text:string;seconds?:number|null;observedAt?:number};
-type Props={live:boolean;enabled:boolean;voice:boolean;onResult:(value:UrbanResult|null)=>void;
+type Observation={status:string;text:string;seconds?:number|null;observedAt?:number;target?:Detection["box"]|null;candidates?:Detection["box"][]};
+type Props={live:boolean;enabled:boolean;voice:boolean;baseResult:LiveResult|null;onResult:(value:UrbanResult|null)=>void;
  say:(text:string,at:number,manual?:boolean,priority?:boolean,onDropped?:()=>void)=>boolean;
  canAnnounce:()=>boolean;cancel:()=>void};
-export function UrbanVisionPanel({live,enabled,voice,onResult,say,canAnnounce,cancel}:Props){
+export function UrbanVisionPanel({live,enabled,voice,baseResult,onResult,say,canAnnounce,cancel}:Props){
  const [mode,setMode]=useState<Mode>("unknown"),modeRef=useRef<Mode>("unknown");
  const [status,setStatus]=useState("Turn on the camera to prepare expanded analysis.");
  const [frame,setFrame]=useState<UrbanResult|null>(null),latest=useRef<UrbanResult|null>(null);
@@ -21,11 +23,12 @@ export function UrbanVisionPanel({live,enabled,voice,onResult,say,canAnnounce,ca
  const crossing=useRef(new CrossingTracker()),gate=useRef(new CrossingAnnouncementGate()),scanner=useRef(new StopScan()),facilities=useRef(new FacilityAttention());
  const voiceRef=useRef(voice);voiceRef.current=voice;
  const callbacks=useRef({onResult,say,canAnnounce,cancel});callbacks.current={onResult,say,canAnnounce,cancel};
+ const searchGate=useRef(new SignalSearchGate());
  const lastFacility=useRef({key:"",at:-Infinity});
  const lastScanStep=useRef(-1);
  useEffect(()=>{
   latest.current=null;setFrame(null);callbacks.current.onResult(null);
-  crossing.current.reset();gate.current.reset();scanner.current.reset();facilities.current.reset();lastFacility.current={key:"",at:-Infinity};
+  crossing.current.reset();gate.current.reset();searchGate.current.reset();scanner.current.reset();facilities.current.reset();lastFacility.current={key:"",at:-Infinity};
   setSignal({status:"unknown",text:"Pedestrian signal not identified."});
   setScan({status:"idle",text:"You can start a left-right-left scan at a STOP sign."});setFacilityText("");
   if(!live){setStatus("Turn on the camera to prepare expanded analysis.");return;}
@@ -45,7 +48,7 @@ export function UrbanVisionPanel({live,enabled,voice,onResult,say,canAnnounce,ca
     return match?{...d,level:match.level}:d;
    })});
    if(!voiceRef.current||!callbacks.current.canAnnounce())return;
-   let text:string|null=null,important=false,scanStep:number|null=null;
+   let text:string|null=null,important=false,signalAnnouncement=false,scanStep:number|null=null;
    if(target){
     const key=`${target.id}/${target.level}`;
     if(key!==lastFacility.current.key||Date.now()-lastFacility.current.at>=8000){
@@ -57,9 +60,10 @@ export function UrbanVisionPanel({live,enabled,voice,onResult,say,canAnnounce,ca
     const observed="observations" in scanValue ? scanValue.observations?.at(-1)?.text ?? "" : "";
     text=observed+" "+scanValue.text;scanStep=scanValue.step;
    }
-   if(!text)text=gate.current.offer(observation,Date.now());
+   if(!text){text=gate.current.offer(observation,Date.now());signalAnnouncement=!!text;if(text&&observation.status==="short_countdown")important=true;}
    if(text&&voiceRef.current&&callbacks.current.canAnnounce()){
     const spoken=callbacks.current.say(text,next.receivedAt,false,important,()=>{if(active){gate.current.reset();lastFacility.current={key:"",at:-Infinity};lastScanStep.current=-1;}});
+    if(spoken&&signalAnnouncement)console.info(`[SENSEA] Automatic signal guidance: ${observation.status}`);
     if(spoken&&scanStep!==null)lastScanStep.current=scanStep;
    }
   },state=>{
@@ -82,20 +86,33 @@ export function UrbanVisionPanel({live,enabled,voice,onResult,say,canAnnounce,ca
   },200);
   return()=>{active=false;clearInterval(timer);stop();};
  },[live,enabled]);
- useEffect(()=>{gate.current.reset();lastFacility.current={key:"",at:-Infinity};},[voice]);
+ useEffect(()=>{
+  updateSignalHints(live&&enabled?signalFocusHints(baseResult,signal,Date.now()):{boxes:[],receivedAt:0});
+ },[live,enabled,baseResult,signal]);
+ useEffect(()=>{
+  if(!live||!voice||!callbacks.current.canAnnounce())return;
+  const guidance=searchGate.current.offer(signal,baseResult,Date.now());
+  if(guidance){
+   const accepted=callbacks.current.say(guidance.text,guidance.observedAt,false,false,()=>searchGate.current.retry());
+   if(!accepted)searchGate.current.retry();
+  }
+ },[live,voice,baseResult,signal]);
+ useEffect(()=>{gate.current.reset();searchGate.current.reset();lastFacility.current={key:"",at:-Infinity};},[voice]);
  const changeMode=(next:Mode)=>{callbacks.current.cancel();modeRef.current=next;setMode(next);crossing.current.reset();gate.current.reset();scanner.current.reset();setScan(scanner.current.describe());setSignal({status:"unknown",text:"Checking the pedestrian signal again for the selected situation."});};
  return <View style={styles.panel} testID="urban-panel">
   <Text accessibilityRole="header" style={styles.title}>Street objects and US signals · Experimental</Text>
   <Text testID="urban-state" style={styles.note}>{status}</Text>
   <Text style={styles.note}>Looks for possible streetlights, trash cans, bicycle racks and lockers. Objects may be misidentified or missed.</Text>
   {!!facilityText&&<Text style={styles.text}>{facilityText}</Text>}
-  <Text style={styles.label}>Your current situation</Text>
-  <View style={styles.row}>{([["unknown","Unknown"],["waiting","Waiting on sidewalk"],["crossing","Crossing"]] as const).map(([value,label])=>
+  <Text style={styles.label}>Signal guidance runs automatically</Text>
+  <Text style={styles.note}>No signal button is needed. With automatic voice on, aim at the pedestrian signal to hear observations. Situation controls below are optional; the camera cannot tell whether you have entered the road.</Text>
+  <View style={styles.row}>{([["unknown","Automatic (default)"],["waiting","Waiting on sidewalk"],["crossing","Crossing"]] as const).map(([value,label])=>
    <Pressable key={value} accessibilityRole="radio" accessibilityState={{selected:mode===value}} onPress={()=>changeMode(value)} style={[styles.button,mode===value&&styles.selected]}><Text style={styles.buttonText}>{label}</Text></Pressable>)}</View>
+  <Text style={styles.note}>Keep the pedestrian signal centered and hold the camera steady. Small or blurred symbols may remain unreadable.</Text>
   <Text testID="crossing-guidance" style={styles.text}>{signal.text}</Text>
   <Text style={styles.note}>The countdown is not time available to start crossing. Reading a signal does not establish crossing clearance.</Text>
-  {signal.status==="select_target"&&frame?.detections.filter(d=>d.label.endsWith("signal")).slice(0,3).map((d,i)=>
-   <Pressable key={i} style={styles.button} accessibilityRole="button" onPress={()=>{callbacks.current.cancel();crossing.current.select(d.box);gate.current.reset();setSignal({status:"confirming",text:"Checking the selected signal again."});}}><Text style={styles.buttonText}>Select possible signal: {((d.box.left+d.box.right)/2)<.33?"left":((d.box.left+d.box.right)/2)>.67?"right":"center"} of image</Text></Pressable>)}
+  {signal.status==="select_target"&&(signal.candidates??[]).slice(0,4).map((box,i)=>
+   <Pressable key={i} style={styles.button} accessibilityRole="button" onPress={()=>{callbacks.current.cancel();crossing.current.select(box);gate.current.reset();setSignal({status:"confirming",text:"Checking the selected signal again.",target:box,observedAt:frame?.receivedAt});}}><Text style={styles.buttonText}>Select possible signal: {((box.left+box.right)/2)<.33?"left":((box.left+box.right)/2)>.67?"right":"center"} of image</Text></Pressable>)}
   <Pressable testID="stop-scan-start" accessibilityRole="button" accessibilityState={{disabled:!live}} disabled={!live} style={styles.button} onPress={()=>{
    const value=scanner.current.start(latest.current,modeRef.current,Date.now());lastScanStep.current=0;setScan(value);
    if(live)callbacks.current.say(value.text,Date.now(),true,false);

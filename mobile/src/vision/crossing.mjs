@@ -1,23 +1,10 @@
+import { validBox, boxOverlap, groupSignalHeads, followsSignal, readSignalEvidence } from "./signal-observations.mjs";
+export { validBox, boxOverlap } from "./signal-observations.mjs";
 /** Short-lived observations, never a grant to cross. All positions are image-space. */
 export const CROSSING_LIMITS = Object.freeze({ ttl: 1000, history: 5, detections: 24, texts: 16 });
-const signals = new Set(["pedestrian_signal", "walk_signal", "dont_walk_signal"]);
 const vehicles = new Set(["car", "truck", "bus", "motorcycle", "bicycle", "e_scooter"]);
 const fresh = (at, now, ttl = 1000) => Number.isFinite(at) && at <= now && now - at <= ttl;
-export function validBox(b) {
-  return !!b && [b.left,b.top,b.right,b.bottom].every(Number.isFinite) && b.left >= 0 && b.top >= 0 &&
-    b.right <= 1 && b.bottom <= 1 && b.right > b.left && b.bottom > b.top;
-}
-export function boxOverlap(a, b) {
-  if (!validBox(a) || !validBox(b)) return 0;
-  const intersection = Math.max(0,Math.min(a.right,b.right)-Math.max(a.left,b.left)) * Math.max(0,Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top));
-  const area = x => (x.right-x.left)*(x.bottom-x.top);
-  return intersection / (area(a)+area(b)-intersection || 1);
-}
 const unknown = () => ({ status: "unknown", text: "Pedestrian signal not identified.", seconds: null, target: null, navigation_safe: false });
-function inside(b, region) {
-  const x=(b.left+b.right)/2,y=(b.top+b.bottom)/2;
-  return x>=region.left && x<=region.right && y>=region.top && y<=region.bottom;
-}
 export class CrossingTracker {
   constructor() { this.reset(); }
   reset() { this.history=[]; this.selected=null; this.lastAt=-Infinity; this.lastNow=-Infinity; this.value=unknown(); }
@@ -29,27 +16,18 @@ export class CrossingTracker {
     this.lastNow=now;
     if (frame.receivedAt<=this.lastAt) return structuredValue(this.value);
     this.lastAt=frame.receivedAt;
-    const candidates=(frame.detections??[]).slice(0,24).filter(d=>signals.has(d.label) && validBox(d.box) && Number.isFinite(d.score) && d.score>=0.16 && d.score<=1);
-    // Same head can have a generic and a symbol-specific proposal. Keep strongest per head.
-    const heads=[];
-    for(const d of candidates.sort((a,b)=>b.score-a.score)) if(!heads.some(h=>boxOverlap(h.box,d.box)>.35)) heads.push(d);
-    let head;
-    if(this.selected) head=heads.filter(d=>boxOverlap(d.box,this.selected)>=.35).sort((a,b)=>boxOverlap(b.box,this.selected)-boxOverlap(a.box,this.selected))[0];
-    else if(heads.length===1) head=heads[0];
+    const heads=groupSignalHeads(frame.detections??[]);
+    const matches=this.selected?heads.filter(h=>followsSignal(h.box,this.selected)):heads;
+    const head=matches.length===1?matches[0]:null;
     if(!head) {
-      this.history=[]; this.value={...unknown(),status:heads.length>1?"select_target":"unknown",text:heads.length>1?"Multiple pedestrian signals detected. Select the signal to check.":"Pedestrian signal not identified."};
+      this.history=[]; this.value={...unknown(),status:heads.length>1?"select_target":"unknown",
+        text:heads.length>1?"Multiple pedestrian signals detected. Aim at the signal for your crossing and keep it near the center.":"Pedestrian signal not identified. Keep the signal centered and hold the camera steady.",
+        observedAt:heads.length?frame.receivedAt:undefined,candidates:heads.map(h=>({...h.box}))};
       return structuredValue(this.value);
     }
-    if(this.history.length && (frame.receivedAt-this.history.at(-1).at>1800 || boxOverlap(head.box,this.history.at(-1).box)<.35)) this.history=[];
+    if(this.history.length && (frame.receivedAt-this.history.at(-1).at>1800 || !followsSignal(head.box,this.history.at(-1).box))) this.history=[];
     if(this.selected) this.selected={...head.box};
-    const textCandidates=(frame.texts??[]).slice(0,16).filter(t=>validBox(t.box) && inside(t.box,head.box) && typeof t.text==="string");
-    const numbers=textCandidates.filter(t=>/^\d{1,2}$/.test(t.text.trim())).map(t=>Number(t.text.trim()));
-    const unique=[...new Set(numbers)];
-    const seconds=unique.length===1 && unique[0]>=0 && unique[0]<=99?unique[0]:null;
-    const words=textCandidates.map(t=>t.text.toUpperCase().replace(/[^A-Z]/g,"")).join("");
-    // Symbol detections remain model observations. Never turn the WALK observation into permission.
-    const symbol=words.includes("DONTWALK")||words.includes("DONOTWALK")?"hand":words==="WALK"?"walk":
-      head.label==="dont_walk_signal"?"hand":head.label==="walk_signal"?"walk":"unknown";
+    const {seconds,symbol,conflict}=readSignalEvidence(head,heads,frame.texts??[]);
     this.history.push({at:frame.receivedAt,box:{...head.box},seconds,symbol});
     this.history=this.history.slice(-5);
     const last=this.history.at(-1), prior=this.history.at(-2);
@@ -57,7 +35,7 @@ export class CrossingTracker {
     const numberStable=stable && seconds!==null && prior.seconds!==null &&
       prior.seconds-seconds>=0 && prior.seconds-seconds<=Math.ceil((last.at-prior.at)/1000)+1;
     const symbolStable=stable && symbol!=="unknown" && prior.symbol===symbol;
-    let status="confirming",text="Checking repeated pedestrian signal observations.";
+    let status="confirming",text=conflict?"Signal symbols are unclear. Keep checking the pedestrian signal.":"Pedestrian signal detected. Checking its symbol and countdown.";
     if(numberStable || (symbolStable && symbol==="hand")) {
       status=numberStable && seconds<10?"short_countdown":"dont_start";
       const reading=numberStable?`The signal shows ${seconds} ${seconds === 1 ? "second" : "seconds"}. `:"A DON'T WALK symbol is visible. ";
@@ -67,11 +45,11 @@ export class CrossingTracker {
     } else if(symbolStable && symbol==="walk") {
       status="walk_observed"; text="A WALK symbol is visible. Check for turning vehicles and your surroundings.";
     }
-    this.value={status,text,seconds:numberStable?seconds:null,target:{...head.box},observedAt:frame.receivedAt,navigation_safe:false};
+    this.value={status,text,seconds:numberStable?seconds:null,target:{...head.box},observedAt:frame.receivedAt,navigation_safe:false,candidates:heads.map(h=>({...h.box}))};
     return structuredValue(this.value);
   }
 }
-function structuredValue(v) { return {...v,target:v.target?{...v.target}:null}; }
+function structuredValue(v) { return {...v,target:v.target?{...v.target}:null,candidates:(v.candidates??[]).map(b=>({...b}))}; }
 const angle = (value, base) => ((value-base+540)%360)-180;
 export class StopScan {
   constructor() { this.reset(); }

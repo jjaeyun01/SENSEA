@@ -16,6 +16,7 @@ import { UrbanVisionPanel } from "./src/vision/UrbanVisionPanel";
 import urbanLabels from "./assets/models/urban-labels.json";
 import { AnalysisBudget } from "./src/vision/analysis-budget.mjs";
 import { automaticWarnings, isAutomaticSpeechTarget } from "./src/vision/automatic-speech.mjs";
+import { hasSignalInView } from "./src/vision/signal-search.mjs";
 import { englishSpeechOptions } from "./src/vision/english-speech.mjs";
 import { LatestSpeechChannel } from "./src/vision/speech-channel.mjs";
 import type { HazardAssessment, LiveResult, NativeSession, UrbanResult } from "./src/vision/types";
@@ -58,6 +59,7 @@ function CameraScreen() {
   const closing = useRef<Promise<void> | null>(null);
   const current = useRef<NativeSession | null>(null);
   const latest = useRef<LiveResult | null>(null);
+  const latestUrban = useRef<UrbanResult | null>(null);
   const voiceEnabled = useRef(true);
   const announcement = useRef(new AnnouncementGate());
   const announcementRevision = useRef(0);
@@ -76,6 +78,7 @@ function CameraScreen() {
   }
   const receiveUrban = useCallback((next: UrbanResult | null) => {
     if (!mounted.current || !wanted.current) { hapticChannel.current?.clear("urban"); return; }
+    latestUrban.current = next;
     setUrban(next);
     if (!next) { hapticChannel.current?.clear("urban"); return; }
     hapticChannel.current?.offer("urban", next.receivedAt,
@@ -163,6 +166,7 @@ function CameraScreen() {
     startupTimer.current = null;
     current.current?.pause();
     latest.current = null;
+    latestUrban.current = null;
     resetAnnouncement();
     resetHazards();
     silence();
@@ -218,6 +222,7 @@ function CameraScreen() {
         };
         if (!say(warning, assessment.observedAt, false, true, retryIfUndelivered)) retryIfUndelivered();
       } else if (!assessment.hazards.some(isAutomaticSpeechTarget) &&
+          (next.quality.status !== "usable" || !hasSignalInView(next, latestUrban.current, Date.now())) &&
           (!screenReaderEnabled.current || next.quality.status !== "usable")) {
         // Screen readers still need dark/obscured-camera status; only ordinary
         // object lists are kept manual while TalkBack/VoiceOver is enabled.
@@ -246,6 +251,7 @@ function CameraScreen() {
     analysisBudget.current.suspend(Date.now());
     setUrbanEnabled(false);
     latest.current = null;
+    latestUrban.current = null;
     setResult(null);
     setAnalysisMessage(text);
     resetHazards();
@@ -340,6 +346,7 @@ function CameraScreen() {
       setUrbanEnabled(analysisBudget.current.tick(Date.now()));
       if (latest.current && !isFreshResult(latest.current, Date.now())) {
         latest.current = null;
+        latestUrban.current = null;
         setResult(null);
         resetHazards();
         setAnalysisMessage("Waiting for a fresh analysis. Hazards cannot be assessed yet.");
@@ -545,7 +552,7 @@ function CameraScreen() {
           <Text style={styles.linkText}>Allow camera access in settings</Text>
         </Pressable>
       )}
-      <UrbanVisionPanel live={live} enabled={urbanEnabled} voice={voice} onResult={receiveUrban} say={say} canAnnounce={canAnnounceUrban} cancel={silence} />
+      <UrbanVisionPanel live={live} enabled={urbanEnabled} voice={voice} baseResult={result} onResult={receiveUrban} say={say} canAnnounce={canAnnounceUrban} cancel={silence} />
       <View style={styles.coveragePanel}>
         <Text style={styles.sectionLabel}>Base detection coverage</Text>
         <Text style={styles.note}>Additional candidates appear in the street object and signal panel above. An undetected object may still be present.</Text>

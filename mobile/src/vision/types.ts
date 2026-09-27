@@ -55,6 +55,6 @@ export interface UrbanResult {
  generation:number; receivedAt:number; processedMs:number; quality:"usable"|"retake";
  imageSize:{width:number;height:number};
  detections:Array<{label:string;score:number;box:Detection["box"];source:"owlvit";level?:string}>;
- texts:Array<{text:string;box:Detection["box"]}>;
+ texts:Array<{text:string;box:Detection["box"];signalBox?:Detection["box"]}>;
  heading?:number; headingAt:number; headingAccuracy:number;
 }

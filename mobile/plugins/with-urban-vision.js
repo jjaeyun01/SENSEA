@@ -26,7 +26,7 @@ android { defaultConfig { ndk { abiFilters.addAll((findProperty('reactNativeArch
   const root=result.modRequest.projectRoot;
   const source=path.join(root,'native/urban-vision');
   const target=path.join(root,'android/app/src/main/java/com/sensea/urban');fs.mkdirSync(target,{recursive:true});
-  for(const file of ['UrbanVisionModule.kt','UrbanFrameAnalyzer.kt'])fs.copyFileSync(path.join(source,file),path.join(target,file));
+  for(const file of ['UrbanVisionModule.kt','UrbanFrameAnalyzer.kt','SignalRegions.kt','LedCountdown.kt'])fs.copyFileSync(path.join(source,file),path.join(target,file));
   const assets=path.join(root,'android/app/src/main/assets/sensea-urban');fs.mkdirSync(assets,{recursive:true});
   for(const file of ['urban-int8.onnx','urban-manifest.json','urban-labels.json'])fs.copyFileSync(path.join(root,'assets/models',file),path.join(assets,file));
   const proguard=path.join(root,'android/app/proguard-rules.pro');

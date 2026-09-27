@@ -1,4 +1,5 @@
 import { projectBoxToPreview } from "./preview-geometry.mjs";
+import { groupSignalHeads } from "./signal-observations.mjs";
 import { boxOverlap, validBox } from "./crossing.mjs";
 export const OVERLAY_LIMIT=10;
 const fresh=(at,now)=>Number.isFinite(at)&&now>=at&&now-at<=1000;
@@ -15,8 +16,15 @@ export function buildObjectOverlays(result,hazard,urban,previewSize,now=Date.now
     if(hazard&&fresh(hazard.observedAt,now))for(const h of hazard.hazards.slice(0,3))add(h,result.imageSize,`h-${h.trackId}`,h.level);
 
   }
-  if(urban&&fresh(urban.receivedAt,now)&&urban.quality==="usable")
-    for(const [i,d] of urban.detections.slice(0,24).entries())add(d,urban.imageSize,`u-${i}`,d.level??"candidate");
+  if(urban&&fresh(urban.receivedAt,now)&&urban.quality==="usable") {
+    for(const [i,d] of urban.detections.slice(0,24).entries())
+      if(d.level==="priority"||d.level==="caution")add(d,urban.imageSize,`u-alert-${i}`,d.level);
+    // One housing/symbol cluster gets one box; state is confirmed by the signal panel.
+    for(const [i,head] of groupSignalHeads(urban.detections).entries())
+      add({label:"pedestrian_signal",box:head.box,score:head.score},urban.imageSize,`signal-${i}`,"candidate");
+    for(const [i,d] of urban.detections.slice(0,24).entries())
+      if(!["pedestrian_signal","walk_signal","dont_walk_signal"].includes(d.label))add(d,urban.imageSize,`u-${i}`,d.level??"candidate");
+  }
   if(result&&fresh(result.receivedAt,now)&&result.quality?.status==="usable")
     for(const [i,d] of result.detections.slice(0,25).entries())add(d,result.imageSize,`d-${i}`,d.nearCandidate?"candidate":"detected");
   return selected;

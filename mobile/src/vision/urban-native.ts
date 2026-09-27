@@ -1,5 +1,5 @@
 import { NativeEventEmitter, NativeModules, Platform } from "react-native";
-import type { UrbanResult } from "./types";
+import type { Detection, UrbanResult } from "./types";
 const native = Platform.OS === "android" ? NativeModules.SenseaUrbanVision : null;
 let revision = 0;
 export function startUrbanAnalysis(onResult:(result:UrbanResult)=>void,onStatus:(status:string)=>void) {
@@ -15,4 +15,8 @@ export function startUrbanAnalysis(onResult:(result:UrbanResult)=>void,onStatus:
   });
   native.setEnabled(true,generation);
   return ()=>{active=false;result.remove();status.remove();native.setEnabled(false,++revision);};
+}
+
+export function updateSignalHints(hints:{boxes:Detection["box"][];receivedAt:number}) {
+  native?.setSignalHints?.(hints.boxes,hints.receivedAt,revision);
 }
