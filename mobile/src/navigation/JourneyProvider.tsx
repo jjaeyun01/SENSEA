@@ -9,11 +9,14 @@ import { baseUrl, request, type Place, type Point, type Route } from './campusAp
 import { demoRoutes, searchDemo } from './demo';
 import { useCamera } from '../camera/CameraProvider';
 import { useAuth } from '../auth/AuthProvider';
+import { useNoise } from '../noise/NoiseProvider';
+import { routeNoiseSummary } from '../noise/routeNoise.mjs';
 type Stage = 'search' | 'confirm' | 'routes' | 'setup' | 'navigating' | 'paused' | 'arrived';
 function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
   cameraReady: boolean; requestCamera: () => void; stopCamera: () => void;
 }) {
   const auth = useAuth();
+  const noise = useNoise();
   const [searchVersion, setSearchVersion] = useState(0);
   const [recentPlaces, setRecentPlaces] = useState<Place[]>([]);
   const [demoMode, setDemoMode] = useState(false);
@@ -54,11 +57,12 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
   }, [auth.places, auth.user]);
 
   const say = useCallback((text: string, priority = 3, done?: () => void) => {
+    noise.suspendForSpeech();
     setMessage(text); lastMessage.current = text;
     speechWanted.current = false;
     Recognition.abort();
     announce(text, priority, "en-US", done);
-  }, []);
+  }, [noise.suspendForSpeech]);
   const stopTracking = useCallback(() => {
     watchGeneration.current++;
     watcher.current?.remove(); watcher.current = null;
@@ -179,8 +183,19 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
       setPosition(fix.coords);
       const result = await request("/campus/routes", signal, { origin: { latitude: fix.coords.latitude, longitude: fix.coords.longitude }, destination_id: Number(destination.id) });
       if (signal.aborted || !mounted.current) return;
-      setRoutes(result.routes.map((route: Route, index: number) => ({ ...route, label: `Walking route ${index + 1}`, source: 'google' }))); setStage("routes");
-      say(result.routes.map((route: Route, index: number) => `Option ${index + 1}: ${Math.ceil(route.duration_seconds / 60)} minutes, ${route.distance_m} meters.`).join(" ") + " Stairs, slopes, and route safety have not been verified. Choose a route.", 3, () => void listen());
+      const preference = auth.currentNoisePreference();
+      const scored = result.routes.map((route: Route) => {
+        const summary = routeNoiseSummary(route.encoded_polyline, noise.cells);
+        return { ...route, source: 'google' as const, noiseStatus: summary ? 'fresh' as const : 'unknown' as const,
+          ...(summary ? { relativeNoise: summary.relativeNoise, noiseCellCount: summary.cellCount, noiseMeasurementCount: summary.measurementCount } : {}) };
+      }).sort((a: Route, b: Route) => {
+        if (a.relativeNoise == null && b.relativeNoise == null) return a.duration_seconds - b.duration_seconds;
+        if (a.relativeNoise == null) return 1;
+        if (b.relativeNoise == null) return -1;
+        return preference === 'quiet' ? a.relativeNoise - b.relativeNoise : b.relativeNoise - a.relativeNoise;
+      }).map((route: Route, index: number) => ({ ...route, label: `Walking route ${index + 1}` }));
+      setRoutes(scored); setStage("routes");
+      say(scored.map((route: Route, index: number) => `Option ${index + 1}: ${Math.ceil(route.duration_seconds / 60)} minutes, ${route.distance_m} meters${route.relativeNoise == null ? ', noise coverage unavailable' : `, ${preference === 'quiet' ? 'daytime quieter-route' : 'nighttime active-sound-route'} preference applied`}.`).join(" ") + " Noise does not prove crowd presence or safety. Stairs, slopes, and route safety have not been verified. Choose a route.", 3, () => void listen());
     });
   }
   function choose(route: Route) {
@@ -208,6 +223,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
         if (current !== watchGeneration.current) return;
         lastFixAt.current = fix.timestamp;
         setPosition(fix.coords);
+        noise.offerLocation(fix.coords);
         const event = guidance.current?.update({ ...fix.coords, timestamp: fix.timestamp });
         if (event?.kind === "uncertain") {
           if (!uncertain.current) { uncertain.current = true; say(event.text, 1); recordEvent("location_uncertain"); }

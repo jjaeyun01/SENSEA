@@ -8,8 +8,9 @@ import { CameraPreview, useCamera } from '@/src/camera/CameraProvider';
 import { useJourney } from '@/src/navigation/JourneyProvider';
 import { announce } from '@/src/navigation/feedback';
 import { colors, radii, spacing, typography } from '@/src/theme';
+import { useNoise } from '@/src/noise/NoiseProvider';
 export default function NavigateScreen() {
-  const router = useRouter(); const pathname = usePathname(); const insets = useSafeAreaInsets(); const journey = useJourney(); const cameraState = useCamera();
+  const router = useRouter(); const pathname = usePathname(); const insets = useSafeAreaInsets(); const journey = useJourney(); const cameraState = useCamera(); const noise = useNoise();
   useFocusEffect(useCallback(() => () => journey.pause(), [journey.pause]));
   const route = journey.selected;
   const state = { destination: journey.destination, stepIndex: journey.stepIndex };
@@ -18,7 +19,7 @@ export default function NavigateScreen() {
   const segment = route?.steps[journey.stepIndex];
   const remaining = route ? Math.max(0, Math.round(route.distance_m - route.steps.slice(0, journey.stepIndex).reduce((sum, item) => sum + (item.distance_m ?? 0), 0))) : 0;
   const location = journey.message;
-  const noiseMessage = route?.source === 'demo' ? `Demo noise fixture: ${route.noiseStatus}. Not a microphone reading.` : 'No live environmental noise reading is available.';
+  const noiseMessage = route?.source === 'demo' ? `Demo noise fixture: ${route.noiseStatus}. Not a microphone reading.` : noise.collecting ? 'Measuring a five-second sound window. Audio stays on this device.' : noise.latest ? `${noise.latest.label} relative sound level. Private preview until three users contribute to this area.` : noise.status;
   useEffect(() => { if (journey.stage === 'search') router.replace('/'); }, [journey.stage, router]);
   if (!route) return null;
   const start = () => journey.start();
@@ -32,7 +33,7 @@ export default function NavigateScreen() {
     <Text style={styles.eyebrow}>READY TO GO</Text><Text accessibilityRole="header" style={styles.preflightTitle}>{state.destination?.name}</Text>
     <View style={styles.summaryCard}><View style={styles.routeLine}><View style={styles.routeDot} /><View style={styles.routeStem} /><View style={[styles.routeDot, styles.routeDotEnd]} /></View><View style={styles.summaryCopy}><Text style={styles.summaryLabel}>{route.label}</Text><Text style={styles.summaryMetric}>{Math.max(1, Math.ceil(route.duration_seconds / 60))} min · {route.distance_m} m</Text><Text style={styles.summaryHint}>{route.source === 'demo' ? 'SIMULATION · Manual steps' : 'Google Maps · Accessibility unverified'}</Text></View></View>
     <View style={styles.notice}><Text style={styles.noticeIcon}>i</Text><Text style={styles.noticeText}>{route.source === 'demo' ? 'Fictional demo guidance advances manually.' : 'Hold the phone upright facing forward. Prepare the camera before starting. The route leads to a representative building point.'}</Text></View>
-    <RouteMap route={route} position={journey.position} />
+    <RouteMap route={route} position={journey.position} noiseCells={noise.cells} latestNoise={noise.latest} />
     {route.source !== 'demo' && <><View style={{ height: 180, borderRadius: radii.lg, overflow: 'hidden' }}>{pathname === '/navigate' && <CameraPreview />}</View><LargeActionButton label={cameraState.ready ? 'Camera ready' : 'Prepare camera'} onPress={() => router.push('/camera')} /></>}
     <View style={styles.preflightActions}><LargeActionButton label="Start navigating" disabled={journey.busy || (route.source !== 'demo' && !cameraState.ready)} onPress={() => void start()} icon={<Text style={styles.darkIcon}>→</Text>} /><LargeActionButton label="Back to routes" onPress={() => { journey.reviewRoutes(); router.replace('/routes'); }} variant="ghost" /></View>
   </ScrollView>;
@@ -47,7 +48,7 @@ export default function NavigateScreen() {
         <Text style={styles.instructionMeta}>{paused ? 'Resume when you are ready to continue.' : `Step ${Math.min(state.stepIndex + 1, route.steps.length)} of ${route.steps.length}`}</Text>
       </View>
 
-      <RouteMap route={route} position={journey.position} />
+      <RouteMap route={route} position={journey.position} noiseCells={noise.cells} latestNoise={noise.latest} />
       {route.source !== 'demo' && <View style={{ height: 160, borderRadius: radii.lg, overflow: 'hidden' }}>{pathname === '/navigate' && <CameraPreview />}</View>}
       <View style={styles.headingOrb}><Text style={styles.orbLabel}>HEADING</Text><Text style={styles.orbValue}>{route.source === 'demo' ? 'Simulation' : 'GPS guidance'}</Text><Text style={styles.orbPulse}>◉</Text></View>
 

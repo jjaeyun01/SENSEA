@@ -10,10 +10,13 @@ Run these files in order in the Supabase SQL editor:
 
 1. `backend/migrations/001_initial.sql`
 2. `backend/migrations/002_user_accounts.sql`
+3. `backend/migrations/003_crowdsourced_noise_map.sql`
 
 The second migration creates `profiles`, `user_preferences`, `user_places`, and
 `route_history`. Row Level Security restricts every row to its authenticated
 owner. It also creates profile and preference rows whenever Auth creates a user.
+The third migration adds revocable noise-map consent, private coarse-grid
+measurements, and k-anonymous hourly map aggregates.
 
 ## 2. Configure the mobile app
 

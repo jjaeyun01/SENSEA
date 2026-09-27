@@ -1,0 +1,1 @@
+export function routeNoiseSummary(encodedPolyline: string, cells: Array<{ grid_latitude: number; grid_longitude: number; average_relative_noise: number; measurement_count: number }>, radiusMeters?: number): { relativeNoise: number; cellCount: number; measurementCount: number } | null;
