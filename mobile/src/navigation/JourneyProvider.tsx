@@ -49,6 +49,8 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
   const active = useRef<AbortController | null>(null);
   const mounted = useRef(true);
   const speechWanted = useRef(false);
+  const speechStarting = useRef(false);
+  const speechRevision = useRef(0);
   const watcher = useRef<Location.LocationSubscription | null>(null);
   const motionWatcher = useRef<{ remove(): void } | null>(null);
   const fusion = useRef(new PositionFusion());
@@ -81,7 +83,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
   const say = useCallback((text: string, priority = 3, done?: () => void, haptic?: DirectionHaptic) => {
     noise.suspendForSpeech();
     setMessage(text); lastMessage.current = text;
-    speechWanted.current = false;
+    speechWanted.current = false; speechRevision.current++;
     Recognition.abort();
     announce(text, priority, "en-US", done, true, undefined, { haptic });
   }, [noise.suspendForSpeech]);
@@ -96,7 +98,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     fusion.current.reset();
   }, []);
   const pause = useCallback(() => {
-    stopTracking(); stopFeedback(); Recognition.abort(); speechWanted.current = false;
+    speechRevision.current++; stopTracking(); stopFeedback(); Recognition.abort(); speechWanted.current = false;
     stopCamera();
     if (stageRef.current === "navigating") {
       setStage("paused"); setMessage("Navigation paused. Resume when you are ready.");
@@ -105,25 +107,30 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
   }, [stopTracking, stopCamera]);
 
   const listen = useCallback(async () => {
+    if (speechStarting.current || speechWanted.current) return;
+    speechStarting.current = true;
+    const request = ++speechRevision.current;
     recordEvent("touch", "microphone");
     stopFeedback();
     noise.suspendForSpeech();
-    suspendNoiseMonitor('speech-recognition');
     try {
+      suspendNoiseMonitor('speech-recognition');
       const permission = await Recognition.requestPermissionsAsync();
+      if (request !== speechRevision.current) { resumeNoiseMonitor('speech-recognition'); return; }
       if (!permission.granted || !mounted.current || AppState.currentState !== "active") {
         if (mounted.current) setMessage("Microphone and speech recognition permission are needed. You can also type or tap.");
         resumeNoiseMonitor('speech-recognition');
         return;
       }
       speechWanted.current = true;
-      Recognition.start({ lang: "en-US", interimResults: false, continuous: false,
+      Recognition.start({ lang: "en-US", interimResults: false, continuous: true,
         recordingOptions: { persist: false } });
     } catch {
       resumeNoiseMonitor('speech-recognition');
-      if (mounted.current) say("Speech recognition is unavailable. Please type or tap.");
-    }
-  }, [say, suspendNoiseMonitor, resumeNoiseMonitor, noise.suspendForSpeech]);
+      speechWanted.current = false;
+      if (mounted.current) setMessage("Speech recognition is unavailable. Please type or tap.");
+    } finally { speechStarting.current = false; }
+  }, [suspendNoiseMonitor, resumeNoiseMonitor, noise.suspendForSpeech]);
 
   useEffect(() => {
     mounted.current = true;
@@ -410,11 +417,12 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     setStage("search"); setArrivalStatus('none'); setQuery(""); setPlaces([]); setRoutes([]); setSelected(null); setDestination(null);
     recordEvent("navigation_reset"); say("Where would you like to go?");
   }
-  useSpeechRecognitionEvent("start", () => setListening(true));
+  useSpeechRecognitionEvent("start", () => { if (speechWanted.current) setListening(true); else Recognition.abort(); });
   useSpeechRecognitionEvent("end", () => { setListening(false); speechWanted.current = false; resumeNoiseMonitor('speech-recognition'); });
   useSpeechRecognitionEvent("error", event => {
     resumeNoiseMonitor('speech-recognition');
-    if (speechWanted.current && event.error !== "aborted") say("I could not hear you. Tap the microphone to try again, or use the buttons.");
+    const wanted = speechWanted.current; speechWanted.current = false; setListening(false);
+    if (wanted && event.error !== "aborted") setMessage("Voice input stopped. Tap the microphone to try again, or type a destination.");
   });
   useSpeechRecognitionEvent("result", event => {
     if (!event.isFinal || !speechWanted.current || isFeedbackActive()) return;
@@ -448,7 +456,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
   return { query, setQuery, recentPlaces, search: (text: string) => { setStage('search'); setQuery(text); setSearchVersion(value => value + 1); }, places, destination, routes, selected, stage, message, busy, rerouting, arrivalStatus, listening, recording,
     position, stepIndex, orderRoutes, selectPlace, confirm, choose, start, pause, reset, arrive,
     reviewRoutes: () => { pause(); setStage('routes'); }, listen, say, repeat: () => say(lastMessage.current),
-    stopListening: () => { speechWanted.current = false; Recognition.abort(); },
+    stopListening: () => { speechRevision.current++; speechWanted.current = false; setListening(false); Recognition.abort(); resumeNoiseMonitor('speech-recognition'); },
     toggleRecording: async () => { await setRecording(!recording); setRecordingState(!recording); },
     checkRecords: async () => say(await eventStatus()),
     deleteRecords: async () => { await clearEvents(); setMessage('Interaction records deleted.'); announce('Interaction records deleted.', 3, 'en-US', undefined, false); },

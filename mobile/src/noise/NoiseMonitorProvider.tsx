@@ -61,6 +61,9 @@ export function NoiseMonitorProvider({ children }: { children: ReactNode }) {
     onBuffer,
   });
 
+  const streamRef = useRef(stream);
+  streamRef.current = stream;
+
   const requestPermission = useCallback(async () => {
     setPermission('requesting');
     setError(null);
@@ -111,11 +114,12 @@ export function NoiseMonitorProvider({ children }: { children: ReactNode }) {
 
   const suspend = useCallback((reason: string) => {
     if (!suspended.current.has(reason)) {
-      stream.stop();
       suspended.current.add(reason);
+      // A failed metering stream must not prevent voice input from starting.
+      try { streamRef.current.stop(); } catch { /* Already stopped or unavailable. */ }
       setSuspensionVersion(value => value + 1);
     }
-  }, [stream]);
+  }, []);
   const resume = useCallback((reason: string) => {
     if (suspended.current.delete(reason)) setSuspensionVersion(value => value + 1);
   }, []);

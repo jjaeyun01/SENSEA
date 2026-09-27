@@ -49,14 +49,14 @@ export default function HomeScreen() {
           <Text style={styles.subtitle}>Speak or type a destination. SENSEA will compare campus walking routes for you.</Text>
         </View>
 
-        <View accessible accessibilityRole="text" accessibilityLabel={`Voice assistant active. ${journey.listening ? 'Listening now.' : 'Ready for voice commands.'}`} style={styles.voiceStatus}>
+        <Pressable accessibilityRole="button" accessibilityLabel={journey.listening ? 'Stop voice input' : 'Start voice input'} onPress={() => { if (journey.listening) journey.stopListening(); else void journey.listen(); }} style={styles.voiceStatus}>
           <View style={styles.statusIcon}><View style={[styles.statusDot, journey.listening && styles.statusDotListening]} /><Text style={styles.statusWave}>)))</Text></View>
           <View style={styles.statusCopy}>
-            <View style={styles.statusTitleRow}><Text style={styles.statusTitle}>Voice assistant active</Text><View style={styles.activeBadge}><Text style={styles.activeBadgeText}>ALWAYS ON</Text></View></View>
-            <Text style={styles.statusText}>{journey.listening ? 'Listening now…' : 'Say a destination or command anytime.'}</Text>
-            <Text style={styles.statusPrivacy}>Available throughout the app · Audio is not stored</Text>
+            <View style={styles.statusTitleRow}><Text style={styles.statusTitle}>Voice input</Text><View style={styles.activeBadge}><Text style={styles.activeBadgeText}>{journey.listening ? 'LISTENING' : 'TAP TO SPEAK'}</Text></View></View>
+            <Text style={styles.statusText}>{journey.listening ? 'Listening now…' : 'Tap to say a destination or command.'}</Text>
+            <Text style={styles.statusPrivacy}>Tap again to stop · Audio is not stored</Text>
           </View>
-        </View>
+        </Pressable>
 
         <LiveNoiseMeter />
 
