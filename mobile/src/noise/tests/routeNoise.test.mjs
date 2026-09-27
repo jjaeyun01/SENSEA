@@ -11,6 +11,7 @@ test('route noise uses only cells near the decoded route', () => {
   ]);
   assert.equal(result.cellCount, 1);
   assert.equal(result.relativeNoise, 0.2);
+  assert.ok(result.coverageRatio < 0.1, 'a nearby cell must not imply coverage of the whole route');
 });
 
 test('route noise remains unknown without nearby aggregate coverage', () => {

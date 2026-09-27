@@ -12,6 +12,8 @@ import { useCamera } from '../camera/CameraProvider';
 import { useAuth } from '../auth/AuthProvider';
 import { useNoise } from '../noise/NoiseProvider';
 import { routeNoiseSummary } from '../noise/routeNoise.mjs';
+import { rankWalkingRoutes } from './routeRanking.mjs';
+import { useAppPreferences } from '../state/AppPreferences';
 import { useNoiseMonitor } from '../noise/NoiseMonitorProvider';
 import { PositionFusion } from './positionFusion.mjs';
 import type { NavigationPosition, VerifiedVisualAlignment } from './positionFusion.mjs';
@@ -23,6 +25,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
 }) {
   const auth = useAuth();
   const noise = useNoise();
+  const routePreferences = useAppPreferences();
   const { suspend: suspendNoiseMonitor, resume: resumeNoiseMonitor } = useNoiseMonitor();
   const [searchVersion, setSearchVersion] = useState(0);
   const [recentPlaces, setRecentPlaces] = useState<Place[]>([]);
@@ -186,15 +189,13 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
   }
   const orderRoutes = useCallback((priority: string) => {
     setRoutes(previous => {
-      const ordered = [...previous].sort((a, b) => {
-        if (priority === 'fastest') return a.duration_seconds - b.duration_seconds;
-        if (priority === 'quietest') return (a.relativeNoise ?? Infinity) - (b.relativeNoise ?? Infinity);
-        if (priority === 'stepFree') return Number(a.hasStairs !== false) - Number(b.hasStairs !== false);
-        return 0;
-      });
-      return ordered.every((route, index) => route === previous[index]) ? previous : ordered;
+      const ordered: Route[] = rankWalkingRoutes(previous, { period: auth.currentNoisePreference() === 'active' ? 'night' : 'day',
+        priority, avoidStairs: auth.preferences?.avoid_stairs ?? false,
+        avoidConstruction: routePreferences.avoidConstruction, preferWellLit: routePreferences.preferWellLit });
+      return ordered.length === previous.length && ordered.every((route, index) => route === previous[index] && route.label === `Walking route ${index + 1}`)
+        ? previous : ordered.map((route, index) => ({ ...route, label: `Walking route ${index + 1}` }));
     });
-  }, []);
+  }, [auth.currentNoisePreference, auth.preferences?.avoid_stairs, routePreferences.avoidConstruction, routePreferences.preferWellLit]);
   function selectPlace(place: Place) {
     recordEvent("destination_selected", place.id);
     void perform(async signal => {
@@ -207,19 +208,19 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
   }
   function prepareLiveRoutes(rawRoutes: Route[], arrivalTarget?: { latitude: number; longitude: number; verified_entrance: boolean; kind: 'verified_entrance' | 'building_representative_point'; accuracy_m?: number | null; surveyed_at?: string | null; description?: string | null }) {
     const preference = auth.currentNoisePreference();
-    return rawRoutes.map((route: Route) => {
+    const enriched = rawRoutes.map((route: Route) => {
       const summary = routeNoiseSummary(route.encoded_polyline, noise.cells);
+      const credible = summary && summary.coverageRatio >= 0.7 && summary.measurementCount >= 10 && summary.contributorCount >= 3;
       return { ...route, source: 'google' as const,
         ...(arrivalTarget ? { arrivalTarget: { latitude: arrivalTarget.latitude, longitude: arrivalTarget.longitude, verifiedEntrance: arrivalTarget.verified_entrance, kind: arrivalTarget.kind,
           accuracyM: arrivalTarget.accuracy_m, surveyedAt: arrivalTarget.surveyed_at, description: arrivalTarget.description } } : {}),
-        noiseStatus: summary ? 'fresh' as const : 'unknown' as const,
-        ...(summary ? { relativeNoise: summary.relativeNoise, noiseCellCount: summary.cellCount, noiseMeasurementCount: summary.measurementCount } : {}) };
-    }).sort((a: Route, b: Route) => {
-      if (a.relativeNoise == null && b.relativeNoise == null) return a.duration_seconds - b.duration_seconds;
-      if (a.relativeNoise == null) return 1;
-      if (b.relativeNoise == null) return -1;
-      return preference === 'quiet' ? a.relativeNoise - b.relativeNoise : b.relativeNoise - a.relativeNoise;
-    }).map((route: Route, index: number) => ({ ...route, label: `Walking route ${index + 1}` }));
+        noiseStatus: credible ? 'fresh' as const : 'unknown' as const,
+        ...(credible ? { relativeNoise: summary.relativeNoise, noiseCellCount: summary.cellCount, noiseMeasurementCount: summary.measurementCount,
+          noiseContributorCount: summary.contributorCount, noiseCoverage: summary.coverageRatio } : {}) };
+    });
+    return rankWalkingRoutes(enriched, { period: preference === 'active' ? 'night' : 'day', priority: routePreferences.routePriority,
+      avoidStairs: auth.preferences?.avoid_stairs ?? false, avoidConstruction: routePreferences.avoidConstruction,
+      preferWellLit: routePreferences.preferWellLit }).map((route: Route, index: number) => ({ ...route, label: `Walking route ${index + 1}` }));
   }
   async function loadLiveRoutes(place: Place, signal: AbortSignal) {
       const permission = await Location.requestForegroundPermissionsAsync();

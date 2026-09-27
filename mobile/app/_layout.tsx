@@ -18,11 +18,11 @@ export default function RootLayout() {
     void AccessibilityInfo.isScreenReaderEnabled().then(value => { if (mounted && !changed) setFeedbackScreenReader(value); });
     return () => { mounted = false; listener.remove(); };
   }, []);
-  return <SafeAreaProvider><AuthProvider><NoiseMonitorProvider><NoiseProvider><CameraProvider><JourneyProvider><AppPreferencesProvider><StatusBar style="dark" /><Stack screenOptions={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: colors.background } }}>
+  return <SafeAreaProvider><AuthProvider><NoiseMonitorProvider><NoiseProvider><CameraProvider><AppPreferencesProvider><JourneyProvider><StatusBar style="dark" /><Stack screenOptions={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: colors.background } }}>
     <Stack.Screen name="index" /><Stack.Screen name="routes" /><Stack.Screen name="navigate" />
     <Stack.Screen name="camera" /><Stack.Screen name="settings" /><Stack.Screen name="map" />
     <Stack.Screen name="preferences" /><Stack.Screen name="profile" />
     <Stack.Screen name="destination" /><Stack.Screen name="scan" />
     <Stack.Screen name="auth" /><Stack.Screen name="account" />
-  </Stack></AppPreferencesProvider></JourneyProvider></CameraProvider></NoiseProvider></NoiseMonitorProvider></AuthProvider></SafeAreaProvider>;
+  </Stack></JourneyProvider></AppPreferencesProvider></CameraProvider></NoiseProvider></NoiseMonitorProvider></AuthProvider></SafeAreaProvider>;
 }
