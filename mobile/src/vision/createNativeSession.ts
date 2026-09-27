@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { Asset } from "expo-asset";
 import { loadTensorflowModel, type TfliteModel } from "react-native-fast-tflite";
 import { VisionCamera, type CameraPreviewOutput } from "react-native-vision-camera";
@@ -71,10 +72,11 @@ export async function createNativeSession(
     const prepareAnalysis = async () => {
       // Called only after onPreviewStarted confirms that the user sees camera frames.
       let stage = "model asset";
+      const useCpuRgb = Platform.OS === "android";
       try {
         await starting;
         if (stopped) return;
-        if (!isResizerAvailable()) {
+        if (!useCpuRgb && !isResizerAvailable()) {
           onAnalysisError("이 기기는 현재 사물 분석 방식을 지원하지 않습니다. 실시간 카메라 화면은 사용할 수 있습니다.");
           return;
         }
@@ -96,10 +98,12 @@ export async function createNativeSession(
         }
         console.info("[SENSEA] Local model ready");
         stage = "frame converter";
-        converter = await createResizer({
-          width: 320, height: 320, channelOrder: "rgb", dataType: "uint8",
-          scaleMode: "contain", pixelLayout: "interleaved",
-        });
+        if (!useCpuRgb) {
+          converter = await createResizer({
+            width: 320, height: 320, channelOrder: "rgb", dataType: "uint8",
+            scaleMode: "contain", pixelLayout: "interleaved",
+          });
+        }
         if (stopped) return;
         stage = "frame runtime";
         pipeline = getFramePipeline();
@@ -108,32 +112,65 @@ export async function createNativeSession(
         const enabled = createSynchronizable(true);
         active = enabled;
         const pending = createSynchronizable(false);
+        let inferenceReported = false;
         const deliver = (result: LiveResult) => {
           try {
-            if (!stopped && enabled.getBlocking() && isFreshResult(result, Date.now())) onResult(result);
+            if (!stopped && enabled.getBlocking() && isFreshResult(result, Date.now())) {
+              if (result.quality.status === "usable" && !inferenceReported) {
+                inferenceReported = true;
+                console.info("[SENSEA] First frame inference ready");
+              }
+              onResult(result);
+            }
           } finally { pending.setBlocking(false); }
         };
-        const failAnalysis = () => {
+        const reportTiming = (milliseconds: number, quality: string, preprocessingMs: number, inferenceMs: number) => {
+          console.info("[SENSEA] First frame processing", Math.round(milliseconds), quality,
+            { preprocessingMs: Math.round(preprocessingMs), inferenceMs: Math.round(inferenceMs) });
+        };
+        const failAnalysis = (reason: string) => {
+          console.warn("[SENSEA] Frame analysis stopped", reason);
           if (!stopped) onAnalysisError("사물 분석을 중지했습니다. 실시간 카메라 화면은 계속 표시합니다.");
         };
         await new Promise<void>((resolve, reject) => {
           scheduleOnRuntime(runtime, () => {
             "worklet";
             try {
+              // One model-sized buffer per session; camera pixels never cross to RN.
+              const cpuRgbBuffer = useCpuRgb ? new Uint8Array(320 * 320 * 3) : undefined;
               let lastStartedAt = -Infinity;
+              let timingReported = false;
+              let consecutiveDeadlineMisses = 0;
               frameOutput.setOnFrameCallback(frame => {
                 const now = performance.now(), receivedAt = Date.now();
                 const shouldAnalyze = enabled.getBlocking() && !pending.getBlocking() && now - lastStartedAt >= 200;
                 if (shouldAnalyze) lastStartedAt = now;
                 try {
-                  const result = analyzeOwnedFrame(frame, resizer, detector, labels, shouldAnalyze);
-                  if (result && enabled.getBlocking() && Date.now() - receivedAt <= 1000) {
-                    pending.setBlocking(true);
-                    scheduleOnRN(deliver, { ...result, receivedAt, processedMs: performance.now() - now, navigation_safe: false });
+                  const result = analyzeOwnedFrame(frame, resizer, detector, labels, shouldAnalyze, cpuRgbBuffer);
+                  if (result && !timingReported) {
+                    timingReported = true;
+                    scheduleOnRN(reportTiming, performance.now() - now, result.quality.status, result.preprocessingMs, result.inferenceMs);
                   }
-                } catch {
+                  if (result && enabled.getBlocking()) {
+                    if (Date.now() - receivedAt > 1000) {
+                      // Allow a slow warmup, but do not leave analysis preparing forever
+                      // on a device that cannot produce results within the freshness limit.
+                      consecutiveDeadlineMisses++;
+                      if (consecutiveDeadlineMisses >= 3) {
+                        enabled.setBlocking(false);
+                        scheduleOnRN(failAnalysis, "Frame processing deadline exceeded");
+                      }
+                    } else {
+                      consecutiveDeadlineMisses = 0;
+                      pending.setBlocking(true);
+                      scheduleOnRN(deliver, { ...result, receivedAt, processedMs: performance.now() - now, navigation_safe: false });
+                    }
+                  }
+                } catch (error) {
                   enabled.setBlocking(false);
-                  scheduleOnRN(failAnalysis);
+                  // One bounded diagnostic, no pixels or frame references cross runtimes.
+                  const reason = error instanceof Error ? error.message.slice(0, 240) : "Native frame error";
+                  scheduleOnRN(failAnalysis, reason);
                 }
                 return true;
               });
@@ -217,10 +254,13 @@ function getFramePipeline() {
   if (framePipelineFailed) throw new Error("Frame runtime is unavailable until app restart");
   const frameOutput = VisionCamera.createFrameOutput({
     targetResolution: { width: 640, height: 480 },
-    pixelFormat: "yuv", dropFramesWhileBusy: true,
+    // CameraX converts Android frames to readable RGBA; no Vulkan support is required.
+    // Resize/rotation then use one reusable model-sized RGB buffer in the worklet.
+    pixelFormat: Platform.OS === "android" ? "rgb" : "yuv", dropFramesWhileBusy: true,
     enablePreviewSizedOutputBuffers: true, enableCameraMatrixDelivery: false,
-    enablePhysicalBufferRotation: true, allowDeferredStart: false,
+    enablePhysicalBufferRotation: Platform.OS !== "android", allowDeferredStart: false,
   });
+  frameOutput.outputOrientation = "up";
   try {
     const runtime = createWorkletRuntimeForThread(frameOutput.thread);
     framePipeline = { frameOutput, runtime };

@@ -1,0 +1,96 @@
+--- a/cpp/HybridTfliteModule.cpp
++++ b/cpp/HybridTfliteModule.cpp
+@@ -3,6 +3,7 @@
+ 
+ #if defined(ANDROID)
+ #include <tflite/c/c_api.h>
++#include "SenseaCpuModel.hpp"
+ #elif defined(__APPLE__)
+ #include <TensorFlowLiteC/TensorFlowLiteC.h>
+ #else
+@@ -33,6 +34,9 @@
+ std::shared_ptr<HybridTfliteModelSpec>
+ HybridTfliteModule::createModel(const std::shared_ptr<ArrayBuffer>& modelData,
+                                 const std::vector<TensorflowModelDelegate>& delegates) {
++#if defined(ANDROID)
++  if (delegates.empty()) return createSenseaCpuModel(modelData);
++#endif
+   TfLiteModel* model = TfLiteModelCreate(modelData->data(), modelData->size());
+   if (model == nullptr) {
+     throw std::runtime_error("Failed to create TFLite model from data!");
+--- a/cpp/HybridTfliteModel.hpp
++++ b/cpp/HybridTfliteModel.hpp
+@@ -18,7 +18,12 @@
+ class HybridTfliteModel : public HybridTfliteModelSpec {
+ public:
+   explicit HybridTfliteModel(TfLiteInterpreter* interpreter, std::shared_ptr<ArrayBuffer> modelData,
+-                             std::vector<TensorflowModelDelegate> delegates);
++                             std::vector<TensorflowModelDelegate> delegates
++#if defined(ANDROID)
++                             , std::shared_ptr<TfLiteDelegate> cpuDelegate = nullptr,
++                             bool cpuDelegateFallback = false
++#endif
++                             );
+   ~HybridTfliteModel();
+ 
+   // Properties (from HybridTfliteModelSpec)
+@@ -43,6 +48,11 @@
+   std::vector<TensorflowModelDelegate> _delegates;
+   std::shared_ptr<ArrayBuffer> _modelData;
+   std::unordered_map<std::string, std::shared_ptr<ArrayBuffer>> _outputBuffers;
++#if defined(ANDROID)
++  // Member ownership outlives the destructor body, which deletes the interpreter.
++  std::shared_ptr<TfLiteDelegate> _cpuDelegate;
++  bool _cpuDelegateFallback = false;
++#endif
+ };
+ 
+ } // namespace margelo::nitro::tflite
+--- a/cpp/HybridTfliteModel.cpp
++++ b/cpp/HybridTfliteModel.cpp
+@@ -7,6 +7,7 @@
+ 
+ #if defined(ANDROID)
+ #include <tflite/c/c_api.h>
++#include <android/log.h>
+ #elif defined(__APPLE__)
+ #include <TensorFlowLiteC/TensorFlowLiteC.h>
+ #else
+@@ -17,9 +18,18 @@
+ 
+ HybridTfliteModel::HybridTfliteModel(TfLiteInterpreter* interpreter,
+                                      std::shared_ptr<ArrayBuffer> modelData,
+-                                     std::vector<TensorflowModelDelegate> delegates)
++                                     std::vector<TensorflowModelDelegate> delegates
++#if defined(ANDROID)
++                                     , std::shared_ptr<TfLiteDelegate> cpuDelegate,
++                                     bool cpuDelegateFallback
++#endif
++                                     )
+     : HybridObject(TAG), _interpreter(interpreter), _delegates(std::move(delegates)),
+-      _modelData(modelData) {
++      _modelData(modelData)
++#if defined(ANDROID)
++      , _cpuDelegate(std::move(cpuDelegate)), _cpuDelegateFallback(cpuDelegateFallback)
++#endif
++      {
+   TfLiteStatus status = TfLiteInterpreterAllocateTensors(_interpreter);
+   if (status != kTfLiteOk) {
+     throw std::runtime_error(
+@@ -138,6 +148,16 @@
+ 
+ void HybridTfliteModel::invoke() {
+   TfLiteStatus status = TfLiteInterpreterInvoke(_interpreter);
++#if defined(ANDROID)
++  // With the C API fallback explicitly enabled, these statuses mean the CPU
++  // retry succeeded and its outputs are valid. Other failures remain errors.
++  if (_cpuDelegateFallback &&
++      (status == kTfLiteDelegateError || status == kTfLiteApplicationError)) {
++    _cpuDelegateFallback = false;
++    __android_log_print(ANDROID_LOG_WARN, "SENSEATflite", "XNNPACK execution fell back to CPU successfully");
++    return;
++  }
++#endif
+   if (status != kTfLiteOk) {
+     throw std::runtime_error("TFLite: Failed to run TFLite Model! Status: " +
+                              tfLiteStatusToString(status));

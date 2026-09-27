@@ -9,14 +9,14 @@ import sys
 import zipfile
 
 platform, target = sys.argv[1:]
-config = json.loads(Path("app.json").read_text())["expo"]
-manifest = json.loads(Path("assets/models/manifest.json").read_text())
+config = json.loads(Path("app.json").read_text(encoding="utf-8"))["expo"]
+manifest = json.loads(Path("assets/models/manifest.json").read_text(encoding="utf-8"))
 
 if platform == "android":
     sdk = Path(os.environ.get("ANDROID_HOME") or os.environ["ANDROID_SDK_ROOT"])
-    analyzer = sdk / "cmdline-tools/latest/bin/apkanalyzer"
+    analyzer = sdk / "cmdline-tools/latest/bin" / ("apkanalyzer.bat" if os.name == "nt" else "apkanalyzer")
     permissions = subprocess.check_output(
-        [str(analyzer), "manifest", "permissions", target], text=True,
+        [str(analyzer), "manifest", "permissions", target], text=True, encoding="utf-8",
     )
     declared = set(permissions.split())
     assert "android.permission.CAMERA" in declared, permissions

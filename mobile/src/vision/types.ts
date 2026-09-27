@@ -17,3 +17,18 @@ export interface NativeSession {
   pause(): void;
   dispose(): Promise<void>;
 }
+
+export interface HazardObservation {
+  trackId: number;
+  label: string;
+  direction: "left" | "center" | "right";
+  level: "caution" | "priority";
+  reasons: string[];
+}
+export interface HazardAssessment {
+  status: "unavailable" | "observing" | "caution" | "priority";
+  summary: string;
+  hazards: HazardObservation[];
+  observedAt: number;
+  navigation_safe: false;
+}
