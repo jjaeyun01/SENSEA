@@ -8,7 +8,7 @@ export function parseVoiceCommand(transcript: string): VoiceCommand {
   const normalized = transcript.trim().toLowerCase().replace(/[.!?]+$/, '').replace(/\s+/g, ' ');
   const destination = normalized.match(/^(?:take me to|navigate to|go to)\s+(.+)$/)?.[1]?.trim();
   if (destination) return { type: 'DESTINATION_REQUEST', destination };
-  if (/^(?:start navigation|start)$/.test(normalized)) return { type: 'START_NAVIGATION' };
+  if (/^(?:start navigation|start navigating|start nevigating|start)$/.test(normalized)) return { type: 'START_NAVIGATION' };
   if (/^(?:repeat|repeat instruction|say that again)$/.test(normalized)) return { type: 'REPEAT' };
   if (/^(?:pause|pause navigation)$/.test(normalized)) return { type: 'PAUSE' };
   if (/^(?:resume|continue|resume navigation)$/.test(normalized)) return { type: 'RESUME' };

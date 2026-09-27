@@ -42,6 +42,9 @@ export default function NavigateScreen() {
     <Text accessibilityLiveRegion="polite" style={styles.cameraStatus}>{cameraState.message}</Text>
     <View style={styles.preflightActions}>
       {!cameraState.ready && <LargeActionButton label={cameraState.phase === 'opening' ? 'Preparing camera…' : 'Retry camera'} loading={cameraState.phase === 'opening'} onPress={() => void cameraState.open()} />}
+      <LargeActionButton label={journey.listening ? 'Listening… Tap to stop' : 'Say “start navigating”'}
+        onPress={() => { if (journey.listening) journey.stopListening(); else void journey.listen(); }} variant="ghost" />
+      <Text accessibilityLiveRegion="polite" style={styles.cameraStatus}>{journey.message}</Text>
       <LargeActionButton label="Start navigating" disabled={journey.busy} onPress={() => void start()} icon={<Text style={styles.darkIcon}>→</Text>} />
       {cameraState.phase === 'closed' && <LargeActionButton label="Camera permission settings" onPress={() => void Linking.openSettings()} variant="ghost" />}
       <LargeActionButton label="Back to routes" onPress={() => { journey.reviewRoutes(); router.replace('/routes'); }} variant="ghost" />

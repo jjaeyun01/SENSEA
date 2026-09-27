@@ -13,3 +13,10 @@ describe('parseVoiceCommand', () => {
     ['Stop', { type: 'STOP' }],
   ])('%s', (input, expected) => expect(parseVoiceCommand(input)).toEqual(expected));
 });
+
+
+describe('navigation start phrases', () => {
+  it.each(['start', 'start navigating', 'start navigation', 'Start navigating!', 'start nevigating'])(
+    'accepts %s', phrase => { expect(parseVoiceCommand(phrase)).toEqual({ type: 'START_NAVIGATION' }); },
+  );
+});

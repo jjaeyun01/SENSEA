@@ -92,7 +92,8 @@ export function NoiseMonitorProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     if (!shouldStream) {
-      stream.stop();
+      // suspend() already stopped capture before handing the mic to speech.
+      if (suspended.current.size === 0) stream.stop();
       return () => { cancelled = true; };
     }
     void setAudioModeAsync({

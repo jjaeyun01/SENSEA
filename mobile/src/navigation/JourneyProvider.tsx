@@ -1,5 +1,5 @@
 import { createContext, useContext, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { DeviceMotion } from 'expo-sensors';
 import { ExpoSpeechRecognitionModule as Recognition, useSpeechRecognitionEvent } from 'expo-speech-recognition';
@@ -18,6 +18,7 @@ import { useNoiseMonitor } from '../noise/NoiseMonitorProvider';
 import { PositionFusion } from './positionFusion.mjs';
 import type { NavigationPosition, VerifiedVisualAlignment } from './positionFusion.mjs';
 import { loadRouteCache, saveRouteCache } from './offlineCache';
+import { parseVoiceCommand } from '../voice/commands';
 import { directionCue, spokenDirection, type DirectionHaptic } from './direction';
 type Stage = 'search' | 'routes' | 'setup' | 'navigating' | 'paused' | 'arrived';
 type ArrivalStatus = 'none' | 'verified_entrance_nearby' | 'building_nearby';
@@ -115,6 +116,8 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     noise.suspendForSpeech();
     try {
       suspendNoiseMonitor('speech-recognition');
+      // Allow pending native abort and microphone release to finish on iOS.
+      await new Promise(resolve => setTimeout(resolve, Platform.OS === 'ios' ? 350 : 100));
       const permission = await Recognition.requestPermissionsAsync();
       if (request !== speechRevision.current) { resumeNoiseMonitor('speech-recognition'); return; }
       if (!permission.granted || !mounted.current || AppState.currentState !== "active") {
@@ -123,7 +126,8 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
         return;
       }
       speechWanted.current = true;
-      Recognition.start({ lang: "en-US", interimResults: false, continuous: true,
+      Recognition.start({ lang: "en-US", interimResults: true, continuous: false,
+        contextualStrings: ["College Library", "Memorial Library", "Morgridge Hall", "Memorial Union"],
         recordingOptions: { persist: false } });
     } catch {
       resumeNoiseMonitor('speech-recognition');
@@ -281,7 +285,9 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     setArrivalStatus('none'); setSelected(route); setStepIndex(0); guidance.current = new Guidance(route); setStage("setup");
     say(route.source === 'offline-cache'
       ? "Using a recent route saved on this device. Network updates and current closures are unavailable. You can start GPS guidance now."
-      : "Your route is selected. You can start GPS guidance now. Camera observations are optional.");
+      : "Your route is selected. Say start or start navigating to begin GPS guidance. Camera observations are optional.", 3, () => {
+        if (mounted.current && stageRef.current === 'setup') void listen();
+      });
   }
   async function rerouteFrom(origin: Point) {
     if (!destination || rerouteInFlight.current) return;
@@ -418,14 +424,21 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     recordEvent("navigation_reset"); say("Where would you like to go?");
   }
   useSpeechRecognitionEvent("start", () => { if (speechWanted.current) setListening(true); else Recognition.abort(); });
-  useSpeechRecognitionEvent("end", () => { setListening(false); speechWanted.current = false; resumeNoiseMonitor('speech-recognition'); });
+  useSpeechRecognitionEvent("end", () => { if (speechStarting.current) return; setListening(false); speechWanted.current = false; resumeNoiseMonitor('speech-recognition'); });
   useSpeechRecognitionEvent("error", event => {
+    if (speechStarting.current && event.error === 'aborted') return;
+    console.warn('[SENSEA] Speech recognition error', event.error, event.message);
     resumeNoiseMonitor('speech-recognition');
     const wanted = speechWanted.current; speechWanted.current = false; setListening(false);
-    if (wanted && event.error !== "aborted") setMessage("Voice input stopped. Tap the microphone to try again, or type a destination.");
+    if (wanted && event.error !== "aborted") setMessage(`Voice input stopped (${event.error}). Tap to try again, or type a destination.`);
   });
   useSpeechRecognitionEvent("result", event => {
-    if (!event.isFinal || !speechWanted.current || isFeedbackActive()) return;
+    if (!speechWanted.current || isFeedbackActive()) return;
+    if (!event.isFinal) {
+      const partial = event.results[0]?.transcript?.trim();
+      if (partial) setMessage(`Heard: ${partial}`);
+      return;
+    }
     const text = event.results[0]?.transcript?.trim();
     if (!text) return;
     speechWanted.current = false; Recognition.stop(); recordEvent("voice_transcript", text);
@@ -441,7 +454,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
       else setQuery(text.replace(/^take me to\s+/i, ""));
     } else if (stage === "routes" && routes[index]) choose(routes[index]);
     else if ((stage === "setup" || stage === "paused") && /^(camera|prepare camera|turn on camera)$/.test(command)) requestCamera();
-    else if ((stage === "setup" || stage === "paused") && /^(start|resume|start navigation)$/.test(command)) void start();
+    else if ((stage === "setup" || stage === "paused") && (parseVoiceCommand(command).type === 'START_NAVIGATION' || parseVoiceCommand(command).type === 'RESUME')) void start();
     else say("Please use the available option number or the buttons on screen.");
   });
 
