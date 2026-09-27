@@ -56,6 +56,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
   const uncertain = useRef(false);
   const lastMessage = useRef("");
   const routeRecorded = useRef(false);
+  const routeHistoryWrite = useRef<Promise<string | null> | null>(null);
   const rerouteInFlight = useRef(false);
   const lastRerouteAt = useRef(0);
   const rerouteController = useRef<AbortController | null>(null);
@@ -153,7 +154,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     const timer = setTimeout(() => {
       setBusy(true);
       timeout = setTimeout(() => controller.abort(), 15000);
-      void searchDirectory(query).then(foundPlaces => {
+      void searchDirectory(query, controller.signal).then(foundPlaces => {
         if (current !== revision.current) return;
         if (foundPlaces.length === 1) { selectPlace(foundPlaces[0]); return; }
         setPlaces(foundPlaces);
@@ -190,16 +191,19 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
   const orderRoutes = useCallback((priority: string) => {
     setRoutes(previous => {
       const ordered: Route[] = rankWalkingRoutes(previous, { period: auth.currentNoisePreference() === 'active' ? 'night' : 'day',
-        priority, avoidStairs: auth.preferences?.avoid_stairs ?? false,
+        priority, avoidStairs: auth.preferences?.avoid_stairs ?? true,
+        avoidMixedTraffic: auth.preferences?.avoid_mixed_traffic ?? true,
+        preferCrosswalks: auth.preferences?.prefer_crosswalks ?? true,
         avoidConstruction: routePreferences.avoidConstruction, preferWellLit: routePreferences.preferWellLit });
       return ordered.length === previous.length && ordered.every((route, index) => route === previous[index] && route.label === `Walking route ${index + 1}`)
         ? previous : ordered.map((route, index) => ({ ...route, label: `Walking route ${index + 1}` }));
     });
-  }, [auth.currentNoisePreference, auth.preferences?.avoid_stairs, routePreferences.avoidConstruction, routePreferences.preferWellLit]);
+  }, [auth.currentNoisePreference, auth.preferences?.avoid_stairs, auth.preferences?.avoid_mixed_traffic,
+    auth.preferences?.prefer_crosswalks, routePreferences.avoidConstruction, routePreferences.preferWellLit]);
   function selectPlace(place: Place) {
     recordEvent("destination_selected", place.id);
     void perform(async signal => {
-      const details = await directoryPlace(place.id, place.name);
+      const details = await directoryPlace(place.id, place.name, signal);
       if (!details || signal.aborted || !mounted.current) return;
       setDestination(details); setPlaces([]); setStage("routes");
       recordEvent("destination_confirmed", details.id);
@@ -219,7 +223,9 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
           noiseContributorCount: summary.contributorCount, noiseCoverage: summary.coverageRatio } : {}) };
     });
     return rankWalkingRoutes(enriched, { period: preference === 'active' ? 'night' : 'day', priority: routePreferences.routePriority,
-      avoidStairs: auth.preferences?.avoid_stairs ?? false, avoidConstruction: routePreferences.avoidConstruction,
+      avoidStairs: auth.preferences?.avoid_stairs ?? true, avoidConstruction: routePreferences.avoidConstruction,
+      avoidMixedTraffic: auth.preferences?.avoid_mixed_traffic ?? true,
+      preferCrosswalks: auth.preferences?.prefer_crosswalks ?? true,
       preferWellLit: routePreferences.preferWellLit }).map((route: Route, index: number) => ({ ...route, label: `Walking route ${index + 1}` }));
   }
   async function loadLiveRoutes(place: Place, signal: AbortSignal) {
@@ -247,7 +253,8 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
   }
   function choose(route: Route) {
     recordEvent("route_selected", route.id);
-    routeRecorded.current = false; setArrivalStatus('none'); setSelected(route); setStepIndex(0); guidance.current = new Guidance(route); setStage("setup");
+    routeRecorded.current = false; routeHistoryWrite.current = null;
+    setArrivalStatus('none'); setSelected(route); setStepIndex(0); guidance.current = new Guidance(route); setStage("setup");
     say("Hold your phone upright at chest level, facing forward. Turn on the camera below, then start guidance when it is ready.");
   }
   async function rerouteFrom(origin: Point) {
@@ -297,7 +304,9 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     const recordRoute = () => {
       if (destination && !routeRecorded.current) {
         routeRecorded.current = true;
-        void auth.recordRouteStart(destination, selected).catch(() => { routeRecorded.current = false; });
+        routeHistoryWrite.current = auth.recordRouteStart(destination, selected).catch(() => {
+          routeRecorded.current = false; return null;
+        });
       }
     };
     if (!cameraReady) { say("Prepare the camera first using the button below."); return; }
@@ -369,6 +378,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
 
   function reset() {
     revision.current++; active.current?.abort(); setBusy(false); pause();
+    routeHistoryWrite.current = null;
     setStage("search"); setArrivalStatus('none'); setQuery(""); setPlaces([]); setRoutes([]); setSelected(null); setDestination(null);
     recordEvent("navigation_reset"); say("Where would you like to go?");
   }
@@ -400,7 +410,13 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
   });
 
 
-  function arrive() { pause(); setStage('arrived'); recordEvent('arrival_confirmed', arrivalStatus); if (destination) void auth.saveRecentPlace(destination).catch(() => {}); say('Arrival confirmed. Guidance stopped.'); }
+  function arrive() {
+    pause(); setStage('arrived'); recordEvent('arrival_confirmed', arrivalStatus);
+    if (destination) void auth.saveRecentPlace(destination).catch(() => {});
+    const write = routeHistoryWrite.current; routeHistoryWrite.current = null;
+    if (write) void write.then(id => id ? auth.completeRoute(id) : undefined).catch(() => {});
+    say('Arrival confirmed. Guidance stopped.');
+  }
   return { query, setQuery, recentPlaces, search: (text: string) => { setStage('search'); setQuery(text); setSearchVersion(value => value + 1); }, places, destination, routes, selected, stage, message, busy, rerouting, arrivalStatus, listening, recording,
     position, stepIndex, orderRoutes, selectPlace, confirm, choose, start, pause, reset, arrive,
     reviewRoutes: () => { pause(); setStage('routes'); }, listen, say, repeat: () => say(lastMessage.current),

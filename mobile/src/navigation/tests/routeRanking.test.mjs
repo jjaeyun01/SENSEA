@@ -58,3 +58,17 @@ test('verified lighting can favour a modest night detour but does not override c
   assert.deepEqual(rankWalkingRoutes([closed, dark, lit], { period: 'night', preferWellLit: true }).map(item => item.id), ['lit', 'dark']);
   assert.deepEqual(rankWalkingRoutes([closed], { period: 'night' }), []);
 });
+
+test('account flat priority and crossing preferences affect surveyed alternatives', () => {
+  const steep = route('steep', 600, { conditions: { verified: true, steepSlopeMeters: 40, unprotectedCrossings: 0 } });
+  const crosswalk = route('crosswalk', 670, { conditions: { verified: true, steepSlopeMeters: 0, unprotectedCrossings: 1 } });
+  assert.equal(rankWalkingRoutes([steep, crosswalk], { priority: 'flat', preferCrosswalks: false })[0].id, 'crosswalk');
+  assert.equal(rankWalkingRoutes([steep, crosswalk], { priority: 'balanced', preferCrosswalks: true })[0].id, 'steep');
+});
+
+test('account mixed-traffic avoidance changes the route order only for verified conditions', () => {
+  const mixed = route('mixed', 600, { conditions: { verified: true, mixedTrafficMeters: 50 } });
+  const separated = route('separated', 660, { conditions: { verified: true, mixedTrafficMeters: 0 } });
+  assert.equal(rankWalkingRoutes([mixed, separated], { priority: 'balanced', avoidMixedTraffic: true })[0].id, 'separated');
+  assert.equal(rankWalkingRoutes([mixed, separated], { priority: 'balanced', avoidMixedTraffic: false })[0].id, 'mixed');
+});

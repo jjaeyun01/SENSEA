@@ -1,5 +1,5 @@
 import { isSupabaseConfigured, supabase } from '../auth/supabase';
-import type { Place } from './campusApi';
+import { getCampusPlace, searchCampusPlaces, type Place } from './campusApi';
 
 type DirectoryRow = {
   uw_map_object_id: string;
@@ -52,10 +52,15 @@ export async function campusDirectory(): Promise<Place[]> {
   return pending;
 }
 
-export async function searchDirectory(query: string): Promise<Place[]> {
+export async function searchDirectory(query: string, signal?: AbortSignal): Promise<Place[]> {
   const needle = query.trim().toLocaleLowerCase();
   if (needle.length < 2) return [];
-  const directory = await campusDirectory();
+  let directory: Place[];
+  try { directory = await campusDirectory(); }
+  catch {
+    // UW's live building search remains usable if the Supabase directory is down.
+    return searchCampusPlaces(query, signal ?? new AbortController().signal);
+  }
   return directory.filter(place => place.name.toLocaleLowerCase().includes(needle))
     .sort((a, b) => Number(b.name.toLocaleLowerCase() === needle) - Number(a.name.toLocaleLowerCase() === needle) ||
       Number(b.name.toLocaleLowerCase().startsWith(needle)) - Number(a.name.toLocaleLowerCase().startsWith(needle)) ||
@@ -63,10 +68,17 @@ export async function searchDirectory(query: string): Promise<Place[]> {
     .slice(0, 30);
 }
 
-export async function directoryPlace(id: string, name?: string): Promise<Place | null> {
-  const directory = await campusDirectory();
-  return directory.find(place => place.id === id && place.name === name) ??
-    directory.find(place => place.id === id && !place.buildingName) ?? null;
+export async function directoryPlace(id: string, name?: string, signal?: AbortSignal): Promise<Place | null> {
+  try {
+    const directory = await campusDirectory();
+    const match = directory.find(place => place.id === id && place.name === name) ??
+      directory.find(place => place.id === id && !place.buildingName);
+    if (match) return name && match.name !== name ? { ...match, name, buildingName: match.name } : match;
+  } catch { /* Use the live building lookup below. */ }
+  const building = await getCampusPlace(id, signal ?? new AbortController().signal);
+  // Facility entries share a building ID. Preserve the user's requested
+  // facility name while making the representative building explicit.
+  return name && name !== building.name ? { ...building, name, buildingName: building.name } : building;
 }
 
 export async function campusSuggestions(limit = 8): Promise<Place[]> {

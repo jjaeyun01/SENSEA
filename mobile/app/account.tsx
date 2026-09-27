@@ -53,12 +53,20 @@ export default function AccountScreen() {
     </Section>
 
     <Section title="Automatic noise policy" subtitle="Applied using your profile timezone.">
-      <View style={styles.noiseCard}><View style={[styles.noiseDot, { backgroundColor: noise === 'quiet' ? colors.primary : colors.warning }]} /><View style={styles.noiseCopy}><Text style={styles.noiseTitle}>{noise === 'quiet' ? 'Daytime: prefer quieter routes' : 'Nighttime: prefer more active-sounding routes'}</Text><Text style={styles.copy}>Day 7:00 AM–7:00 PM · Night 7:00 PM–7:00 AM</Text></View></View>
+      <View style={styles.noiseCard}><View style={[styles.noiseDot, { backgroundColor: noise === 'quiet' ? colors.primary : colors.warning }]} /><View style={styles.noiseCopy}><Text style={styles.noiseTitle}>{noise === 'quiet' ? 'Daytime: prefer quieter routes' : 'Nighttime: prefer more active-sounding routes'}</Text><Text style={styles.copy}>Day {auth.preferences?.day_starts_at?.slice(0, 5) ?? '07:00'}–{auth.preferences?.night_starts_at?.slice(0, 5) ?? '19:00'} · Night otherwise</Text></View></View>
       <Text style={styles.caution}>Noise is only a relative sound measurement. It does not prove that people are present or that a route is safe. SENSEA still prioritizes verified pedestrian paths and clearly marks uncertain data.</Text>
     </Section>
 
     <Section title="Your places" subtitle="Save, favorite, and review recent destinations.">
       {recent.length ? recent.map(place => <View key={place.id} style={styles.placeRow}><View style={styles.placeCopy}><Text style={styles.placeName}>{place.name}</Text><Text style={styles.copy} numberOfLines={1}>{place.address || 'Address unavailable'}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`${place.is_saved ? 'Remove' : 'Save'} ${place.name}`} onPress={() => void auth.setPlaceFlag(place, 'is_saved', !place.is_saved)} style={[styles.miniButton, place.is_saved && styles.miniActive]}><Text style={styles.miniText}>{place.is_saved ? 'Saved' : 'Save'}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`${place.is_favorite ? 'Unfavorite' : 'Favorite'} ${place.name}`} onPress={() => void auth.setPlaceFlag(place, 'is_favorite', !place.is_favorite)} style={[styles.starButton, place.is_favorite && styles.starActive]}><Text style={styles.star}>{place.is_favorite ? '★' : '☆'}</Text></Pressable></View>) : <Text style={styles.empty}>Your recent destinations will appear here after you select one.</Text>}
+    </Section>
+
+    <Section title="Recent routes" subtitle="Routes started on this account; arrival is shown only when recorded.">
+      {auth.routeHistory.length ? auth.routeHistory.map(route => <View key={route.id} style={styles.placeRow}>
+        <View style={styles.placeCopy}><Text style={styles.placeName}>{route.destination_name}</Text>
+          <Text style={styles.copy}>{new Date(route.started_at).toLocaleString()} · {route.distance_m == null ? 'Distance unavailable' : `${Math.round(route.distance_m)} m`} · {route.completed_at ? 'Completed' : 'Started'}</Text>
+        </View>
+      </View>) : <Text style={styles.empty}>Routes you start will appear here.</Text>}
     </Section>
 
     {!!message && <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text>}

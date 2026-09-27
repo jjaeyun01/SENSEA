@@ -3,7 +3,7 @@
  * conditions are neutral; a noisy route is never labelled crime-safe.
  * `conditions` must come from a separately verified campus path survey.
  */
-export function rankWalkingRoutes(routes, { period = 'day', priority = 'balanced', avoidStairs = false, avoidConstruction = true, preferWellLit = false } = {}) {
+export function rankWalkingRoutes(routes, { period = 'day', priority = 'safety', avoidStairs = true, avoidMixedTraffic = true, preferCrosswalks = true, avoidConstruction = true, preferWellLit = false } = {}) {
   if (!routes.length) return [];
   // A confirmed closure is a blocker, including when it is the only option.
   const candidates = routes.filter(route => !(route.conditions?.verified === true && route.conditions.closed === true));
@@ -25,8 +25,12 @@ export function rankWalkingRoutes(routes, { period = 'day', priority = 'balanced
     const construction = conditions?.construction === true;
     const withinDetour = route.duration_seconds <= detourLimit;
     // A detour limit applies to comfort signals, never to a verified path hazard.
-    const accessibility = obstructions * 1000 + mixedTraffic * 5 + unprotectedCrossings * 300 +
-      stairs * (avoidStairs || priority === 'stepFree' ? 900 : 300) + steep * 8 + moderate * 3 + unpaved * 0.6;
+    const safetyWeight = priority === 'safety' ? 1.5 : 1;
+    const slopeWeight = priority === 'flat' ? 2 : 1;
+    const accessibility = safetyWeight * (obstructions * 1000 + mixedTraffic * (avoidMixedTraffic ? 5 : 1) +
+      unprotectedCrossings * (preferCrosswalks ? 300 : 100)) +
+      stairs * (avoidStairs || priority === 'flat' ? 900 : 300) +
+      slopeWeight * (steep * 8 + moderate * 3 + unpaved * 0.6);
     const constructionCost = avoidConstruction && construction ? 2000 : 0;
     const mapped = nonnegative(conditions?.mappedMeters);
     const litCoverage = mapped > 0 ? Math.min(1, lit / mapped) : 0;
@@ -34,7 +38,7 @@ export function rankWalkingRoutes(routes, { period = 'day', priority = 'balanced
     const credibleNoise = route.noiseStatus === 'fresh' && route.noiseCoverage >= 0.7 && route.noiseMeasurementCount >= 10 && route.noiseContributorCount >= 3 && Number.isFinite(route.relativeNoise);
     const noise = credibleNoise ? route.relativeNoise : null;
     const nightEvidence = period === 'night' && withinDetour ? unlitCoverage * 180 - litCoverage * (preferWellLit ? 150 : 100) - (noise ?? 0) * 45 : 0;
-    const dayNoise = period === 'day' && priority === 'quietest' && noise !== null ? noise * 30 : 0;
+    const dayNoise = period === 'day' && withinDetour && noise !== null ? noise * 30 : 0;
     const timeWeight = priority === 'fastest' ? 2 : 1;
     return route.duration_seconds * timeWeight + accessibility + constructionCost + nightEvidence + dayNoise;
   };

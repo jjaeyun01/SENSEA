@@ -34,9 +34,8 @@ export default function ProfileScreen() {
 
       {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
       <View style={styles.section}><Text style={styles.sectionTitle}>Guidance settings</Text><LargeActionButton label={auth.user ? 'Manage account and saved places' : 'Sign in'} onPress={() => router.push(auth.user ? '/account' : '/auth')} variant="ghost" />
-        <SettingRow title="Voice feedback" description="Read navigation cues aloud automatically." value={true} onChange={() => {}} />
-        <SettingRow title="Haptic feedback" description="Vibrate for upcoming turns and important alerts." value={true} onChange={() => {}} />
-        <Pressable accessibilityRole="button" onPress={() => router.push('/preferences')} style={styles.linkRow}><View><Text style={styles.linkTitle}>Route preferences</Text><Text style={styles.linkDescription}>Priority: {preferences.routePriority.replace('stepFree', 'step-free')}</Text></View><Text style={styles.chevron}>›</Text></Pressable>
+        <Text style={styles.linkDescription}>Voice and vibration alerts are enabled during guidance.</Text>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/preferences')} style={styles.linkRow}><View><Text style={styles.linkTitle}>Route preferences</Text><Text style={styles.linkDescription}>Priority: {preferences.routePriority}</Text></View><Text style={styles.chevron}>›</Text></Pressable>
       </View>
 
       <View style={styles.section}><Text style={styles.sectionTitle}>Privacy & app</Text>
@@ -51,7 +50,7 @@ export default function ProfileScreen() {
 }
 
 function SettingRow({ title, description, value, onChange }: { title: string; description: string; value: boolean; onChange: (value: boolean) => void }) {
-  return <View style={styles.settingRow}><View style={styles.settingCopy}><Text style={styles.linkTitle}>{title}</Text><Text style={styles.linkDescription}>{description}</Text></View><Switch disabled accessibilityLabel={title} value={value} onValueChange={onChange} trackColor={{ false: colors.surfaceHighlight, true: colors.primary }} thumbColor={colors.background} /></View>;
+  return <View style={styles.settingRow}><View style={styles.settingCopy}><Text style={styles.linkTitle}>{title}</Text><Text style={styles.linkDescription}>{description}</Text></View><Switch accessibilityLabel={title} value={value} onValueChange={onChange} trackColor={{ false: colors.surfaceHighlight, true: colors.primary }} thumbColor={colors.background} /></View>;
 }
 
 const styles = StyleSheet.create({

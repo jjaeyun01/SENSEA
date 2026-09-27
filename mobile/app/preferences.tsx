@@ -7,24 +7,31 @@ import { useAppPreferences, type RoutePriority } from '@/src/state/AppPreference
 import { colors, radii, spacing, typography } from '@/src/theme';
 
 const priorities: { key: RoutePriority; icon: string; title: string; description: string }[] = [
-  { key: 'balanced', icon: '◇', title: 'Balanced', description: 'A practical mix of time, noise and route conditions.' },
+  { key: 'safety', icon: '◇', title: 'Pedestrian conditions', description: 'Prioritize verified obstacles, crossings and pedestrian separation.' },
+  { key: 'flat', icon: '⌁', title: 'Flatter', description: 'Give verified slopes and stairs more weight when available.' },
   { key: 'fastest', icon: '→', title: 'Fastest', description: 'Prioritize the shortest estimated walking time.' },
-  { key: 'quietest', icon: '≋', title: 'Quietest', description: 'Prefer routes with lower measured environmental sound.' },
-  { key: 'stepFree', icon: '⌁', title: 'Step-free', description: 'Prefer routes without known stairs when data is available.' },
+  { key: 'balanced', icon: '≋', title: 'Balanced', description: 'Balance travel time with verified pedestrian conditions.' },
 ];
 
 export default function PreferencesScreen() {
   const insets = useSafeAreaInsets();
   const preferences = useAppPreferences();
-  const [saved, setSaved] = useState(false);
-  const changePriority = (key: RoutePriority) => { preferences.setRoutePriority(key); setSaved(true); };
+  const [status, setStatus] = useState('Changes are applied to future route comparisons.');
+  const changePriority = async (key: RoutePriority) => {
+    try { await preferences.setRoutePriority(key); setStatus('Route priority saved.'); }
+    catch (error) { setStatus(error instanceof Error ? error.message : 'Could not save route priority.'); }
+  };
+  const changeConstruction = async (value: boolean) => {
+    try { await preferences.setAvoidConstruction(value); setStatus('Construction preference saved.'); }
+    catch (error) { setStatus(error instanceof Error ? error.message : 'Could not save construction preference.'); }
+  };
   return <View style={styles.root}>
     <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 126 }]} showsVerticalScrollIndicator={false}>
       <View><Text style={styles.eyebrow}>ROUTE RECOMMENDATIONS</Text><Text accessibilityRole="header" style={styles.title}>Your preferences</Text><Text style={styles.subtitle}>Choose what SENSEA should prioritize when comparing available walking routes.</Text></View>
 
       <View style={styles.section}><Text style={styles.sectionTitle}>Primary priority</Text>{priorities.map(item => {
         const selected = preferences.routePriority === item.key;
-        return <Pressable key={item.key} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => changePriority(item.key)} style={({ pressed }) => [styles.option, selected && styles.optionSelected, pressed && styles.pressed]}>
+        return <Pressable key={item.key} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => void changePriority(item.key)} style={({ pressed }) => [styles.option, selected && styles.optionSelected, pressed && styles.pressed]}>
           <View style={[styles.optionIcon, selected && styles.optionIconSelected]}><Text style={[styles.optionGlyph, selected && styles.optionGlyphSelected]}>{item.icon}</Text></View>
           <View style={styles.optionCopy}><Text style={styles.optionTitle}>{item.title}</Text><Text style={styles.optionDescription}>{item.description}</Text></View>
           <View style={[styles.radio, selected && styles.radioSelected]}>{selected && <View style={styles.radioCore} />}</View>
@@ -32,11 +39,10 @@ export default function PreferencesScreen() {
       })}</View>
 
       <View style={styles.section}><Text style={styles.sectionTitle}>Additional preferences</Text>
-        <Toggle title="Avoid reported construction" description="Deprioritize routes with active construction notices." value={preferences.avoidConstruction} onChange={value => { preferences.setAvoidConstruction(value); setSaved(true); }} />
-        <Toggle title="Prefer well-lit paths" description="Use lighting information when verified data exists." value={preferences.preferWellLit} onChange={value => { preferences.setPreferWellLit(value); setSaved(true); }} />
-        <Toggle title="Noise change alerts" description="Notify you when measured sound conditions change." value={preferences.noiseAlerts} onChange={value => { preferences.setNoiseAlerts(value); setSaved(true); }} />
+        <Toggle title="Avoid reported construction" description="Deprioritize routes with verified active construction." value={preferences.avoidConstruction} onChange={value => void changeConstruction(value)} />
+        <Toggle title="Prefer well-lit paths" description="For this session; applies only when verified lighting data exists." value={preferences.preferWellLit} onChange={value => { preferences.setPreferWellLit(value); setStatus('Lighting preference set for this session.'); }} />
       </View>
-      <Text accessibilityLiveRegion="polite" style={styles.saved}>{saved ? '✓ Preferences saved for this session' : 'Changes are applied to future route comparisons.'}</Text>
+      <Text accessibilityLiveRegion="polite" style={styles.saved}>{status}</Text>
       <View style={styles.notice}><Text style={styles.noticeIcon}>i</Text><Text style={styles.noticeText}>Preferences only affect ranking when the necessary route data is available. Unknown conditions remain labeled as unknown.</Text></View>
     </ScrollView>
     <BottomNav active="preferences" />

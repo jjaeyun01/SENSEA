@@ -44,6 +44,15 @@ export type UserPlace = {
   visit_count: number;
 };
 
+export type RouteHistory = {
+  id: string;
+  destination_name: string;
+  distance_m: number | null;
+  duration_seconds: number | null;
+  started_at: string;
+  completed_at: string | null;
+};
+
 type SignUpDetails = { email: string; password: string; name: string; phoneNumber: string; emergencyContact: string };
 type AuthResult = { needsEmailConfirmation?: boolean };
 type PlaceFlag = 'is_saved' | 'is_favorite';
@@ -60,6 +69,7 @@ type AuthContextValue = {
   profile: Profile | null;
   preferences: UserPreferences | null;
   places: UserPlace[];
+  routeHistory: RouteHistory[];
   signUp: (details: SignUpDetails) => Promise<AuthResult>;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
@@ -69,7 +79,8 @@ type AuthContextValue = {
   updatePreferences: (value: Partial<UserPreferences>) => Promise<void>;
   saveRecentPlace: (place: Place) => Promise<void>;
   setPlaceFlag: (place: UserPlace, flag: PlaceFlag, value: boolean) => Promise<void>;
-  recordRouteStart: (destination: Place, route: Route) => Promise<void>;
+  recordRouteStart: (destination: Place, route: Route) => Promise<string | null>;
+  completeRoute: (historyId: string) => Promise<void>;
   currentNoisePreference: () => 'quiet' | 'active';
 };
 
@@ -99,24 +110,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [places, setPlaces] = useState<UserPlace[]>([]);
+  const [routeHistory, setRouteHistory] = useState<RouteHistory[]>([]);
 
   const clearUserData = useCallback(() => {
     setProfile(null);
     setPreferences(null);
     setPlaces([]);
+    setRouteHistory([]);
   }, []);
 
   const loadUserData = useCallback(async (userId: string) => {
-    const [profileResult, preferenceResult, placesResult] = await Promise.all([
+    const [profileResult, preferenceResult, placesResult, historyResult] = await Promise.all([
       supabase.from('profiles').select('id,name,phone_number,emergency_contact,timezone').eq('id', userId).maybeSingle(),
       supabase.from('user_preferences').select('*').eq('user_id', userId).maybeSingle(),
       supabase.from('user_places').select('id,external_place_id,name,address,latitude,longitude,is_saved,is_favorite,last_visited_at,visit_count').eq('user_id', userId).order('last_visited_at', { ascending: false, nullsFirst: false }).limit(50),
+      supabase.from('route_history').select('id,destination_name,distance_m,duration_seconds,started_at,completed_at').eq('user_id', userId).order('started_at', { ascending: false }).limit(10),
     ]);
-    const error = profileResult.error || preferenceResult.error || placesResult.error;
+    const error = profileResult.error || preferenceResult.error || placesResult.error || historyResult.error;
     if (error) throw error;
     setProfile(profileResult.data as Profile | null);
     setPreferences(preferenceResult.data as UserPreferences | null);
     setPlaces((placesResult.data ?? []) as UserPlace[]);
+    setRouteHistory((historyResult.data ?? []) as RouteHistory[]);
   }, []);
 
   useEffect(() => {
@@ -262,9 +277,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const recordRouteStart = useCallback(async (destination: Place, route: Route) => {
     const userId = session?.user.id;
-    if (!userId) return;
+    if (!userId) return null;
     const place = places.find(item => item.external_place_id === historyKey(destination));
-    const { error } = await supabase.from('route_history').insert({
+    const { data, error } = await supabase.from('route_history').insert({
       user_id: userId,
       destination_place_id: place?.id ?? null,
       route_external_id: route.id,
@@ -278,15 +293,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       used_crosswalks: null,
       avoided_construction: null,
       applied_noise_preference: currentNoisePreference(),
-    });
+    }).select('id').single();
     if (error) throw error;
-  }, [currentNoisePreference, places, preferences, session?.user.id]);
+    await loadUserData(userId);
+    return data.id as string;
+  }, [currentNoisePreference, loadUserData, places, session?.user.id]);
+
+  const completeRoute = useCallback(async (historyId: string) => {
+    const userId = session?.user.id;
+    if (!userId) return;
+    const { error } = await supabase.from('route_history').update({ completed_at: new Date().toISOString() })
+      .eq('id', historyId).eq('user_id', userId).is('completed_at', null);
+    if (error) throw error;
+    await loadUserData(userId);
+  }, [loadUserData, session?.user.id]);
 
   const value = useMemo<AuthContextValue>(() => ({
-    configured: isSupabaseConfigured, loading, session, user: session?.user ?? null, profile, preferences, places,
+    configured: isSupabaseConfigured, loading, session, user: session?.user ?? null, profile, preferences, places, routeHistory,
     signUp, signIn, signInWithGoogle, signOut, refreshUserData, updateProfile, updatePreferences, saveRecentPlace,
-    setPlaceFlag, recordRouteStart, currentNoisePreference,
-  }), [currentNoisePreference, loading, places, preferences, profile, recordRouteStart, refreshUserData, saveRecentPlace, session, setPlaceFlag, signIn, signInWithGoogle, signOut, signUp, updatePreferences, updateProfile]);
+    setPlaceFlag, recordRouteStart, completeRoute, currentNoisePreference,
+  }), [currentNoisePreference, loading, places, preferences, profile, routeHistory, recordRouteStart, completeRoute, refreshUserData, saveRecentPlace, session, setPlaceFlag, signIn, signInWithGoogle, signOut, signUp, updatePreferences, updateProfile]);
 
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
