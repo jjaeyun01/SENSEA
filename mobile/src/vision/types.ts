@@ -13,6 +13,7 @@ export interface LiveResult {
 export interface NativeSession {
   preview: CameraPreviewOutput;
   start(): Promise<void>;
+  startAnalysis(): Promise<void>;
   pause(): void;
   dispose(): Promise<void>;
 }
