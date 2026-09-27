@@ -2,23 +2,23 @@
   "expo": {
     "name": "SENSEA",
     "slug": "sensea",
-    "version": "0.4.1",
+    "version": "0.4.2",
     "orientation": "portrait",
     "scheme": "sensea",
     "ios": {
       "bundleIdentifier": "com.sensea.app",
       "supportsTablet": false,
       "infoPlist": {
-        "NSCameraUsageDescription": "주변 사물을 기기에서 분석하고 음성으로 알려드리기 위해 카메라를 사용합니다."
+        "NSCameraUsageDescription": "\uc8fc\ubcc0 \uc0ac\ubb3c\uc744 \uae30\uae30\uc5d0\uc11c \ubd84\uc11d\ud558\uace0 \uc74c\uc131\uc73c\ub85c \uc54c\ub824\ub4dc\ub9ac\uae30 \uc704\ud574 \uce74\uba54\ub77c\ub97c \uc0ac\uc6a9\ud569\ub2c8\ub2e4."
       },
-      "buildNumber": "3"
+      "buildNumber": "4"
     },
     "android": {
       "package": "com.sensea.app",
       "permissions": [
         "android.permission.CAMERA"
       ],
-      "versionCode": 3,
+      "versionCode": 4,
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.ACCESS_FINE_LOCATION",
@@ -42,7 +42,8 @@
             "minSdkVersion": 26
           }
         }
-      ]
+      ],
+      "expo-asset"
     ]
   }
 }

@@ -1,3 +1,4 @@
+import { Asset } from "expo-asset";
 import { loadTensorflowModel, type TfliteModel } from "react-native-fast-tflite";
 import { VisionCamera, type CameraPreviewOutput } from "react-native-vision-camera";
 import { createResizer, isResizerAvailable, type Resizer } from "react-native-vision-camera-resizer";
@@ -69,6 +70,7 @@ export async function createNativeSession(
 
     const prepareAnalysis = async () => {
       // Called only after onPreviewStarted confirms that the user sees camera frames.
+      let stage = "model asset";
       try {
         await starting;
         if (stopped) return;
@@ -76,7 +78,15 @@ export async function createNativeSession(
           onAnalysisError("이 기기는 현재 사물 분석 방식을 지원하지 않습니다. 실시간 카메라 화면은 사용할 수 있습니다.");
           return;
         }
-        model = await loadTensorflowModel(require("../../assets/models/efficientdet-lite0.tflite"), []);
+        // Android release require() resolves to a raw resource name, but
+        // fast-tflite 3's Android loader accepts URLs only. Materialize the
+        // bundled public model locally; this does not store camera images.
+        const asset = Asset.fromModule(require("../../assets/models/efficientdet-lite0.tflite"));
+        await asset.downloadAsync();
+        if (stopped) return;
+        if (!asset.localUri?.startsWith("file://")) throw new Error("No local model asset");
+        stage = "model load";
+        model = await loadTensorflowModel({ url: asset.localUri }, []);
         if (stopped) return;
         const input = model.inputs[0];
         if (model.inputs.length !== 1 || input.dataType !== "uint8" ||
@@ -84,11 +94,14 @@ export async function createNativeSession(
             model.outputs.some(tensor => tensor.dataType !== "float32")) {
           throw new Error("Invalid model contract");
         }
+        console.info("[SENSEA] Local model ready");
+        stage = "frame converter";
         converter = await createResizer({
           width: 320, height: 320, channelOrder: "rgb", dataType: "uint8",
           scaleMode: "contain", pixelLayout: "interleaved",
         });
         if (stopped) return;
+        stage = "frame runtime";
         pipeline = getFramePipeline();
         const { frameOutput, runtime } = pipeline;
         const detector = model, resizer = converter;
@@ -129,12 +142,14 @@ export async function createNativeSession(
           });
         });
         if (stopped) return;
+        stage = "analysis output";
         await camera.configure([{
           input: "back",
           outputs: [{ output: previewOutput, mirrorMode: "off" }, { output: frameOutput, mirrorMode: "off" }],
           constraints: [{ resolutionBias: frameOutput }],
         }]);
-      } catch {
+      } catch (error) {
+        console.warn(`[SENSEA] Analysis initialization failed at ${stage}`, error instanceof Error ? error.message : "native error");
         try { await releaseAnalysis(); } catch { cleanupFailed = true; }
         if (!stopped) {
           // If attaching an analysis output failed, restore the plain preview.

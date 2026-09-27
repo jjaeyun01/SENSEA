@@ -31,7 +31,9 @@ function fixture({ supported = true, failModel = false, pendingModel = false, fa
     async stop() { events.push("stop"); },
   };
   const modules = {
-    "react-native-fast-tflite": { loadTensorflowModel() {
+    "expo-asset": { Asset: { fromModule: () => ({ localUri: "file:///cache/public-model.tflite", downloadAsync: async () => {} }) } },
+    "react-native-fast-tflite": { loadTensorflowModel(source) {
+      assert.match(source.url, /^file:\/\//, "native loader must receive a file URL, never Android raw resource name");
       events.push("load:model");
       if (failModel) return Promise.reject(new Error("model unavailable"));
       return pendingModel ? new Promise(resolve => { resolveModel = () => resolve(model); }) : Promise.resolve(model);
@@ -56,7 +58,7 @@ function fixture({ supported = true, failModel = false, pendingModel = false, fa
     "./detection.mjs": { isFreshResult: () => true },
   };
   const module = { exports: {} };
-  vm.runInNewContext(`(function(require, module, exports) {${compiled}\n})`, { performance, Date, Promise })(
+  vm.runInNewContext(`(function(require, module, exports) {${compiled}\n})`, { performance, Date, Promise, console: { info() {}, warn() {} } })(
     name => { assert.ok(name in modules, name); return modules[name]; }, module, module.exports,
   );
   return { events, fatal, analysis, resolveModel: () => resolveModel(), frameOutputs: () => frameOutputs,

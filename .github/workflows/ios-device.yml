@@ -1,7 +1,5 @@
 name: SENSEA iPhone test package
 on:
-  push:
-    paths: ["mobile/**", ".github/workflows/ios-device.yml"]
   workflow_dispatch:
 permissions:
   contents: read

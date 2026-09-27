@@ -94,6 +94,8 @@ def main():
     time.sleep(5)
     state("실시간 카메라 켜짐")
     evidence("02-live-preview-after-analysis")
+    native_log = adb("logcat", "-d")
+    assert "[SENSEA] Local model ready" in native_log, "Bundled model did not load in standalone Android APK"
     tap_id("camera-toggle")
     state("카메라 꺼짐")
     tap_id("camera-toggle")
@@ -110,7 +112,7 @@ def main():
     state("카메라 꺼짐")
     result = {"passed": True, "device": "Android API 35 x86_64 emulator, virtual scene",
               "checks": ["privacy cancel", "privacy confirm continues startup", "OS permission dialog",
-                         "native first preview frame", "preview survives analysis startup", "stop and reopen",
+                         "native first preview frame", "preview survives analysis startup", "bundled model loaded from a file URL", "stop and reopen",
                          "background stops camera", "explicit restart after background"]}
     (OUT / "result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result), flush=True)

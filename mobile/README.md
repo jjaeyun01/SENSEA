@@ -2,7 +2,7 @@
 
 Android와 iPhone에서 후면 카메라 → 로컬 품질 검사 → EfficientDet Lite0 객체 탐지 → 한국어 음성 안내를 연결한 Expo/React Native 앱입니다. 카메라를 켜면 **실시간 미리보기를 먼저 표시한 뒤** 분석을 준비하고, 끄거나 앱이 백그라운드로 이동하면 입력과 음성을 중지하고 네이티브 자원을 반환합니다.
 
-최대 초당 5회만 분석하며 처리 중 들어오는 프레임은 네이티브에서 버립니다. 이미지 파일·base64·영상 기록을 만들거나 서버로 전송하지 않습니다. 모델은 앱에 포함되므로 설치 후 분석에 네트워크가 필요하지 않습니다.
+최대 초당 5회만 분석하며 처리 중 들어오는 프레임은 네이티브에서 버립니다. 이미지 파일·base64·영상 기록을 만들거나 서버로 전송하지 않습니다. 모델은 앱에 포함되므로 설치 후 분석에 네트워크가 필요하지 않습니다. Android 설치형 앱에서는 expo-asset으로 공개 모델만 로컬 캐시에 풀어 file:// 경로로 읽습니다. 카메라 영상 캐시는 만들지 않습니다.
 
 현재 모델은 사람·차량 등 COCO 객체를 분류합니다. 차도/인도 영역 분할, 거리·충돌 시간 계산, OCR, GPS 길안내는 아직 연결하지 않았습니다. 신호등 객체 인식은 신호 색이나 횡단 가능 판정이 아닙니다.
 
@@ -22,7 +22,7 @@ npm run ios -- --device
 
 최초 모델 다운로드는 SHA-256과 파일 크기를 검증합니다. 모델을 지웠으면 다시 다운로드한 뒤 빌드합니다. 개발 빌드를 설치한 후에는 `npm start`로 Metro에 연결합니다. Google Drive 같은 동기화 폴더에서 npm 설치 오류가 나면 저장소를 일반 로컬 디스크에 복제해 실행하세요.
 
-GitHub Actions의 **SENSEA native camera**는 두 OS의 네이티브 컴파일을 수행합니다. Android 성공 실행의 `sensea-android-arm64-demo` 아티팩트는 개발 키로 서명된 테스트 APK이며 앱스토어 배포용이 아닙니다. iOS 아티팩트는 시뮬레이터용으로, 별도 iPhone test package 워크플로는 개인 서명용 IPA를 만듭니다. [Windows 설치 안내](../docs/iphone-testing.md)를 확인하세요.
+GitHub Actions의 **SENSEA native camera**는 Android 네이티브 컴파일을 자동 수행합니다. Android 우선 개발 방침에 따라 iOS 시뮬레이터는 해당 워크플로의 수동 실행, iPhone IPA는 별도 워크플로의 수동 실행으로 유지합니다. Android 성공 실행의 `sensea-android-arm64-demo` 아티팩트는 개발 키로 서명된 테스트 APK이며 앱스토어 배포용이 아닙니다. iOS 아티팩트는 시뮬레이터용으로, 별도 iPhone test package 워크플로는 개인 서명용 IPA를 만듭니다. [Windows 설치 안내](../docs/iphone-testing.md)를 확인하세요.
 
 ## 개인정보와 접근성 (v0.4)
 
