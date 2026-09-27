@@ -8,11 +8,13 @@ import { BrandMark } from '@/src/components/BrandMark';
 import { LargeActionButton } from '@/src/components/LargeActionButton';
 import { useAppPreferences } from '@/src/state/AppPreferences';
 import { colors, radii, spacing, typography } from '@/src/theme';
+import { useNoiseMonitor } from '@/src/noise/NoiseMonitorProvider';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const preferences = useAppPreferences();
+  const noise = useNoiseMonitor();
   const [showLogin, setShowLogin] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -53,6 +55,7 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.section}><Text style={styles.sectionTitle}>Privacy & app</Text>
+        <SettingRow title="Continuous sound meter" description="Measure a device-relative dBFS level while SENSEA is open. Raw audio is not stored or uploaded." value={noise.enabled} onChange={value => void noise.setEnabled(value)} />
         <Pressable accessibilityRole="button" onPress={() => router.push('/settings')} style={styles.linkRow}><View><Text style={styles.linkTitle}>Privacy and interaction records</Text><Text style={styles.linkDescription}>Manage on-device records and open-source notices.</Text></View><Text style={styles.chevron}>›</Text></Pressable>
         <View style={styles.infoRow}><Text style={styles.infoLabel}>Account required</Text><Text style={styles.infoValue}>No</Text></View>
         <View style={styles.infoRow}><Text style={styles.infoLabel}>App version</Text><Text style={styles.infoValue}>0.4.0</Text></View>

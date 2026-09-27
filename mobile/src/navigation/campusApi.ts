@@ -4,13 +4,89 @@ export type Route = { id: string; label?: string; distance_m: number; duration_s
   source?: 'google' | 'demo'; hasStairs?: boolean; noiseStatus?: 'fresh' | 'stale' | 'unknown';
   warnings: string[]; steps: { instruction: string; start: Point; end: Point; distance_m?: number }[] };
 export const baseUrl = (process.env.EXPO_PUBLIC_API_BASE_URL ?? process.env.EXPO_PUBLIC_API_URL)?.replace(/\/$/, '');
-export async function request(path: string, signal: AbortSignal, body?: unknown) {
-  if (!baseUrl) throw new Error('Set the SENSEA server address in mobile/.env first.');
-  const response = await fetch(`${baseUrl}${path}`, { signal, method: body ? 'POST' : 'GET',
-    headers: { 'Content-Type': 'application/json', 'X-Sensea-Token': process.env.EXPO_PUBLIC_API_TOKEN ?? '' },
-    ...(body ? { body: JSON.stringify(body) } : {}),
+
+type JsonObject = Record<string, unknown>;
+
+function isObject(value: unknown): value is JsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function requiredString(value: unknown, field: string) {
+  if (typeof value !== 'string' || !value.trim()) throw new Error(`The server returned an invalid building ${field}.`);
+  return value.trim();
+}
+
+function buildingId(value: unknown) {
+  const id = requiredString(value, 'ID');
+  if (!/^\d+$/.test(id)) throw new Error('The server returned an invalid building ID.');
+  return id;
+}
+
+function coordinate(value: unknown, field: 'latitude' | 'longitude') {
+  const limit = field === 'latitude' ? 90 : 180;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < -limit || value > limit) {
+    throw new Error(`The server returned an invalid building ${field}.`);
+  }
+  return value;
+}
+
+export function parseCampusSearchResponse(value: unknown): Place[] {
+  if (!isObject(value) || !Array.isArray(value.places)) throw new Error('The server returned an invalid building search response.');
+  return value.places.map(item => {
+    if (!isObject(item)) throw new Error('The server returned an invalid building search result.');
+    return { id: buildingId(item.id), name: requiredString(item.name, 'name'), source: 'uw' as const };
   });
-  const result = await response.json();
-  if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : 'The request failed. Please try again.');
-  return result;
+}
+
+export function parseCampusPlaceResponse(value: unknown): Place {
+  if (!isObject(value)) throw new Error('The server returned invalid building details.');
+  if (value.address !== null && value.address !== undefined && typeof value.address !== 'string') {
+    throw new Error('The server returned an invalid building address.');
+  }
+  return {
+    id: buildingId(value.id),
+    name: requiredString(value.name, 'name'),
+    address: typeof value.address === 'string' && value.address.trim() ? value.address.trim() : null,
+    latitude: coordinate(value.latitude, 'latitude'),
+    longitude: coordinate(value.longitude, 'longitude'),
+    source: 'uw',
+  };
+}
+
+export async function request<T = unknown>(path: string, signal: AbortSignal, body?: unknown): Promise<T> {
+  if (!baseUrl) throw new Error('Set the SENSEA server address in mobile/.env first.');
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}${path}`, { signal, method: body === undefined ? 'GET' : 'POST',
+      headers: { 'Content-Type': 'application/json', ...(process.env.EXPO_PUBLIC_API_TOKEN ? { 'X-Sensea-Token': process.env.EXPO_PUBLIC_API_TOKEN } : {}) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw error;
+    throw new Error('Could not connect to the SENSEA server. Check the server address and network.');
+  }
+  let result: unknown;
+  try {
+    result = JSON.parse(await response.text());
+  } catch {
+    throw new Error('The SENSEA server returned an unreadable response.');
+  }
+  if (!response.ok) {
+    const detail = isObject(result) && typeof result.detail === 'string' ? result.detail : null;
+    throw new Error(detail ?? 'The request failed. Please try again.');
+  }
+  return result as T;
+}
+
+export async function searchCampusPlaces(query: string, signal: AbortSignal) {
+  const result = await request(`/campus/places?q=${encodeURIComponent(query.trim())}`, signal);
+  return parseCampusSearchResponse(result);
+}
+
+export async function getCampusPlace(placeId: string, signal: AbortSignal) {
+  const id = buildingId(placeId);
+  const result = await request(`/campus/places/${encodeURIComponent(id)}`, signal);
+  const place = parseCampusPlaceResponse(result);
+  if (place.id !== id) throw new Error('The server returned details for a different building.');
+  return place;
 }

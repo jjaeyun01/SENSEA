@@ -5,13 +5,15 @@ import { ExpoSpeechRecognitionModule as Recognition, useSpeechRecognitionEvent }
 import { announce, stopFeedback, isFeedbackActive } from './feedback';
 import { clearEvents, eventStatus, recordEvent, setRecording, getRecording } from './audit';
 import { Guidance } from './guidance.mjs';
-import { baseUrl, request, type Place, type Point, type Route } from './campusApi';
+import { baseUrl, getCampusPlace, request, searchCampusPlaces, type Place, type Point, type Route } from './campusApi';
 import { demoRoutes, searchDemo } from './demo';
 import { useCamera } from '../camera/CameraProvider';
+import { useNoiseMonitor } from '../noise/NoiseMonitorProvider';
 type Stage = 'search' | 'confirm' | 'routes' | 'setup' | 'navigating' | 'paused' | 'arrived';
 function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
   cameraReady: boolean; requestCamera: () => void; stopCamera: () => void;
 }) {
+  const { suspend: suspendNoiseMonitor, resume: resumeNoiseMonitor } = useNoiseMonitor();
   const [searchVersion, setSearchVersion] = useState(0);
   const [recentPlaces, setRecentPlaces] = useState<Place[]>([]);
   const [demoMode, setDemoMode] = useState(false);
@@ -62,17 +64,22 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
   const listen = useCallback(async () => {
     recordEvent("touch", "microphone");
     stopFeedback();
+    suspendNoiseMonitor('speech-recognition');
     try {
       const permission = await Recognition.requestPermissionsAsync();
       if (!permission.granted || !mounted.current || AppState.currentState !== "active") {
         if (mounted.current) setMessage("Microphone and speech recognition permission are needed. You can also type or tap.");
+        resumeNoiseMonitor('speech-recognition');
         return;
       }
       speechWanted.current = true;
       Recognition.start({ lang: "en-US", interimResults: false, continuous: false,
         recordingOptions: { persist: false } });
-    } catch { if (mounted.current) say("Speech recognition is unavailable. Please type or tap."); }
-  }, [say]);
+    } catch {
+      resumeNoiseMonitor('speech-recognition');
+      if (mounted.current) say("Speech recognition is unavailable. Please type or tap.");
+    }
+  }, [say, suspendNoiseMonitor, resumeNoiseMonitor]);
 
   useEffect(() => {
     mounted.current = true;
@@ -81,8 +88,8 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
       // Ask once on first launch, then prepare voice input automatically on later launches.
       if (mounted.current && stageRef.current === "search" && AppState.currentState === "active") void listen();
     }), 700);
-    return () => { mounted.current = false; clearTimeout(timer); revision.current++; active.current?.abort(); stopTracking(); stopFeedback(); Recognition.abort(); };
-  }, [listen, say, stopTracking]);
+    return () => { mounted.current = false; clearTimeout(timer); revision.current++; active.current?.abort(); stopTracking(); stopFeedback(); Recognition.abort(); resumeNoiseMonitor('speech-recognition'); };
+  }, [listen, say, stopTracking, resumeNoiseMonitor]);
   useEffect(() => {
     const subscription = AppState.addEventListener("change", state => {
       if (state === "background") {
@@ -99,17 +106,25 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
     active.current?.abort();
     stopFeedback();
     setPlaces([]);
-    if (query.trim().length < 2 || (!demoMode && !baseUrl)) return;
+    if (query.trim().length < 2) return;
+    if (!demoMode && !baseUrl) {
+      setMessage('Building search is not connected. Set EXPO_PUBLIC_API_BASE_URL in mobile/.env.');
+      return;
+    }
     const controller = new AbortController(); active.current = controller;
     let timeout: ReturnType<typeof setTimeout>;
     const timer = setTimeout(() => {
       setBusy(true);
       timeout = setTimeout(() => controller.abort(), 15000);
-      void (demoMode ? Promise.resolve({ places: searchDemo(query) }) : request(`/campus/places?q=${encodeURIComponent(query.trim())}`, controller.signal)).then(body => {
+      void (demoMode ? Promise.resolve(searchDemo(query)) : searchCampusPlaces(query, controller.signal)).then(foundPlaces => {
         if (current !== revision.current) return;
-        setPlaces(body.places);
-        say(body.places.length ? `${body.places.length} buildings found. ${body.places.slice(0, 3).map((place: Place, index: number) => `Option ${index + 1}: ${place.name}`).join('. ')}. Select a building or say its option number.` : "No buildings found. Try another English building name.", 3, () => { if (body.places.length) void listen(); });
-      }).catch(() => { if (current === revision.current) say("UW search is unavailable. Change the query to try again."); })
+        setPlaces(foundPlaces);
+        say(foundPlaces.length ? `${foundPlaces.length} buildings found. ${foundPlaces.slice(0, 3).map((place: Place, index: number) => `Option ${index + 1}: ${place.name}`).join('. ')}. Select a building or say its option number.` : "No buildings found. Try another English building name.", 3, () => { if (foundPlaces.length) void listen(); });
+      }).catch(error => {
+        if (current === revision.current && !(error instanceof Error && error.name === 'AbortError')) {
+          say(error instanceof Error ? error.message : 'UW building search is unavailable. Please try again.');
+        }
+      })
         .finally(() => { clearTimeout(timeout); if (current === revision.current) setBusy(false); });
     }, 400);
     return () => { clearTimeout(timer); clearTimeout(timeout); controller.abort(); };
@@ -138,7 +153,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
     if (busy) return;
     recordEvent("destination_selected", place.id);
     void perform(async signal => {
-      const details = place.source === 'demo' ? place : await request(`/campus/places/${place.id}`, signal);
+      const details = place.source === 'demo' ? place : await getCampusPlace(place.id, signal);
       if (signal.aborted || !mounted.current) return;
       setDestination(details); setRecentPlaces(previous => [details, ...previous.filter(place => place.id !== details.id)].slice(0, 3)); setStage("confirm");
       say(`${details.name}. ${details.address ? `The street address is ${details.address}.` : "The street address is not available."} Is this your destination? Say yes or tap Confirm.`, 3, () => void listen());
@@ -161,7 +176,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
       if (signal.aborted || !mounted.current) return;
       if (fix.coords.accuracy == null || fix.coords.accuracy > 30 || Date.now() - fix.timestamp > 10000) throw new Error("Your location is not accurate enough. Please retry outdoors.");
       setPosition(fix.coords);
-      const result = await request("/campus/routes", signal, { origin: { latitude: fix.coords.latitude, longitude: fix.coords.longitude }, destination_id: Number(destination.id) });
+      const result = await request<{ routes: Route[] }>("/campus/routes", signal, { origin: { latitude: fix.coords.latitude, longitude: fix.coords.longitude }, destination_id: Number(destination.id) });
       if (signal.aborted || !mounted.current) return;
       setRoutes(result.routes.map((route: Route, index: number) => ({ ...route, label: `Walking route ${index + 1}`, source: 'google' }))); setStage("routes");
       say(result.routes.map((route: Route, index: number) => `Option ${index + 1}: ${Math.ceil(route.duration_seconds / 60)} minutes, ${route.distance_m} meters.`).join(" ") + " Stairs, slopes, and route safety have not been verified. Choose a route.", 3, () => void listen());
@@ -216,8 +231,9 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
     recordEvent("navigation_reset"); say("Where would you like to go?");
   }
   useSpeechRecognitionEvent("start", () => setListening(true));
-  useSpeechRecognitionEvent("end", () => { setListening(false); speechWanted.current = false; });
+  useSpeechRecognitionEvent("end", () => { setListening(false); speechWanted.current = false; resumeNoiseMonitor('speech-recognition'); });
   useSpeechRecognitionEvent("error", event => {
+    resumeNoiseMonitor('speech-recognition');
     if (speechWanted.current && event.error !== "aborted") say("I could not hear you. Tap the microphone to try again, or use the buttons.");
   });
   useSpeechRecognitionEvent("result", event => {

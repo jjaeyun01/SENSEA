@@ -7,6 +7,7 @@ import { useJourney } from '@/src/navigation/JourneyProvider';
 import { BrandMark } from '@/src/components/BrandMark';
 import { LargeActionButton } from '@/src/components/LargeActionButton';
 import { BottomNav } from '@/src/components/BottomNav';
+import { LiveNoiseMeter } from '@/src/components/LiveNoiseMeter';
 import { colors, radii, spacing, typography } from '@/src/theme';
 const SUGGESTIONS = [
   { name: 'Memorial Library', meta: 'Search UW building directory', icon: '▦' },
@@ -47,6 +48,8 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        <LiveNoiseMeter />
+
         <View style={styles.searchBox}>
           <Text style={styles.searchIcon}>⌕</Text>
           <TextInput accessibilityLabel="Destination" accessibilityHint="Type a campus destination" style={styles.input} placeholder="Type a destination" placeholderTextColor={colors.mutedDark} value={query} onChangeText={setQuery} onSubmitEditing={() => void findDestination()} returnKeyType="search" />
@@ -59,7 +62,14 @@ export default function HomeScreen() {
         {state.status === 'CONFIRM_DESTINATION' && state.destination ? (
           <View style={styles.confirmCard}>
             <View style={styles.confirmIcon}><Text style={styles.confirmIconText}>▦</Text></View>
-            <View style={styles.confirmCopy}><Text style={styles.cardLabel}>DESTINATION</Text><Text style={styles.confirmTitle}>{state.destination.name}</Text><Text style={styles.cardMeta}>{state.destination.address ?? 'Street address not available'}</Text></View>
+            <View style={styles.confirmCopy}>
+              <Text style={styles.cardLabel}>UW–MADISON BUILDING</Text>
+              <Text style={styles.confirmTitle}>{state.destination.name}</Text>
+              <Text style={styles.cardMeta}>{state.destination.address ?? 'Street address not available'}</Text>
+              {Number.isFinite(state.destination.latitude) && Number.isFinite(state.destination.longitude) && (
+                <Text style={styles.verifiedLocation}>✓ Location verified · {state.destination.latitude?.toFixed(4)}, {state.destination.longitude?.toFixed(4)}</Text>
+              )}
+            </View>
             <LargeActionButton label="Find routes" onPress={journey.confirm} loading={busy} icon={<Text style={styles.buttonIcon}>⌖</Text>} />
             <LargeActionButton label="Change destination" onPress={journey.reset} variant="ghost" />
           </View>
@@ -93,6 +103,6 @@ const styles = StyleSheet.create({
   searchBox: { minHeight: 62, borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingLeft: 16, paddingRight: 7, flexDirection: 'row', alignItems: 'center', gap: 10 }, searchIcon: { color: colors.muted, fontSize: 28 }, input: { flex: 1, color: colors.text, fontFamily: typography.family, fontSize: 17, minHeight: 58 }, searchSubmit: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, searchArrow: { color: colors.primaryText, fontSize: 25, fontWeight: '800' }, message: { color: colors.muted, fontFamily: typography.family, fontSize: 14, lineHeight: 20, minHeight: 20 },
   section: { gap: 11, paddingTop: 5 }, sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, sectionTitle: { color: colors.textSoft, fontFamily: typography.family, fontSize: 16, fontWeight: '800' }, sectionMeta: { color: colors.mutedDark, fontFamily: typography.family, fontSize: 10, fontWeight: '800', letterSpacing: 1 }, results: { gap: 10 },
   destinationCard: { minHeight: 82, borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 13 }, cardPressed: { borderColor: colors.primary, backgroundColor: colors.surfaceRaised }, placeIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }, placeIconText: { color: colors.primary, fontSize: 23, fontWeight: '700' }, placeCopy: { flex: 1, gap: 3 }, placeTitle: { color: colors.text, fontFamily: typography.family, fontSize: 17, fontWeight: '800' }, cardMeta: { color: colors.muted, fontFamily: typography.family, fontSize: 14, lineHeight: 19 }, chevron: { color: colors.mutedDark, fontSize: 30 },
-  confirmCard: { borderRadius: radii.lg, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.primary, padding: 20, gap: 13 }, confirmIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }, confirmIconText: { color: colors.primary, fontSize: 24 }, confirmCopy: { gap: 4, marginBottom: 5 }, cardLabel: { color: colors.primary, fontFamily: typography.family, fontSize: 11, letterSpacing: 1.2, fontWeight: '900' }, confirmTitle: { color: colors.text, fontFamily: typography.family, fontSize: 25, fontWeight: '900' }, buttonIcon: { color: colors.primaryText, fontSize: 20 },
+  confirmCard: { borderRadius: radii.lg, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.primary, padding: 20, gap: 13 }, confirmIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }, confirmIconText: { color: colors.primary, fontSize: 24 }, confirmCopy: { gap: 4, marginBottom: 5 }, cardLabel: { color: colors.primary, fontFamily: typography.family, fontSize: 11, letterSpacing: 1.2, fontWeight: '900' }, confirmTitle: { color: colors.text, fontFamily: typography.family, fontSize: 25, fontWeight: '900' }, verifiedLocation: { color: colors.primary, fontFamily: typography.family, fontSize: 12, lineHeight: 18, fontWeight: '700', marginTop: 5 }, buttonIcon: { color: colors.primaryText, fontSize: 20 },
   demoRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: radii.md, backgroundColor: colors.backgroundSoft, borderWidth: 1, borderColor: colors.border }, demoCopy: { flex: 1, gap: 3 }, demoTitle: { color: colors.textSoft, fontFamily: typography.family, fontSize: 15, fontWeight: '800' }, demoText: { color: colors.muted, fontFamily: typography.family, fontSize: 12, lineHeight: 17 }, safety: { color: colors.mutedDark, fontFamily: typography.family, fontSize: 12, lineHeight: 18, textAlign: 'center' },
 });

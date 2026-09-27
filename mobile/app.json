@@ -54,8 +54,17 @@
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "SENSEA uses your microphone for destination and navigation commands.",
+          "microphonePermission": "SENSEA uses your microphone for voice commands and continuous on-device environmental sound measurement while the app is open. Sound measurements are not stored or uploaded.",
           "speechRecognitionPermission": "SENSEA converts speech into destination and navigation commands."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "SENSEA measures device-relative environmental sound while the app is open. Audio is processed on this device and is not stored or uploaded.",
+          "recordAudioAndroid": true,
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": false
         }
       ],
       "expo-sqlite",

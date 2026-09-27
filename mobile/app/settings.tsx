@@ -7,9 +7,10 @@ import { AppHeader } from '@/src/components/AppHeader';
 import { BottomNav } from '@/src/components/BottomNav';
 import { LargeActionButton } from '@/src/components/LargeActionButton';
 import { useJourney } from '@/src/navigation/JourneyProvider';
+import { useNoiseMonitor } from '@/src/noise/NoiseMonitorProvider';
 import { colors, radii, spacing, typography } from '@/src/theme';
 export default function SettingsScreen() {
-  const router = useRouter(); const insets = useSafeAreaInsets(); const journey = useJourney();
+  const router = useRouter(); const insets = useSafeAreaInsets(); const journey = useJourney(); const noise = useNoiseMonitor();
   const [licenses, setLicenses] = useState(false);
   const [saved, setSaved] = useState(false);
   const recording = () => { void journey.toggleRecording().then(() => setSaved(true)).catch(() => journey.say('Could not save recording preference.')); };
@@ -19,7 +20,7 @@ export default function SettingsScreen() {
       <Setting title="Voice feedback" description="Required for guidance. Uses the screen reader when enabled." value={true} onChange={() => {}} disabled />
       <Setting title="Haptic feedback" description="Required alongside spoken guidance. Device support varies." value={true} onChange={() => {}} disabled />
       <Setting title="Prefer flat routes" description="Unavailable until slopes and stairs are verified." value={false} onChange={() => {}} disabled />
-      <Setting title="Noise awareness" description="Live noise sensing is not configured. Demo values are labeled fixtures." value={false} onChange={() => {}} disabled />
+      <Setting title="Continuous sound meter" description="Measures device-relative dBFS while the app is open. Pauses during voice recognition and in the background; raw audio is not stored." value={noise.enabled} onChange={value => void noise.setEnabled(value)} />
       <Setting title="Interaction records" description="Commands and actions stay on this device. Maximum 2,000 events; entries older than 7 days are removed on use. No audio, video or GPS trail." value={journey.recording} onChange={recording} />
     </View>
     {saved && <Text accessibilityLiveRegion="polite" style={styles.saved}>✓ Recording preference saved on this device</Text>}
@@ -27,7 +28,7 @@ export default function SettingsScreen() {
     <LargeActionButton label="Delete interaction records" onPress={() => void journey.deleteRecords().catch(() => journey.say('Could not delete records.'))} variant="danger" />
     <LargeActionButton label={licenses ? "Hide open-source notices" : "Open-source notices"} onPress={() => setLicenses(!licenses)} variant="ghost" />
     {licenses && <Text style={styles.settingDescription}>{notices.text}</Text>}
-    <Text style={styles.settingDescription}>Speech recognition may use Apple or Google services. Search terms go to UW. Current position and destination go to Google for routing. Camera frames are processed on-device.</Text>
+    <Text style={styles.settingDescription}>Environmental sound levels are calculated on-device from live microphone buffers; raw audio is not stored or uploaded. Speech recognition may use Apple or Google services. Search terms go to UW. Current position and destination go to Google for routing. Camera frames are processed on-device.</Text>
   </ScrollView><BottomNav active="profile" /></View>;
 }
 
