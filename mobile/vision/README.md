@@ -20,7 +20,7 @@
 
 ## Expo 연결 예
 
-실제 Expo 앱에서 `expo-camera`, `expo-crypto`, `expo-speech`를 구성한 뒤 사용하는 연결 예입니다. 이 예제는 별도 정지 사진 UI를 위한 것으로, 현재 카메라 앱에는 expo-camera·expo-crypto·expo-file-system과 서버 업로드를 연결하지 않았습니다.
+별도 정지 사진 UI를 개발할 때 필요한 카메라 촬영 어댑터, `expo-crypto`, `expo-speech`를 연결하는 예입니다. 현재 앱의 실시간 카메라는 VisionCamera를 사용하며 이 예제와 서버 업로드는 연결하지 않았습니다. 아래 `cameraRef.current.takePictureAsync`는 예시 인터페이스이므로 실제 카메라 패키지의 촬영 API에 맞게 구현해야 합니다.
 
 ```js
 import * as Crypto from "expo-crypto";

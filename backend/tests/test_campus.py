@@ -95,6 +95,46 @@ def test_details_address_no_external_redirect(client, monkeypatch):
     assert client.get("/campus/places/432/directions").status_code == 404
 
 
+def test_only_fully_surveyed_entrance_is_used(client, monkeypatch, tmp_path):
+    entrance_file = tmp_path / "entrances.json"
+    entrance_file.write_text(
+        """{
+          "432": {
+            "latitude": 43.0759,
+            "longitude": -89.3991,
+            "verified": true,
+            "accuracy_m": 3,
+            "surveyed_at": "2026-09-27T12:00:00-05:00",
+            "description": "Field-surveyed east public entrance"
+          }
+        }""",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SENSEA_ENTRANCES_PATH", str(entrance_file))
+    upstream(monkeypatch, lambda _: httpx.Response(200, json=BUILDING))
+
+    result = client.get("/campus/places/432").json()
+
+    assert result["entrance_verified"] is True
+    assert result["entrance"]["accuracy_m"] == 3
+    assert result["entrance"]["description"] == "Field-surveyed east public entrance"
+
+
+def test_incomplete_entrance_record_is_not_treated_as_verified(client, monkeypatch, tmp_path):
+    entrance_file = tmp_path / "entrances.json"
+    entrance_file.write_text(
+        '{"432":{"latitude":43.0759,"longitude":-89.3991,"verified":true}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SENSEA_ENTRANCES_PATH", str(entrance_file))
+    upstream(monkeypatch, lambda _: httpx.Response(200, json=BUILDING))
+
+    result = client.get("/campus/places/432").json()
+
+    assert result["entrance"] is None
+    assert result["entrance_verified"] is False
+
+
 @pytest.mark.parametrize(
     "patch", [{"lnglat": [999, 43]}, {"lnglat": None}, {"object_type": "parking"}, {"name": None}]
 )
