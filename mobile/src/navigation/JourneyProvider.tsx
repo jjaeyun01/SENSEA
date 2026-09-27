@@ -1,35 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AppState, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import * as Location from "expo-location";
-import { ExpoSpeechRecognitionModule as Recognition, useSpeechRecognitionEvent } from "expo-speech-recognition";
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
-import { announce, stopFeedback, isFeedbackActive } from "./feedback";
-import { clearEvents, eventStatus, recordEvent, setRecording, getRecording } from "./audit";
-import { decodePolyline, Guidance } from "./guidance.mjs";
-
-type Point = { latitude: number; longitude: number };
-type Place = { id: string; name: string; address?: string | null } & Partial<Point>;
-type Route = { id: string; distance_m: number; duration_seconds: number; encoded_polyline: string;
-  warnings: string[]; steps: { instruction: string; start: Point; end: Point }[] };
-type Stage = "search" | "confirm" | "routes" | "setup" | "navigating" | "paused" | "arrived";
-const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
-const mapKey = Platform.OS === "ios" ? process.env.EXPO_PUBLIC_GOOGLE_MAPS_IOS_KEY : process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY;
-
-async function request(path: string, signal: AbortSignal, body?: unknown) {
-  if (!baseUrl) throw new Error("Set the SENSEA server address first.");
-  const response = await fetch(`${baseUrl}${path}`, { signal,
-    method: body ? "POST" : "GET",
-    headers: { "Content-Type": "application/json", "X-Sensea-Token": process.env.EXPO_PUBLIC_API_TOKEN ?? "" },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "The request failed. Please try again.");
-  return result;
-}
-
-export function CampusSearch({ cameraReady, requestCamera, stopCamera }: {
+import { createContext, useContext, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { AppState } from 'react-native';
+import * as Location from 'expo-location';
+import { ExpoSpeechRecognitionModule as Recognition, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+import { announce, stopFeedback, isFeedbackActive } from './feedback';
+import { clearEvents, eventStatus, recordEvent, setRecording, getRecording } from './audit';
+import { Guidance } from './guidance.mjs';
+import { baseUrl, request, type Place, type Point, type Route } from './campusApi';
+import { demoRoutes, searchDemo } from './demo';
+import { useCamera } from '../camera/CameraProvider';
+type Stage = 'search' | 'confirm' | 'routes' | 'setup' | 'navigating' | 'paused' | 'arrived';
+function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
   cameraReady: boolean; requestCamera: () => void; stopCamera: () => void;
 }) {
+  const [searchVersion, setSearchVersion] = useState(0);
+  const [recentPlaces, setRecentPlaces] = useState<Place[]>([]);
+  const [demoMode, setDemoMode] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
   const [query, setQuery] = useState("");
   const [places, setPlaces] = useState<Place[]>([]);
   const [destination, setDestination] = useState<Place | null>(null);
@@ -107,7 +93,7 @@ export function CampusSearch({ cameraReady, requestCamera, stopCamera }: {
     });
     return () => subscription.remove();
   }, [pause]);
-  useEffect(() => { if (!cameraReady && stage === "navigating") pause(); }, [cameraReady, stage, pause]);
+  useEffect(() => { if (!cameraReady && stage === "navigating" && selected?.source !== "demo") pause(); }, [cameraReady, stage, pause, selected]);
 
   useEffect(() => {
     if (stage !== "search") return;
@@ -115,13 +101,13 @@ export function CampusSearch({ cameraReady, requestCamera, stopCamera }: {
     active.current?.abort();
     stopFeedback();
     setPlaces([]);
-    if (query.trim().length < 2 || !baseUrl) return;
+    if (query.trim().length < 2 || (!demoMode && !baseUrl)) return;
     const controller = new AbortController(); active.current = controller;
     let timeout: ReturnType<typeof setTimeout>;
     const timer = setTimeout(() => {
       setBusy(true);
       timeout = setTimeout(() => controller.abort(), 15000);
-      void request(`/campus/places?q=${encodeURIComponent(query.trim())}`, controller.signal).then(body => {
+      void (demoMode ? Promise.resolve({ places: searchDemo(query) }) : request(`/campus/places?q=${encodeURIComponent(query.trim())}`, controller.signal)).then(body => {
         if (current !== revision.current) return;
         setPlaces(body.places);
         say(body.places.length ? `${body.places.length} buildings found. ${body.places.slice(0, 3).map((place: Place, index: number) => `Option ${index + 1}: ${place.name}`).join('. ')}. Select a building or say its option number.` : "No buildings found. Try another English building name.", 3, () => { if (body.places.length) void listen(); });
@@ -129,7 +115,7 @@ export function CampusSearch({ cameraReady, requestCamera, stopCamera }: {
         .finally(() => { clearTimeout(timeout); if (current === revision.current) setBusy(false); });
     }, 400);
     return () => { clearTimeout(timer); clearTimeout(timeout); controller.abort(); };
-  }, [query, stage, say, listen]);
+  }, [query, stage, say, listen, demoMode, searchVersion]);
 
   async function perform(action: (signal: AbortSignal) => Promise<void>) {
     const current = ++revision.current;
@@ -154,15 +140,20 @@ export function CampusSearch({ cameraReady, requestCamera, stopCamera }: {
     if (busy) return;
     recordEvent("destination_selected", place.id);
     void perform(async signal => {
-      const details = await request(`/campus/places/${place.id}`, signal);
+      const details = place.source === 'demo' ? place : await request(`/campus/places/${place.id}`, signal);
       if (signal.aborted || !mounted.current) return;
-      setDestination(details); setStage("confirm");
+      setDestination(details); setRecentPlaces(previous => [details, ...previous.filter(place => place.id !== details.id)].slice(0, 3)); setStage("confirm");
       say(`${details.name}. ${details.address ? `The street address is ${details.address}.` : "The street address is not available."} Is this your destination? Say yes or tap Confirm.`, 3, () => void listen());
     });
   }
   function confirm() {
     if (!destination || busy) return;
     recordEvent("destination_confirmed", destination.id);
+    if (destination.source === 'demo') {
+      const options = demoRoutes(destination); setRoutes(options); setStage('routes');
+      say('Simulation only. Three route fixtures are available: flat, shortest, and reviewed. Choose an option.', 3, () => void listen());
+      return;
+    }
     void perform(async signal => {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (signal.aborted || !mounted.current) return;
@@ -174,17 +165,18 @@ export function CampusSearch({ cameraReady, requestCamera, stopCamera }: {
       setPosition(fix.coords);
       const result = await request("/campus/routes", signal, { origin: { latitude: fix.coords.latitude, longitude: fix.coords.longitude }, destination_id: Number(destination.id) });
       if (signal.aborted || !mounted.current) return;
-      setRoutes(result.routes); setStage("routes");
+      setRoutes(result.routes.map((route: Route, index: number) => ({ ...route, label: `Walking route ${index + 1}`, source: 'google' }))); setStage("routes");
       say(result.routes.map((route: Route, index: number) => `Option ${index + 1}: ${Math.ceil(route.duration_seconds / 60)} minutes, ${route.distance_m} meters.`).join(" ") + " Stairs, slopes, and route safety have not been verified. Choose a route.", 3, () => void listen());
     });
   }
   function choose(route: Route) {
     recordEvent("route_selected", route.id);
-    setSelected(route); guidance.current = new Guidance(route); setStage("setup");
+    setSelected(route); setStepIndex(0); guidance.current = new Guidance(route); setStage("setup");
     say("Hold your phone upright at chest level, facing forward. Turn on the camera below, then start guidance when it is ready.");
   }
   async function start() {
     if (!selected || busy) return;
+    if (selected.source === 'demo') { setStage('navigating'); say(selected.steps[stepIndex]?.instruction ?? 'Simulation complete.', 2); return; }
     if (!cameraReady) { say("Prepare the camera first using the button below."); return; }
     recordEvent("navigation_start");
     const current = ++watchGeneration.current;
@@ -201,7 +193,7 @@ export function CampusSearch({ cameraReady, requestCamera, stopCamera }: {
           return;
         }
         if (uncertain.current) { uncertain.current = false; say("Location signal recovered.", 2); }
-        if (event) { say(event.text, 2); recordEvent("guidance", event.kind); }
+        if (event) { setStepIndex(guidance.current?.step ?? 0); say(event.text, 2); recordEvent("guidance", event.kind); }
       }, () => { if (current === watchGeneration.current) { pause(); say("Location tracking failed. Guidance is paused.", 1); } });
       if (current !== watchGeneration.current || !mounted.current) { subscription.remove(); return; }
       watcher.current = subscription; setStage("navigating");
@@ -210,7 +202,7 @@ export function CampusSearch({ cameraReady, requestCamera, stopCamera }: {
     finally { if (mounted.current) setBusy(false); }
   }
   useEffect(() => {
-    if (stage !== "navigating") return;
+    if (stage !== "navigating" || selected?.source === "demo") return;
     const timer = setInterval(() => {
       if (Date.now() - lastFixAt.current > 5000 && !uncertain.current) {
         uncertain.current = true; say("Location signal is stale. Guidance is paused. Please stop and check your surroundings.", 1);
@@ -218,7 +210,7 @@ export function CampusSearch({ cameraReady, requestCamera, stopCamera }: {
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [stage, say]);
+  }, [stage, say, selected]);
 
   function reset() {
     revision.current++; active.current?.abort(); setBusy(false); pause();
@@ -252,71 +244,30 @@ export function CampusSearch({ cameraReady, requestCamera, stopCamera }: {
     else say("Please use the available option number or the buttons on screen.");
   });
 
-  const points = useMemo(() => { try { return selected ? decodePolyline(selected.encoded_polyline) : []; } catch { return []; } }, [selected]);
-  const button = (label: string, action: () => void, disabled = false) => <Pressable style={[styles.button, disabled && { opacity: 0.5 }]} accessibilityRole="button"
-    accessibilityState={{ disabled }} disabled={disabled} onPress={() => { recordEvent("touch", label); action(); }}><Text style={styles.name}>{label}</Text></Pressable>;
-  return <View style={styles.container}>
-    <Text style={styles.title} accessibilityRole="header">Campus navigation</Text>
-    <Text style={styles.message} accessibilityLiveRegion="polite">{message}</Text>
-    {!baseUrl && <Text style={styles.note}>Configure the SENSEA server address to search.</Text>}
-    {stage === "search" && <>
-      <TextInput style={styles.input} value={query} onChangeText={value => { recordEvent("text_input", "destination edited"); setQuery(value); }}
-        accessibilityLabel="UW building name" placeholder="Memorial Union" placeholderTextColor="#AFC0D2" autoCorrect={false} maxLength={100} />
-      {places.map((place, index) => <View key={place.id}>{button(`${index + 1}. ${place.name}`, () => selectPlace(place), busy)}</View>)}
-      <Text style={styles.note}>Building search: UW–Madison</Text>
-    </>}
-    {stage === "confirm" && <>
-      <Text style={styles.name}>{destination?.name}</Text><Text style={styles.note}>{destination?.address ?? "Street address unavailable"}</Text>
-      {button("Confirm destination", confirm, busy)}
-    </>}
-    {stage === "routes" && <View style={styles.google}>
-      {routes.map((route, index) => <View key={route.id}>
-        {button(`Option ${index + 1}: ${Math.ceil(route.duration_seconds / 60)} min · ${route.distance_m} m`, () => choose(route))}
-        {route.warnings.map((warning, i) => <Text key={i} style={styles.note}>{warning}</Text>)}
-      </View>)}
-      <Text style={styles.note}>Stairs, slopes, and accessible entrances: not verified.</Text>
-      <Text style={styles.attribution}>Google Maps</Text>
-    </View>}
-    {selected && <View style={styles.google}>
-      {mapKey && points.length > 0 && <MapView style={{ height: 220 }} provider={PROVIDER_GOOGLE}
-        initialRegion={{ ...points[0], latitudeDelta: 0.01, longitudeDelta: 0.01 }}
-        accessibilityLabel="Selected walking route on Google Maps">
-        <Polyline coordinates={points} strokeWidth={5} strokeColor="#167966" />
-        {position && <Marker coordinate={position} title="Current position" />}
-        <Marker coordinate={points[points.length - 1]} title={destination?.name} />
-      </MapView>}
-      {!mapKey && <Text style={styles.note}>Map display needs a Google Maps SDK key. Route instructions remain inside SENSEA.</Text>}
-      <Text style={styles.note}>{selected.distance_m} m · {Math.ceil(selected.duration_seconds / 60)} min</Text>
-      {selected.warnings.map((warning, index) => <Text key={index} style={styles.note}>{warning}</Text>)}
-      <Text style={styles.attribution}>Google Maps</Text>
-    </View>}
-    {(stage === "setup" || stage === "paused") && <>
-      {button(cameraReady ? "Camera ready" : "Prepare camera", requestCamera, cameraReady)}
-      {button(stage === "paused" ? "Resume guidance" : "Start guidance", () => void start(), !cameraReady || busy)}
-      <Text style={styles.note}>A ready camera feed does not verify your position or a clear path.</Text>
-    </>}
-    {stage === "navigating" && <>
-      {button("Pause guidance", pause)}
-      {button("Confirm arrival", () => { pause(); setStage("arrived"); recordEvent("arrival_confirmed"); say("Arrival confirmed. Guidance stopped."); })}
-    </>}
-    {button(listening ? "Stop listening" : "Speak destination or command", () => { if (listening) { speechWanted.current = false; Recognition.abort(); } else void listen(); })}
-    {button("Repeat", () => say(lastMessage.current))}
-    {stage !== "search" && button("Choose another destination", reset)}
-    <Text style={styles.note}>Speech recognition may use Apple or Google services. SENSEA does not store recordings. Search goes to UW; route requests send your position and destination to Google.</Text>
-    <Text style={styles.note}>Interaction records: {recording ? "on" : "off"}. Recognized words and button actions stay on this device (2,000 events maximum). Records older than 7 days are removed when the app is used. No camera video or GPS trail is saved.</Text>
-    {button(recording ? "Turn off interaction records" : "Turn on interaction records", () => { void setRecording(!recording).then(() => setRecordingState(!recording)).catch(() => say("Could not save recording preference.")); })}
-    {button("Check records", () => { void eventStatus().then(text => say(text)).catch(() => say("Records are unavailable.")); })}
-    {button("Delete interaction records", () => { void clearEvents().then(() => { setMessage("Interaction records deleted."); announce("Interaction records deleted.", 3, "en-US", undefined, false); }).catch(() => say("Could not delete records. Please try again.")); })}
-  </View>;
+
+  function nextDemo() {
+    if (selected?.source !== 'demo' || stage !== 'navigating') return;
+    const next = stepIndex + 1;
+    if (next >= selected.steps.length) { arrive(); return; }
+    setStepIndex(next); say(selected.steps[next].instruction, 2); recordEvent('demo_step', String(next));
+  }
+  function arrive() { pause(); setStage('arrived'); recordEvent('arrival_confirmed'); say('Arrival confirmed. Guidance stopped.'); }
+  function changeDemo(value: boolean) { reset(); setDemoMode(value); }
+  return { query, setQuery, recentPlaces, search: (text: string) => { setStage('search'); setQuery(text); setSearchVersion(value => value + 1); }, places, destination, routes, selected, stage, message, busy, listening, recording,
+    position, stepIndex, demoMode, baseUrl, selectPlace, confirm, choose, start, pause, reset, arrive, nextDemo,
+    reviewRoutes: () => { pause(); setStage('routes'); }, changeDemo, listen, say, repeat: () => say(lastMessage.current),
+    stopListening: () => { speechWanted.current = false; Recognition.abort(); },
+    toggleRecording: async () => { await setRecording(!recording); setRecordingState(!recording); },
+    checkRecords: async () => say(await eventStatus()),
+    deleteRecords: async () => { await clearEvents(); setMessage('Interaction records deleted.'); announce('Interaction records deleted.', 3, 'en-US', undefined, false); },
+  };
 }
-const styles = StyleSheet.create({
-  container: { marginBottom: 24, gap: 10 },
-  title: { color: "#F4F7FA", fontSize: 23, fontWeight: "700" },
-  message: { color: "#FFFFFF", fontSize: 18, lineHeight: 26 },
-  note: { color: "#AFC0D2", fontSize: 14, lineHeight: 21 },
-  input: { color: "#FFFFFF", backgroundColor: "#1A2B40", borderRadius: 12, padding: 16, fontSize: 18, minHeight: 56 },
-  button: { backgroundColor: "#1A2B40", borderRadius: 12, padding: 16, minHeight: 56, marginVertical: 3 },
-  name: { color: "#67E3C8", fontSize: 18, fontWeight: "600" },
-  google: { backgroundColor: "#112638", padding: 12, borderRadius: 12, gap: 10 },
-  attribution: { color: "#FFFFFF", fontSize: 14, fontWeight: "400" },
-});
+
+type Journey = ReturnType<typeof useJourneyController>;
+const Context = createContext<Journey | null>(null);
+export function JourneyProvider({ children }: { children: ReactNode }) {
+  const camera = useCamera();
+  const value = useJourneyController({ cameraReady: !!camera.ready, requestCamera: camera.open, stopCamera: camera.close });
+  return <Context.Provider value={value}>{children}</Context.Provider>;
+}
+export function useJourney() { const value = useContext(Context); if (!value) throw new Error('JourneyProvider missing'); return value; }

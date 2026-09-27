@@ -11,6 +11,7 @@ for (const [name, version] of Object.entries(pkg.dependencies)) {
   const names = await readdir(directory);
   const license = names.find(n => /^license(\.(txt|md))?$/i.test(n));
   const licensePath = license ? path.join(directory, license) :
+    name === "expo-router" ? path.join(root, "node_modules/expo/LICENSE") :
     name.startsWith("react-native-vision-camera")
       ? path.join(root, "licenses/vision-camera-LICENSE.txt") :
     name === "react-native-nitro-modules" ? path.join(root, "licenses/nitro-LICENSE.txt") :

@@ -1,3 +1,7 @@
+# Integrated main application
+
+The current app combines `be1`, `fr1`, `fr_num2` and `fr2`, using **fr2’s design**. See [integration details](docs/branch-integration.md), [mobile setup](mobile/README.md), and [demo script](docs/demo-script.md).
+
 # SENSEA
 
 **Voice-first, noise-aware navigation with optional AI visual assistance for blind and low-vision users.**

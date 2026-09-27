@@ -1,5 +1,7 @@
 # SENSEA 모바일 안내와 카메라
 
+현재 앱은 **fr2 디자인의 Expo Router 화면**을 사용합니다. `JourneyProvider`가 목적지·경로·음성·GPS 상태를, `CameraProvider`가 단일 카메라 세션을 공유합니다. 홈의 Demo destination data를 켜면 fr1/fr_num2의 3개 경로 시뮬레이션을 서버 없이 확인할 수 있습니다. [통합 내역](../docs/branch-integration.md)을 참고하세요.
+
 Android와 iPhone에서 후면 카메라 → 로컬 품질 검사 → EfficientDet Lite0 객체 탐지 → 한국어 음성 안내를 연결한 Expo/React Native 앱입니다. 카메라를 켜면 분석을 시작하고, 끄거나 앱이 백그라운드로 이동하면 입력과 음성을 중지하고 네이티브 자원을 반환합니다.
 
 최대 초당 5회만 분석하며 처리 중 들어오는 프레임은 네이티브에서 버립니다. 이미지 파일·base64·영상 기록을 만들거나 서버로 전송하지 않습니다. 모델은 앱에 포함되므로 설치 후 분석에 네트워크가 필요하지 않습니다.

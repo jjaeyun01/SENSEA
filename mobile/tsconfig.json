@@ -2,15 +2,23 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    "allowJs": true,
-    "checkJs": false,
-    "noEmit": true
+    "noUncheckedIndexedAccess": false,
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "allowJs": true
   },
   "include": [
-    "App.tsx",
-    "index.ts",
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "src/**/*.mjs"
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.mjs",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
   ]
 }

@@ -33,4 +33,3 @@ export class GuidanceQueue {
     return this.messages.length;
   }
 }
-

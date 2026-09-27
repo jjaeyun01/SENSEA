@@ -43,7 +43,11 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "SENSEA uses your location for in-app walking guidance."
+          "locationWhenInUsePermission": "SENSEA uses your location for in-app walking guidance.",
+          "locationAlwaysPermission": false,
+          "locationAlwaysAndWhenInUsePermission": false,
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
         }
       ],
       [
@@ -53,7 +57,8 @@
           "speechRecognitionPermission": "SENSEA converts speech into destination and navigation commands."
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-router"
     ]
   }
 }

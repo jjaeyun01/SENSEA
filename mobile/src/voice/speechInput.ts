@@ -1,17 +1,14 @@
-export type SpeechInputCapability = {
-  available: boolean;
-  reason?: string;
-};
+import { stopSpeaking } from './speak';
+
+export type SpeechInputCapability = { available: boolean; mode: 'backend-recording' | 'manual-only'; reason?: string };
 
 /**
- * expo-speech provides text-to-speech, not speech recognition.
- * Keep STT behind this adapter so a tested native module can be added without
- * changing the accessible screens.
+ * Expo has text-to-speech but no built-in native speech recognizer. SENSEA keeps
+ * input behind this adapter: a production adapter records a short clip with
+ * expo-audio, POSTs it through transcribeAudio(), then deletes the local clip.
+ * Until a provider is configured, callers must expose typed/manual controls.
  */
-export async function getSpeechInputCapability(): Promise<SpeechInputCapability> {
-  return {
-    available: false,
-    reason: '음성 인식 모듈은 데모 기기에서 호환성을 확인한 뒤 활성화됩니다.',
-  };
+export async function prepareSpeechInput(): Promise<SpeechInputCapability> {
+  await stopSpeaking(); // prevents the app from transcribing its own prompt
+  return { available: false, mode: 'manual-only', reason: 'Speech transcription is not configured. Use typed input or accessible buttons.' };
 }
-

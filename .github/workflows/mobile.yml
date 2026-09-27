@@ -34,6 +34,7 @@ jobs:
       - run: npm run models:download
       - run: npm run typecheck
       - run: npm test
+      - run: npm run test:ui
       - run: npm run export:check
       - run: pip install ai-edge-litert==1.4.0 numpy==2.2.6
       - run: python scripts/check-model.py

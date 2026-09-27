@@ -1,3 +1,4 @@
+import { recordEvent } from '@/src/navigation/audit';
 import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -8,7 +9,7 @@ import {
   type AccessibilityRole,
 } from 'react-native';
 
-import { colors } from '@/src/theme';
+import { colors, radii, typography } from '@/src/theme';
 
 type Props = {
   label: string;
@@ -16,7 +17,7 @@ type Props = {
   accessibilityHint?: string;
   disabled?: boolean;
   loading?: boolean;
-  variant?: 'primary' | 'secondary' | 'danger';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
   icon?: ReactNode;
   accessibilityRole?: AccessibilityRole;
 };
@@ -40,7 +41,7 @@ export function LargeActionButton({
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: isDisabled, busy: loading }}
       disabled={isDisabled}
-      onPress={onPress}
+      onPress={() => { recordEvent("touch", label); onPress(); }}
       style={({ pressed }) => [
         styles.button,
         styles[variant],
@@ -50,7 +51,7 @@ export function LargeActionButton({
     >
       <View style={styles.content} accessible={false}>
         {loading ? <ActivityIndicator color={variant === 'primary' ? colors.primaryText : colors.text} /> : icon}
-        <Text style={[styles.label, variant === 'primary' ? styles.primaryLabel : styles.lightLabel]}>
+        <Text style={[styles.label, variant === 'primary' ? styles.primaryLabel : styles.lightLabel]} numberOfLines={2}>
           {label}
         </Text>
       </View>
@@ -60,29 +61,28 @@ export function LargeActionButton({
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 66,
-    borderRadius: 18,
+    minHeight: 60,
+    borderRadius: radii.pill,
     paddingHorizontal: 20,
     paddingVertical: 16,
     justifyContent: 'center',
-    borderWidth: 1,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
-    elevation: 5,
+    borderWidth: 1.5,
   },
   primary: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
   secondary: {
-    backgroundColor: 'rgba(24, 49, 77, 0.82)',
+    backgroundColor: colors.surface,
     borderColor: colors.border,
   },
   danger: {
-    backgroundColor: '#7F1D1D',
+    backgroundColor: colors.danger,
     borderColor: colors.danger,
+  },
+  ghost: {
+    backgroundColor: 'transparent',
+    borderColor: colors.primary,
   },
   content: {
     flexDirection: 'row',
@@ -91,8 +91,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   label: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontFamily: typography.family,
+    fontSize: 18,
+    fontWeight: '800',
     textAlign: 'center',
   },
   primaryLabel: {
@@ -102,8 +103,8 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   pressed: {
-    opacity: 0.84,
-    transform: [{ scale: 0.985 }],
+    opacity: 0.78,
+    transform: [{ scale: 0.99 }],
   },
   disabled: {
     opacity: 0.48,

@@ -1,25 +1,6 @@
-import { AccessibilityInfo } from 'react-native';
-import * as Speech from 'expo-speech';
-
-export async function speak(message: string, interrupt = true): Promise<void> {
-  if (interrupt) {
-    await Speech.stop();
-  }
-
-  const screenReaderEnabled = await AccessibilityInfo.isScreenReaderEnabled().catch(() => false);
-  if (screenReaderEnabled) {
-    AccessibilityInfo.announceForAccessibility(message);
-    return;
-  }
-
-  Speech.speak(message, {
-    language: 'ko-KR',
-    rate: 0.92,
-    pitch: 1,
-  });
-}
-
-export async function stopSpeaking(): Promise<void> {
-  await Speech.stop();
-}
-
+import { announce, stopFeedback } from '../navigation/feedback';
+let lastMessage = '';
+export async function speak(message: string, _announce = true) { lastMessage = message; announce(message); }
+export async function repeatLast() { if (lastMessage) announce(lastMessage); }
+export async function stopSpeaking() { stopFeedback(); }
+export function getLastMessage() { return lastMessage; }

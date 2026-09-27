@@ -122,7 +122,9 @@ def build_demo_routes(destination: str) -> RoutesResponse:
             noiseDataStatus="stale",
             verificationStatus="verified-demo",
             dataFreshness="7일 전 측정한 오래된 소음 데이터",
-            uncertainty="소음 정보가 오래되었고 계단과 GPS 오차 때문에 수동 확인이 필요할 수 있습니다.",
+            uncertainty=(
+                "소음 정보가 오래되었고 계단과 GPS 오차 때문에 수동 확인이 필요할 수 있습니다."
+            ),
             steps=[
                 NavigationStep(
                     id="q1",

@@ -13,11 +13,17 @@ class RoutingTests(unittest.TestCase):
         self.assertEqual(len(response.routes), 3)
         self.assertTrue(any(not route.hasStairs for route in response.routes))
         self.assertTrue(all(route.steps for route in response.routes))
-        self.assertEqual({route.routeType for route in response.routes}, {"shortest", "flat", "safe"})
-        self.assertTrue(all(route.verificationStatus == "verified-demo" for route in response.routes))
+        self.assertEqual(
+            {route.routeType for route in response.routes}, {"shortest", "flat", "safe"}
+        )
+        self.assertTrue(
+            all(route.verificationStatus == "verified-demo" for route in response.routes)
+        )
         self.assertTrue(all(route.dataFreshness for route in response.routes))
         self.assertTrue(all(route.uncertainty for route in response.routes))
-        self.assertEqual({route.noiseDataStatus for route in response.routes}, {"fresh", "stale", "unknown"})
+        self.assertEqual(
+            {route.noiseDataStatus for route in response.routes}, {"fresh", "stale", "unknown"}
+        )
 
     def test_destination_is_trimmed(self) -> None:
         response = build_demo_routes("  도서관  ")

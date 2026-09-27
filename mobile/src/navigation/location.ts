@@ -27,4 +27,3 @@ export async function getCurrentLocation(): Promise<LocationResult> {
     return { ok: false, reason: '현재 위치를 확인할 수 없습니다. 모의 안내로 진행합니다.' };
   }
 }
-

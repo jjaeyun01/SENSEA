@@ -249,3 +249,7 @@ Supabase는 아직 연결하지 않았습니다. SQL은 루트 README의 places/
 기존 수집 데이터·평면도·수집 스크립트는 삭제했습니다. UW 검색과 Google 경로 응답은 디스크에 저장하지 않으며 `Cache-Control: no-store`를 보냅니다. UW 공개 지도 내부 엔드포인트에 의존하므로 응답 형식이 바뀌면 수정이 필요합니다. 건물 좌표는 출입구 좌표가 아닙니다. `accessibility: unknown`이며 평지·계단 없음·안전함을 추정하지 않습니다. 기존 `/places`·`/routes`는 가상 경로 데모용으로 유지합니다.
 
 전체 앱 흐름과 미구현 사항: [앱 내부 안내](../docs/in-app-navigation.md).
+
+## 통합 데모 API
+
+`POST /demo/routes`는 fr1/fr_num2의 `{ "destination": "Morgridge" }` 요청을 받는 명시적 시뮬레이션입니다. 기존 be1 `/routes` 계약과 실제 `/campus/routes`는 그대로 유지합니다. 모바일 오프라인 데모는 동일한 사용자 흐름의 로컬 fixture를 사용합니다.

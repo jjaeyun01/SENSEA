@@ -1,28 +1,21 @@
-# SENSEA 해커톤 데모 스크립트
+# Integrated SENSEA demo (fr2 UI)
 
-1. VoiceOver 또는 TalkBack을 켠 뒤 앱을 실행한다.
-2. 로딩 화면 뒤 시작 진동과 “준비되었습니다” 안내를 확인한다.
-3. `Morgridge Hall`을 입력하고 **목적지 확인**을 누른다.
-4. 재확인 문장을 들은 뒤 **Morgridge Hall, 맞습니다**를 누른다.
-5. 목적지 미니맵과 검색 결과를 확인하고 **Morgridge Hall 선택**을 누른다.
-6. 시간 우선, 평지 우선, 안전 우선의 세 경로에서 시간·계단·상대 소음·데이터 최신성을 비교한다.
-7. 경로 하나를 선택하고 카메라 파지 안내, 카메라 권한, 360도 공간 정렬 시뮬레이션을 차례로 시연한다.
-8. 안내 화면의 카메라 보조 카드, 남은 거리 미니맵, **다음 경유지 안내**, **현재 안내 다시 듣기**, **일시 정지**를 시연한다.
-9. **P0 긴급 알림 시험**으로 일반 경로 안내보다 긴급 메시지가 먼저 출력되는 것을 보여준다.
-10. 걸음을 멈춘 뒤 **카메라 열기**를 눌러 사용자 요청형 장면 설명을 시연한다.
-11. 카메라 설명, 공간 정렬과 경로가 모두 해커톤 시뮬레이션이며 안전을 보장하지 않는다는 문구를 발표에서 명시한다.
+1. Open the app with VoiceOver/TalkBack as appropriate. Confirm the greeting, large voice orb and destination input.
+2. Enable **Demo destination data** for an offline walkthrough. Search `Morgridge`, `도서관`, or `학생회관`.
+3. Select the result. Hear the destination confirmation and press **Find routes** (or say `yes`).
+4. Compare three explicitly simulated cards: flat, shortest (stairs), reviewed. Noise status is fresh/stale/unknown fixture data, not a live measurement.
+5. Select an option and press **Start navigating**. No location or camera permission is required in this demo.
+6. Exercise **Next simulated waypoint**, **Repeat**, **Pause/Resume**, and **Test priority alert (simulation)**. The last waypoint confirms a simulated arrival.
+7. Open camera assistance while stopped, allow camera permission, and start the local model. Return to navigation. Actual descriptions require a supported native device; they do not infer distance or a clear path.
+8. In Settings, check/delete interaction records and turn recording off. Voice/haptics are required; flat-route preference and live noise sensing are not available yet.
+9. For live testing, disable demo mode, configure the server and Google keys, select a UW building, confirm its street address, request routes from the current position, prepare the camera, and start GPS guidance. Do this with a sighted tester.
 
-## 오류 복구 리허설
+## Failure rehearsal
 
-- `존재하지 않는 건물`을 입력하면 목적지 결과 화면으로 이동하지 않고 검증된 목적지 목록을 안내하는지 확인한다.
-- 백엔드를 끈 상태에서는 서버 오류처럼 보이지 않고 명시적인 데모 경로 배너가 나타나는지 확인한다.
-- 위치 권한을 거절하면 정확한 회전 방향 없이 수동 확인형 시뮬레이션을 시작할 수 있는지 확인한다.
-- 카메라 권한을 거절해도 화면이 종료되지 않고 권한의 사용 목적과 재요청 버튼을 제공하는지 확인한다.
-- 카메라 결과에 `불확실성 높음`과 안전 경고가 화면과 음성으로 모두 제공되는지 확인한다.
-
-## 발표 시 정확한 표현
-
-- “장애물을 피하게 해준다” 대신 “향후 장애물 후보를 감지하여 경고하도록 설계했다.”
-- “안전한 경로” 대신 “팀이 사전에 검토한 데모 보행 경로”라고 설명한다.
-- 소음은 정확한 군중 수가 아니라 휴대폰으로 측정한 상대적 환경값이라고 설명한다.
-- 현재 카메라 응답은 프레임 분석을 연결하기 전의 명시적인 데모 응답이다.
+- Unknown destination: no invented route; edit and retry.
+- Offline backend: explicit search error; enable demo manually if desired.
+- Missing Routes key/token: visible server error, no fallback to live-looking fixtures.
+- Location denied or inaccurate: no precise live turn instruction; retry permissions/location.
+- Camera denied: remain in-app, retry through system settings or return.
+- App backgrounded: stop camera/location guidance and require explicit resume.
+- Stale GPS: withhold turn cues. No assumption of arrival at an accessible entrance.

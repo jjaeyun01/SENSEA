@@ -1,197 +1,62 @@
-export type NavigationStep = {
-  id: string;
-  instruction: string;
-  distanceMeters: number;
-  priority: 0 | 1 | 2 | 3;
-};
+export type Place = { id: string; name: string; latitude: number; longitude: number; entrance_waypoint: string; entrance_notes: string; verification_status: 'demo' | 'verified' | 'unknown' };
+export type RouteSegment = { edge_id: string; from: string; to: string; distance_m: number; instruction: string; pedestrian_verified: true };
+export type RouteOption = { id: string; label: string; distance_m: number; relative_noise: number | null; noise_data_status: 'measured' | 'stale' | 'unknown'; noise_freshness_minutes: number | null; segments: RouteSegment[] };
+export type VisionResult = { description: string; recognized_text: string | null; uncertainty: number; provider_mode: string; image_retained: false };
 
-export type RouteOption = {
-  id: string;
-  routeType: 'shortest' | 'flat' | 'safe';
-  name: string;
-  summary: string;
-  durationMinutes: number;
-  distanceMeters: number;
-  hasStairs: boolean;
-  noiseLevel: '낮음' | '보통' | '높음';
-  noiseDataStatus: 'fresh' | 'stale' | 'unknown';
-  verificationStatus: 'verified-demo';
-  dataFreshness: string;
-  uncertainty: string;
-  steps: NavigationStep[];
-};
-
-export type SceneDescription = {
-  description: string;
-  uncertainty: '낮음' | '보통' | '높음';
-  isDemo: boolean;
-};
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:8000';
-
-const DEMO_DESTINATION_ALIASES: Record<string, string> = {
-  학생회관: '학생회관',
-  '학생 회관': '학생회관',
-  도서관: '도서관',
-  중앙도서관: '도서관',
-  공학관: '공학관',
-  Morgridge: 'Morgridge Hall',
-  'Morgridge Hall': 'Morgridge Hall',
-  '모그리지 홀': 'Morgridge Hall',
-};
-
-export function getVerifiedDemoDestination(destination: string): string | null {
-  return DEMO_DESTINATION_ALIASES[destination.trim()] ?? null;
-}
-
-const DEMO_ROUTES: RouteOption[] = [
-  {
-    id: 'flat-safe',
-    routeType: 'flat',
-    name: '평지 우선 경로',
-    summary: '계단 없이 검토된 보행로를 이용하며 측정 소음이 더 낮습니다.',
-    durationMinutes: 5,
-    distanceMeters: 360,
-    hasStairs: false,
-    noiseLevel: '낮음',
-    noiseDataStatus: 'fresh',
-    verificationStatus: 'verified-demo',
-    dataFreshness: '오늘 측정한 데모 데이터',
-    uncertainty: '현재 공사나 일시적 장애물은 반영되지 않을 수 있습니다.',
-    steps: [
-      { id: 'f1', instruction: '정면 12시 방향으로 80미터 직진하세요.', distanceMeters: 80, priority: 3 },
-      { id: 'f2', instruction: '10미터 앞에서 2시 방향 오른쪽 길로 이동합니다.', distanceMeters: 10, priority: 2 },
-      { id: 'f3', instruction: '횡단보도 앞입니다. 신호와 주변 교통을 직접 확인하세요.', distanceMeters: 3, priority: 1 },
-      { id: 'f4', instruction: '학생회관 정문 근처에 도착했습니다.', distanceMeters: 0, priority: 2 },
-    ],
-  },
-  {
-    id: 'fast',
-    routeType: 'shortest',
-    name: '가장 짧은 경로',
-    summary: '이동 시간은 짧지만 중간에 계단이 포함됩니다.',
-    durationMinutes: 3,
-    distanceMeters: 240,
-    hasStairs: true,
-    noiseLevel: '보통',
-    noiseDataStatus: 'stale',
-    verificationStatus: 'verified-demo',
-    dataFreshness: '7일 전 측정한 오래된 소음 데이터',
-    uncertainty: '소음 정보가 오래되었고 계단과 GPS 오차 때문에 수동 확인이 필요할 수 있습니다.',
-    steps: [
-      { id: 'q1', instruction: '정면 12시 방향으로 50미터 직진하세요.', distanceMeters: 50, priority: 3 },
-      { id: 'q2', instruction: '3미터 앞에 내리막 계단이 시작됩니다. 난간을 확인하세요.', distanceMeters: 3, priority: 1 },
-      { id: 'q3', instruction: '계단을 내려온 뒤 9시 방향 왼쪽으로 이동하세요.', distanceMeters: 0, priority: 2 },
-      { id: 'q4', instruction: '학생회관 측면 입구 근처에 도착했습니다.', distanceMeters: 0, priority: 2 },
-    ],
-  },
-  {
-    id: 'safe',
-    routeType: 'safe',
-    name: '안전 우선 검토 경로',
-    summary: '팀이 확인한 보행 구간과 횡단보도를 우선하지만 현재 안전을 보장하지 않습니다.',
-    durationMinutes: 6,
-    distanceMeters: 410,
-    hasStairs: false,
-    noiseLevel: '보통',
-    noiseDataStatus: 'unknown',
-    verificationStatus: 'verified-demo',
-    dataFreshness: '일부 구간의 소음 데이터 없음',
-    uncertainty: '현재 공사, 차량, 신호 상태와 임시 장애물은 반영되지 않습니다.',
-    steps: [
-      { id: 's1', instruction: '검토된 보행로를 따라 다음 경유지까지 이동하세요.', distanceMeters: 90, priority: 3 },
-      { id: 's2', instruction: '10미터 앞 횡단보도입니다. 앱만으로 횡단 여부를 판단하지 마세요.', distanceMeters: 10, priority: 1 },
-      { id: 's3', instruction: '횡단 후 다음 검증된 랜드마크로 이동하세요.', distanceMeters: 120, priority: 2 },
-      { id: 's4', instruction: '학생회관 정문 근처의 검증 지점에 도착했습니다.', distanceMeters: 0, priority: 2 },
-    ],
-  },
+export const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'http://127.0.0.1:8000';
+const DEMO_PLACES: Place[] = [
+  { id: 'library', name: 'Memorial Library', latitude: 43.0752, longitude: -89.3971, entrance_waypoint: 'library_entrance', entrance_notes: 'Demo north entrance; verification required before field use.', verification_status: 'demo' },
+  { id: 'student_center', name: 'Campus Student Center', latitude: 43.07465, longitude: -89.398, entrance_waypoint: 'student_center_entrance', entrance_notes: 'Demo east entrance; verification required before field use.', verification_status: 'demo' },
+  { id: 'science_hall', name: 'Science Hall', latitude: 43.07565, longitude: -89.39625, entrance_waypoint: 'science_entrance', entrance_notes: 'Demo south entrance; verification required before field use.', verification_status: 'demo' },
 ];
 
-function demoRoutesFor(destination: string): RouteOption[] {
-  return DEMO_ROUTES.map((route) => ({
-    ...route,
-    steps: route.steps.map((step, index) => (
-      index === route.steps.length - 1
-        ? {
-            ...step,
-            instruction: `${destination} ${route.routeType === 'shortest' ? '측면 입구' : '정문'} 근처의 검증 지점에 도착했습니다.`,
-          }
-        : step
-    )),
-  }));
-}
+export class ApiError extends Error {}
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 3500): Promise<Response> {
+async function apiFetch(path: string, init?: RequestInit, timeoutMs = 6000): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(timeout);
-  }
+    const response = await fetch(`${API_URL}${path}`, { ...init, signal: controller.signal });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as { detail?: string };
+      throw new ApiError(body.detail ?? `Request failed with status ${response.status}.`);
+    }
+    return response;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(`Cannot reach the SENSEA backend at ${API_URL}. Check EXPO_PUBLIC_API_URL and try again.`);
+  } finally { clearTimeout(timeout); }
 }
 
-export async function requestRoutes(destination: string): Promise<{
-  routes: RouteOption[];
-  source: 'server' | 'demo' | 'unavailable';
-  error?: string;
-}> {
-  const requestedDestination = destination.trim();
-  const verifiedDestination = getVerifiedDemoDestination(requestedDestination);
-  if (!verifiedDestination) {
-    return {
-      routes: [],
-      source: 'unavailable',
-      error: `'${requestedDestination}'은 현재 검증된 데모 목적지가 아닙니다. Morgridge Hall, 학생회관, 도서관 또는 공학관을 선택해주세요.`,
-    };
+export async function searchPlaces(query: string, demoMode = false): Promise<Place[]> {
+  if (demoMode) {
+    const needle = query.trim().toLowerCase();
+    return DEMO_PLACES.filter((place) => place.name.toLowerCase().includes(needle) || place.id.includes(needle));
   }
-
-  try {
-    const response = await fetchWithTimeout(`${API_URL}/routes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ destination: verifiedDestination }),
-    });
-
-    if (response.status === 404) {
-      const data = (await response.json().catch(() => null)) as { detail?: unknown } | null;
-      const detail = typeof data?.detail === 'string'
-        ? data.detail
-        : '검증된 경로가 없는 목적지입니다.';
-      return { routes: [], source: 'unavailable', error: detail };
-    }
-    if (!response.ok) throw new Error(`Route request failed with ${response.status}`);
-    const data = (await response.json()) as { routes?: RouteOption[] };
-    if (!Array.isArray(data.routes) || data.routes.length === 0) {
-      throw new Error('No routes returned');
-    }
-    return { routes: data.routes, source: 'server' };
-  } catch {
-    return { routes: demoRoutesFor(verifiedDestination), source: 'demo' };
-  }
+  const response = await apiFetch(`/places?q=${encodeURIComponent(query)}`);
+  return ((await response.json()) as { places: Place[] }).places;
 }
 
-export async function requestSceneDescription(): Promise<SceneDescription> {
-  try {
-    const response = await fetchWithTimeout(`${API_URL}/vision/describe`, { method: 'POST' });
-    if (!response.ok) throw new Error(`Vision request failed with ${response.status}`);
-    const data = (await response.json()) as {
-      description?: string;
-      uncertainty?: SceneDescription['uncertainty'];
-      is_demo?: boolean;
-    };
-    if (!data.description) throw new Error('No description returned');
-    return {
-      description: data.description,
-      uncertainty: data.uncertainty ?? '높음',
-      isDemo: data.is_demo ?? false,
-    };
-  } catch {
-    return {
-      description: '데모 설명입니다. 정면에 건물 출입구로 보이는 문과 오른쪽 벽면의 표지판이 있습니다.',
-      uncertainty: '높음',
-      isDemo: true,
-    };
-  }
+export async function getRoutes(request: { start_waypoint: string; end_waypoint: string; noise_preference: 'shortest' | 'quiet' }): Promise<RouteOption[]> {
+  const response = await apiFetch('/routes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
+  return ((await response.json()) as { routes: RouteOption[] }).routes;
+}
+
+export async function submitNoiseMeasurement(request: { edge_id: string; relative_noise: number; consent: true }): Promise<void> {
+  await apiFetch('/noise', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
+}
+
+export async function describeImage(uri: string, expectedPlace?: string): Promise<VisionResult> {
+  const form = new FormData();
+  form.append('image', { uri, name: 'sensea-still.jpg', type: 'image/jpeg' } as unknown as Blob);
+  if (expectedPlace) form.append('expected_place', expectedPlace);
+  const response = await apiFetch('/vision/describe', { method: 'POST', body: form }, 15000);
+  return (await response.json()) as VisionResult;
+}
+
+export async function transcribeAudio(uri: string): Promise<string> {
+  const form = new FormData();
+  form.append('audio', { uri, name: 'sensea-command.m4a', type: 'audio/mp4' } as unknown as Blob);
+  const response = await apiFetch('/speech/transcribe', { method: 'POST', body: form }, 15000);
+  return ((await response.json()) as { transcript: string }).transcript;
 }
