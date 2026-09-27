@@ -48,7 +48,7 @@ const assistant = new LatestVisionController({
   }),
   makeRequestId: () => Crypto.randomUUID(),
   stopSpeech: () => Speech.stop(),
-  speak: text => Speech.speak(text, { language: "ko-KR" }),
+  speak: text => Speech.speak(text, { language: "en-US" }),
   onResult: result => setCameraResult(result),
   onError: error => showAccessibleError(error.message),
 });

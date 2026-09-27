@@ -50,7 +50,7 @@ export class LatestVisionController {
   ensureFresh(token) {
     const age = this.now() - token.startedAt;
     if (!Number.isFinite(age) || age < 0 || age > this.maxResultAgeMs) {
-      throw new VisionRequestError("expired_result", "사진을 찍은 뒤 시간이 지났습니다. 다시 촬영해 주세요.");
+      throw new VisionRequestError("expired_result", "This photo is too old. Please take another photo.");
     }
   }
 
@@ -87,15 +87,15 @@ export class LatestVisionController {
   }
 
   async request({ expectedPlace } = {}) {
-    if (this.disposed) throw new VisionRequestError("disposed", "카메라 화면이 닫혔습니다.");
+    if (this.disposed) throw new VisionRequestError("disposed", "The camera screen is closed.");
     if (this.cleanupFailed) {
-      throw new VisionRequestError("photo_cleanup_failed", "임시 사진 정리를 확인한 뒤 다시 시작해 주세요.");
+      throw new VisionRequestError("photo_cleanup_failed", "Check that temporary photos were removed before restarting.");
     }
     if (!this.externalProcessingConsent) {
-      throw new VisionRequestError("external_consent_required", "외부 AI로 사진을 보내는 데 동의가 필요합니다.");
+      throw new VisionRequestError("external_consent_required", "Consent is required to send photos to an external AI service.");
     }
     if (!this.stationary) {
-      throw new VisionRequestError("stationary_required", "이동을 멈춘 뒤 촬영해 주세요.");
+      throw new VisionRequestError("stationary_required", "Stop moving before taking a photo.");
     }
     this.generation += 1;
     this.activeAbort?.abort();
@@ -122,7 +122,7 @@ export class LatestVisionController {
       photo = await pendingCapture;
       if (!this.isCurrent(token)) return null;
       this.ensureFresh(token);
-      if (!photo) throw new VisionRequestError("capture_failed", "사진을 촬영하지 못했습니다.");
+      if (!photo) throw new VisionRequestError("capture_failed", "Could not take a photo.");
       const result = await this.describe({
         photo, requestId, expectedPlace, signal: abort.signal, externalProcessingConsent: true,
       });
@@ -155,7 +155,7 @@ export class LatestVisionController {
           this.generation += 1;
           this.activeAbort?.abort();
           await this.enqueueSpeech(() => this.stopSpeech()).catch(() => {});
-          this.onError(new VisionRequestError("photo_cleanup_failed", "임시 사진을 지우지 못했습니다. 앱의 임시 파일을 확인해 주세요."));
+          this.onError(new VisionRequestError("photo_cleanup_failed", "Could not delete a temporary photo. Check the app's temporary files."));
         }
       }
     }
@@ -163,7 +163,7 @@ export class LatestVisionController {
 }
 
 function speechText(result, requestId) {
-  const invalid = () => new VisionRequestError("invalid_response", "사진 설명 응답을 확인하지 못했습니다.");
+  const invalid = () => new VisionRequestError("invalid_response", "Could not validate the photo description response.");
   if (!result || result.request_id !== requestId || result.navigation_safe !== false) throw invalid();
   if (result.status === "retake" && result.quality?.status === "retake") {
     const reasons = ["low_resolution", "too_dark", "too_bright", "low_detail"];
@@ -182,7 +182,7 @@ function speechText(result, requestId) {
     ) throw invalid();
     const text = result.description;
     if (typeof text === "string" && text.trim() && text.length <= 600) {
-      return result.uncertainty === "high" ? "사진만으로 확실하게 알 수 없습니다. " + text : text;
+      return result.uncertainty === "high" ? "The photo alone is not enough to be certain. " + text : text;
     }
   }
   throw invalid();

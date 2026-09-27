@@ -102,26 +102,26 @@ export function assessRgbQuality(buffer, sourceWidth, sourceHeight) {
   return { status: reason ? "retake" : "usable", reason };
 }
 
-const KOREAN = {
-  person: "사람", bicycle: "자전거", car: "자동차", motorcycle: "오토바이",
-  bus: "버스", truck: "트럭", train: "기차", "traffic light": "신호등",
-  "stop sign": "정지 표지판", bench: "벤치", chair: "의자", dog: "개", cat: "고양이",
-  backpack: "가방", umbrella: "우산", suitcase: "여행 가방",
-  "potted plant": "화분", "fire hydrant": "소화전", "parking meter": "주차 요금기",
-  couch: "소파", "dining table": "식탁", bed: "침대", handbag: "손가방",
+const DISPLAY_LABELS = {
+  person: "Person", bicycle: "Bicycle", car: "Car", motorcycle: "Motorcycle",
+  bus: "Bus", truck: "Truck", train: "Train", "traffic light": "Traffic light",
+  "stop sign": "STOP sign", bench: "Bench", chair: "Chair", dog: "Dog", cat: "Cat",
+  backpack: "Backpack", umbrella: "Umbrella", suitcase: "Suitcase",
+  "potted plant": "Potted plant", "fire hydrant": "Fire hydrant", "parking meter": "Parking meter",
+  couch: "Couch", "dining table": "Dining table", bed: "Bed", handbag: "Handbag",
 };
-export function labelInKorean(label) { return KOREAN[label] ?? label; }
+export function displayLabel(label) { return DISPLAY_LABELS[label] ?? label.replace(/_/g, " ").replace(/^./, first => first.toUpperCase()); }
 
 export function describeResult(result) {
   const qualityMessages = {
-    too_dark: "영상이 어둡습니다. 조명과 렌즈 가림을 확인해 주세요.",
-    too_bright: "영상이 너무 밝습니다. 강한 빛이 들어오는지 확인해 주세요.",
-    low_detail: "영상의 세부 정보가 부족합니다. 초점과 촬영 대상을 확인해 주세요.",
-    low_resolution: "영상 크기를 확인해 주세요.",
+    too_dark: "The image is too dark. Check the lighting and whether the lens is covered.",
+    too_bright: "The image is too bright. Check for glare or strong light.",
+    low_detail: "The image lacks detail. Check the focus and what the camera is pointing at.",
+    low_resolution: "Check the camera image resolution.",
   };
-  if (result.quality.reason) return qualityMessages[result.quality.reason] ?? "촬영 상태를 확인해 주세요.";
-  const labels = [...new Set(result.detections.map(item => labelInKorean(item.label)))].slice(0, 3);
-  return labels.length ? labels.join(", ") + "이 보입니다." : "사물을 식별하지 못했습니다. 사물이 없다는 뜻은 아닙니다.";
+  if (result.quality.reason) return qualityMessages[result.quality.reason] ?? "Check the camera view.";
+  const labels = [...new Set(result.detections.map(item => displayLabel(item.label)))].slice(0, 3);
+  return labels.length ? "Detected: " + labels.join(", ") + "." : "No objects identified. Objects may still be present.";
 }
 
 export function isFreshResult(result, now) {

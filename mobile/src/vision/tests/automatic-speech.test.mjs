@@ -17,7 +17,7 @@ test("people stay in results and manual replay while automatic descriptions rema
     const value = frame(at), original = structuredClone(value);
     assert.equal(gate.offer(value, at), null);
     assert.deepEqual(value, original);
-    assert.match(describeResult(value), /사람/);
+    assert.match(describeResult(value), /Person/);
   }
 });
 
@@ -26,7 +26,7 @@ test("a person does not consume cooldown or interrupt a stable other-object desc
   gate.offer(frame(0), 0);
   assert.equal(gate.offer(frame(200), 200), null);
   assert.equal(gate.offer(frame(400, ["person", "bench"]), 400), null);
-  assert.equal(gate.offer(frame(600, ["bench"]), 600), "벤치이 보입니다.");
+  assert.equal(gate.offer(frame(600, ["bench"]), 600), "Detected: Bench.");
   assert.equal(gate.offer(frame(5000, ["person", "bench"]), 5000), null);
 });
 
@@ -34,7 +34,7 @@ test("people do not suppress camera quality guidance", () => {
   const gate = new AnnouncementGate();
   const value = { ...frame(0), quality: { status: "retake", reason: "too_dark" } };
   assert.equal(gate.offer(value, 0), null);
-  assert.match(gate.offer(value, 200), /어둡/);
+  assert.match(gate.offer(value, 200), /too dark/);
 });
 
 test("a close-looking person remains a tracked priority and haptic cue without automatic speech", () => {
@@ -46,7 +46,7 @@ test("a close-looking person remains a tracked priority and haptic cue without a
   }
   assert.equal(value.hazards[0].label, "person");
   assert.equal(value.hazards[0].level, "priority");
-  assert.match(value.summary, /사람/);
+  assert.match(value.summary, /Person/);
   assert.equal(hasPriorityObstacle(value.hazards), true);
   assert.deepEqual(automaticWarnings(value), []);
   assert.equal(gate.getDiagnostics().entryCount, 0);
@@ -63,12 +63,12 @@ test("a higher-ranked person leaves voice priority and cooldown available to oth
   const mixed = { ...value, observedAt: 600, hazards: [value.hazards[0], other] };
   const original = structuredClone(mixed);
   const speech = gate.offer(mixed, 600);
-  assert.match(speech, /자동차/);
-  assert.doesNotMatch(speech, /사람/);
+  assert.match(speech, /Car/);
+  assert.doesNotMatch(speech, /Person/);
   assert.deepEqual(mixed, original);
   assert.equal(automaticWarnings(mixed).some(item => item.level === "priority"), false);
   assert.equal(gate.getDiagnostics().entryCount, 1);
   assert.equal(gate.offer({ ...mixed, observedAt: 800 }, 800), null);
   assert.match(gate.offer({ ...mixed, observedAt: 1000,
-    hazards: [mixed.hazards[0], { ...other, level: "priority" }] }, 1000), /^우선 주의/);
+    hazards: [mixed.hazards[0], { ...other, level: "priority" }] }, 1000), /^High alert/);
 });

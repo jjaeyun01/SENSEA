@@ -10,7 +10,7 @@ smoke = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(smoke)
 
 
-def screen(analysis="사물 분석 중", camera="● 실시간 카메라 켜짐"):
+def screen(analysis="Analyzing objects", camera="● Live camera on"):
     root = ET.Element("hierarchy")
     ET.SubElement(root, "node", {"resource-id": "com.sensea.app:id/camera-state", "text": camera})
     ET.SubElement(root, "node", {"resource-id": "com.sensea.app:id/analysis-state", "text": analysis})
@@ -27,20 +27,20 @@ class InferenceOracleTests(unittest.TestCase):
 
     def test_current_session_needs_both_live_preview_and_running_analysis(self):
         self.assertEqual(smoke.analysis_ready(screen(), smoke.INFERENCE_MARKER, 0), 1)
-        self.assertIsNone(smoke.analysis_ready(screen(analysis="새 영상 분석을 기다립니다."), smoke.INFERENCE_MARKER, 0))
-        self.assertIsNone(smoke.analysis_ready(screen(camera="카메라 꺼짐"), smoke.INFERENCE_MARKER, 0))
+        self.assertIsNone(smoke.analysis_ready(screen(analysis="Waiting for a new frame analysis."), smoke.INFERENCE_MARKER, 0))
+        self.assertIsNone(smoke.analysis_ready(screen(camera="Camera off"), smoke.INFERENCE_MARKER, 0))
 
     def test_failure_states_never_pass_even_after_successful_inference(self):
-        failures = ["사물 분석을 중지했습니다. 실시간 카메라 화면은 계속 표시합니다.",
-                    "사물 분석을 준비하지 못했습니다. 실시간 카메라 화면은 사용할 수 있습니다.",
-                    "사물 분석을 사용할 수 없습니다. 카메라 화면은 계속 표시합니다.",
-                    "이 기기는 현재 사물 분석 방식을 지원하지 않습니다."]
+        failures = ["Object analysis stopped. The live camera view will stay on.",
+                    "Could not prepare object analysis. The live camera view is still available.",
+                    "Object analysis is unavailable. The camera view will stay on.",
+                    "Object analysis is not supported on this device."]
         for failure in failures:
             with self.subTest(failure=failure), self.assertRaisesRegex(AssertionError, "Native frame analysis failed"):
                 smoke.analysis_ready(screen(analysis=failure), smoke.INFERENCE_MARKER, 0)
 
     def test_failure_is_detected_before_log_polling(self):
-        with patch.object(smoke, "hierarchy", return_value=screen(analysis="사물 분석을 중지했습니다.")), \
+        with patch.object(smoke, "hierarchy", return_value=screen(analysis="Object analysis stopped.")), \
              patch.object(smoke, "adb") as adb:
             with self.assertRaisesRegex(AssertionError, "Native frame analysis failed"):
                 smoke.wait_for_analysis(0, "first start")

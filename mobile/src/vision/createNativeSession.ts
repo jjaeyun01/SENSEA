@@ -18,7 +18,7 @@ export async function createNativeSession(
   onError: (message: string) => void,
   onAnalysisError: (message: string) => void,
 ): Promise<NativeSession> {
-  if (occupied) throw new Error("이전 카메라를 정리하고 있습니다. 잠시 후 다시 시도해 주세요.");
+  if (occupied) throw new Error("The previous camera session is closing. Please try again shortly.");
   occupied = true;
   let preview: CameraPreviewOutput | undefined;
   try {
@@ -37,10 +37,10 @@ export async function createNativeSession(
     let active: ReturnType<typeof createSynchronizable<boolean>> | undefined;
     let cleanupFailed = false;
     const errors = camera.addOnErrorListener(() => {
-      if (!stopped) onError("카메라 연결에 실패했습니다. 다른 앱에서 카메라를 사용 중인지 확인해 주세요.");
+      if (!stopped) onError("Camera connection failed. Check whether another app is using it.");
     });
     const interruptions = camera.addOnInterruptionStartedListener(() => {
-      if (!stopped) onError("카메라가 일시 중단되었습니다. 다시 켜 주세요.");
+      if (!stopped) onError("The camera was interrupted. Please turn it on again.");
     });
     const configurePreview = () => camera.configure([{
       input: "back", outputs: [{ output: previewOutput, mirrorMode: "off" }], constraints: [],
@@ -77,7 +77,7 @@ export async function createNativeSession(
         await starting;
         if (stopped) return;
         if (!useCpuRgb && !isResizerAvailable()) {
-          onAnalysisError("이 기기는 현재 사물 분석 방식을 지원하지 않습니다. 실시간 카메라 화면은 사용할 수 있습니다.");
+          onAnalysisError("Object analysis is not supported on this device. The live camera view is still available.");
           return;
         }
         // Android release require() resolves to a raw resource name, but
@@ -130,7 +130,7 @@ export async function createNativeSession(
         };
         const failAnalysis = (reason: string) => {
           console.warn("[SENSEA] Frame analysis stopped", reason);
-          if (!stopped) onAnalysisError("사물 분석을 중지했습니다. 실시간 카메라 화면은 계속 표시합니다.");
+          if (!stopped) onAnalysisError("Object analysis stopped. The live camera view will stay on.");
         };
         await new Promise<void>((resolve, reject) => {
           scheduleOnRuntime(runtime, () => {
@@ -191,8 +191,8 @@ export async function createNativeSession(
         if (!stopped) {
           // If attaching an analysis output failed, restore the plain preview.
           try { await configurePreview(); }
-          catch { onError("카메라 미리보기를 연결하지 못했습니다. 다시 켜 주세요."); return; }
-          onAnalysisError("사물 분석을 준비하지 못했습니다. 실시간 카메라 화면은 사용할 수 있습니다.");
+          catch { onError("Could not connect the camera preview. Please turn it on again."); return; }
+          onAnalysisError("Could not prepare object analysis. The live camera view is still available.");
         }
       }
     };
@@ -230,7 +230,7 @@ export async function createNativeSession(
           try { await releaseAnalysis(); } catch { cleanupFailed = true; }
           try { previewOutput.dispose(); } catch { cleanupFailed = true; }
           occupied = cleanupFailed;
-          if (cleanupFailed) throw new Error("카메라 정리를 완료하지 못했습니다. 앱을 다시 실행해 주세요.");
+          if (cleanupFailed) throw new Error("Could not finish releasing the camera. Please restart the app.");
         })();
         return closing;
       },

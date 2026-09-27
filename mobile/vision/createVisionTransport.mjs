@@ -24,7 +24,7 @@ export function createVisionTransport({
   const endpoint = url.toString().replace(/\/+$/, "") + "/vision/describe";
   return async ({ photo, requestId, expectedPlace, signal, externalProcessingConsent = false }) => {
     if (externalProcessingConsent !== true) {
-      throw new VisionRequestError("external_consent_required", "외부 AI로 사진을 보내는 데 동의가 필요합니다.");
+      throw new VisionRequestError("external_consent_required", "Consent is required to send photos to an external AI service.");
     }
     const body = formDataFactory();
     body.append("image", {
@@ -48,14 +48,14 @@ export function createVisionTransport({
     // Let fetch set the multipart boundary; never include an OpenAI key here.
     if (!response.ok) {
       const messages = {
-        401: "사진 설명 서비스의 인증이 필요합니다.",
-        429: "잠시 후 카메라 설명을 다시 요청해 주세요.",
-        503: "카메라 설명 서비스가 아직 연결되지 않았습니다.",
-        504: "카메라 설명 시간이 초과되었습니다.",
+        401: "Authentication is required for the photo description service.",
+        429: "Please request another camera description shortly.",
+        503: "The camera description service is not connected yet.",
+        504: "The camera description request timed out.",
       };
       throw new VisionRequestError(
         "http_" + response.status,
-        messages[response.status] ?? "사진 설명 요청을 완료하지 못했습니다.",
+        messages[response.status] ?? "Could not complete the photo description request.",
       );
     }
     return response.json();

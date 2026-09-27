@@ -7,11 +7,11 @@ const frame=(at,seconds=9,label="pedestrian_signal")=>({receivedAt:at,quality:"u
 const read=(mode,seconds)=>{const tracker=new CrossingTracker();tracker.update(frame(0,seconds),mode,0);return tracker.update(frame(600,seconds),mode,600);};
 test("under ten countdown requires repeat observation and advises a waiting user to wait",()=>{
  const tracker=new CrossingTracker();assert.equal(tracker.update(frame(0),"waiting",0).status,"confirming");
- const result=tracker.update(frame(600),"waiting",600);assert.equal(result.seconds,9);assert.equal(result.status,"short_countdown");assert.match(result.text,/다음 보행 신호/);assert.equal(result.navigation_safe,false);
+ const result=tracker.update(frame(600),"waiting",600);assert.equal(result.seconds,9);assert.equal(result.status,"short_countdown");assert.match(result.text,/next WALK signal/);assert.equal(result.navigation_safe,false);
 });
-test("a countdown above ten is not permission to begin",()=>{const result=read("waiting",15);assert.equal(result.status,"dont_start");assert.match(result.text,/새로 건너지/);});
+test("a countdown above ten is not permission to begin",()=>{const result=read("waiting",15);assert.equal(result.status,"dont_start");assert.match(result.text,/Do not start crossing/);});
 test("crossing and unknown modes never get an unconditional wait-in-the-road instruction",()=>{
- assert.doesNotMatch(read("crossing",9).text,/기다려|되돌아/);assert.match(read("unknown",9).text,/아직 건너기 전이라면/);
+ assert.doesNotMatch(read("crossing",9).text,/wait|turn back/i);assert.match(read("unknown",9).text,/If you have not started crossing/);
 });
 test("19 to 9 OCR error and numbers outside the selected signal never trigger short countdown",()=>{
  const tracker=new CrossingTracker();tracker.update(frame(0,19),"waiting",0);assert.equal(tracker.update(frame(600,9),"waiting",600).seconds,null);
@@ -29,7 +29,7 @@ test("multiple signals require target selection and disappearance clears the dis
  tracker.update(a,"waiting",0);assert.equal(tracker.update({...a,receivedAt:600},"waiting",600).seconds,9);
  assert.equal(tracker.update({...frame(800),detections:[]},"waiting",800).seconds,null);
 });
-test("WALK is an observation, never safe crossing certification",()=>{const t=new CrossingTracker();t.update(frame(0,null,"walk_signal"),"waiting",0);const r=t.update(frame(600,null,"walk_signal"),"waiting",600);assert.equal(r.status,"walk_observed");assert.equal(r.navigation_safe,false);assert.doesNotMatch(r.text,/건너세요|안전합니다/);});
+test("WALK is an observation, never safe crossing certification",()=>{const t=new CrossingTracker();t.update(frame(0,null,"walk_signal"),"waiting",0);const r=t.update(frame(600,null,"walk_signal"),"waiting",600);assert.equal(r.status,"walk_observed");assert.equal(r.navigation_safe,false);assert.doesNotMatch(r.text,/cross now|safe to cross/i);});
 test("stale, future and unusable input discard signal evidence",()=>{
  for(const [f,now] of [[frame(0),1001],[frame(200),100],[{...frame(0),quality:"retake"},0]])assert.equal(new CrossingTracker().update(f,"waiting",now).status,"unknown");
 });
@@ -53,7 +53,7 @@ test("elapsed time or one direction alone cannot complete a scan",()=>{
 test("left/right/left confirmed observations complete without a go instruction",()=>{
  const s=new StopScan();s.start(scanFrame(0),"waiting",0);let r;
  for(const [at,yaw] of [[200,145],[600,145],[1000,215],[1400,215],[1800,145],[2200,145]])r=s.update(scanFrame(at,yaw),"waiting",at);
- assert.equal(r.status,"observed");assert.equal(r.observations.length,3);assert.equal(r.navigation_safe,false);assert.doesNotMatch(r.text,/건너세요|안전합니다/);
+ assert.equal(r.status,"observed");assert.equal(r.observations.length,3);assert.equal(r.navigation_safe,false);assert.doesNotMatch(r.text,/cross now|safe to cross/i);
 });
 test("scan cancels on stale heading, unavailable quality or crossing mode",()=>{
  for(const [f,mode,now] of [[{...scanFrame(700),headingAt:0},"waiting",700],[{...scanFrame(100),quality:"retake"},"waiting",100],[scanFrame(100),"crossing",100]]){
@@ -63,4 +63,16 @@ test("scan cancels on stale heading, unavailable quality or crossing mode",()=>{
 
 test("STOP cannot start from a low-quality frame even with an old-looking valid box",()=>{
  assert.equal(new StopScan().start({...scanFrame(100),quality:"retake"},"waiting",100).status,"unavailable");
+});
+
+
+test("English countdown uses singular seconds and still tells a waiting user not to start", () => {
+  const one = read("waiting", 1), zero = read("waiting", 0);
+  assert.match(one.text, /shows 1 second\./);
+  assert.match(zero.text, /shows 0 seconds\./);
+  for (const result of [one, zero]) {
+    assert.equal(result.status, "short_countdown");
+    assert.match(result.text, /Do not start crossing\. Wait for the next WALK signal\./);
+    assert.equal(result.navigation_safe, false);
+  }
 });

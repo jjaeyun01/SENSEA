@@ -1,147 +1,147 @@
 [
   {
     "label": "streetlight",
-    "name": "가로등",
+    "name": "Streetlight",
     "prompt": "a street light pole"
   },
   {
     "label": "trash_can",
-    "name": "쓰레기통",
+    "name": "Trash can",
     "prompt": "a trash can"
   },
   {
     "label": "bicycle_rack",
-    "name": "자전거 거치대",
+    "name": "Bicycle rack",
     "prompt": "a bicycle parking rack"
   },
   {
     "label": "bicycle_locker",
-    "name": "자전거 보관함",
+    "name": "Bicycle locker",
     "prompt": "a bicycle storage locker"
   },
   {
     "label": "bollard",
-    "name": "볼라드",
+    "name": "Bollard",
     "prompt": "a bollard on a sidewalk"
   },
   {
     "label": "flowerbed",
-    "name": "화단",
+    "name": "Flowerbed",
     "prompt": "a raised flower bed"
   },
   {
     "label": "construction_cone",
-    "name": "공사 콘",
+    "name": "Construction cone",
     "prompt": "a traffic cone"
   },
   {
     "label": "barricade",
-    "name": "공사 차단물",
+    "name": "Construction barrier",
     "prompt": "a construction barricade"
   },
   {
     "label": "utility_pole",
-    "name": "전선주",
+    "name": "Utility pole",
     "prompt": "a utility pole"
   },
   {
     "label": "e_scooter",
-    "name": "전동 킥보드",
+    "name": "E-scooter",
     "prompt": "an electric kick scooter"
   },
   {
     "label": "stairs",
-    "name": "계단",
+    "name": "Stairs",
     "prompt": "stairs"
   },
   {
     "label": "curb",
-    "name": "연석",
+    "name": "Curb",
     "prompt": "a street curb"
   },
   {
     "label": "open_manhole",
-    "name": "열린 맨홀",
+    "name": "Open manhole",
     "prompt": "an open manhole"
   },
   {
     "label": "low_branch",
-    "name": "나뭇가지",
+    "name": "Tree branch",
     "prompt": "a tree branch"
   },
   {
     "label": "awning",
-    "name": "차양",
+    "name": "Awning",
     "prompt": "an awning"
   },
   {
     "label": "open_window",
-    "name": "열린 창문",
+    "name": "Open window",
     "prompt": "an open window"
   },
   {
     "label": "pedestrian_signal",
-    "name": "보행 신호",
+    "name": "Pedestrian signal",
     "prompt": "a pedestrian crossing signal"
   },
   {
     "label": "walk_signal",
-    "name": "보행자 표시 후보",
+    "name": "Possible WALK symbol",
     "prompt": "a pedestrian walk signal showing a white walking person"
   },
   {
     "label": "dont_walk_signal",
-    "name": "손 표시 후보",
+    "name": "Possible DON'T WALK symbol",
     "prompt": "a pedestrian crossing signal showing an orange hand"
   },
   {
     "label": "stop sign",
-    "name": "STOP 표지",
+    "name": "STOP sign",
     "prompt": "a stop sign"
   },
   {
     "label": "person",
-    "name": "사람",
+    "name": "Person",
     "prompt": "a person"
   },
   {
     "label": "bicycle",
-    "name": "자전거",
+    "name": "Bicycle",
     "prompt": "a bicycle"
   },
   {
     "label": "car",
-    "name": "자동차",
+    "name": "Car",
     "prompt": "a car"
   },
   {
     "label": "truck",
-    "name": "트럭",
+    "name": "Truck",
     "prompt": "a truck"
   },
   {
     "label": "bus",
-    "name": "버스",
+    "name": "Bus",
     "prompt": "a bus"
   },
   {
     "label": "motorcycle",
-    "name": "오토바이",
+    "name": "Motorcycle",
     "prompt": "a motorcycle"
   },
   {
     "label": "dog",
-    "name": "개",
+    "name": "Dog",
     "prompt": "a dog"
   },
   {
     "label": "bench",
-    "name": "벤치",
+    "name": "Bench",
     "prompt": "a bench"
   },
   {
     "label": "potted plant",
-    "name": "화분",
+    "name": "Potted plant",
     "prompt": "a potted plant"
   }
 ]

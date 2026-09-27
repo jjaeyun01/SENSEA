@@ -17,9 +17,9 @@ export const HAZARD_LIMITS = Object.freeze({
 });
 
 const VEHICLES = new Set(["bicycle", "car", "motorcycle", "bus", "truck", "train"]);
-const DIRECTIONS = { left: "화면 왼쪽", center: "화면 중앙", right: "화면 오른쪽" };
-const NONE = "위험 요소를 관찰 중입니다. 감지되지 않은 위험이 있을 수 있습니다.";
-const UNAVAILABLE = "현재 영상으로 위험 요소를 판단할 수 없습니다.";
+const DIRECTIONS = { left: "left of the image", center: "center of the image", right: "right of the image" };
+const NONE = "Observing possible hazards. Undetected hazards may be present.";
+const UNAVAILABLE = "Cannot assess hazards from the current image.";
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const fromEnd = (items, offset = 1) => items[items.length - offset];
 const center = b => ({ x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2 });
@@ -54,32 +54,31 @@ function centralLargeVehicle(sample) {
 function describeHazard(hazard) {
   const position = DIRECTIONS[hazard.direction];
   const label = hazardLabel(hazard.label);
-  const lead = hazard.level === "priority" ? "우선 주의. " : hazard.level === "notice" ? "참고. " : "주의. ";
-  const ending = label.charCodeAt(label.length - 1) - 0xac00;
-  const subject = label + (ending >= 0 && ending <= 11171 && ending % 28 ? "이" : "가");
+  const lead = hazard.level === "priority" ? "High alert. " : hazard.level === "notice" ? "Notice. " : "Caution. ";
+  const target = `${label}, ${position}. `;
   if (hazard.reasons.includes("toward_screen_center")) {
-    return `${lead}${position}의 ${label} 영상이 화면 중앙 쪽으로 이동하고 있습니다.`;
+    return lead + target + "Moving toward the center of the image.";
   }
-  if (hazard.level === "notice") return `${lead}${position}에 ${subject} 반복해서 보입니다. 이동 가능 여부는 판단하지 않습니다.`;
+  if (hazard.level === "notice") return lead + target + "Repeatedly detected. This does not establish a clear path.";
   if (hazard.reasons.includes("apparent_growth")) {
-    return `${lead}${position}에서 ${label}의 영상 크기가 커지고 있습니다. 실제 거리는 알 수 없습니다.`;
+    return lead + target + "Appears larger in successive images. Actual distance is unknown.";
   }
   if (hazard.reasons.includes("peripheral_motion")) {
-    return `${lead}${position}에서 ${label}의 영상 위치가 빠르게 바뀌고 있습니다.`;
+    return lead + target + "Changing position quickly in the image.";
   }
   if (hazard.reasons.includes("large_image_footprint")) {
-    return `${lead}${position}에 크게 보이는 ${subject} 있습니다.`;
+    return lead + target + "Occupies a large part of the image.";
   }
-  return `${lead}${position} 아래쪽에 ${subject} 반복해서 보입니다.`;
+  return lead + target + "Repeatedly detected low in the image.";
 }
 // Keep automatic speech brief; full evidence/limitations remain in the screen summary.
 function describeHazardForSpeech(hazard) {
-  const lead = hazard.level === "priority" ? "우선 주의. " : hazard.level === "notice" ? "참고. " : "주의. ";
-  const target = `${DIRECTIONS[hazard.direction]} ${hazardLabel(hazard.label)}. `;
-  const cue = hazard.reasons.includes("toward_screen_center") ? "화면 중앙 쪽으로 움직입니다." :
-    hazard.reasons.includes("apparent_growth") ? "화면에서 커져 보입니다." :
-    hazard.reasons.includes("peripheral_motion") ? "화면에서 위치가 바뀝니다." :
-    hazard.reasons.includes("large_image_footprint") ? "화면에 크게 보입니다." : "아래쪽에 보입니다.";
+  const lead = hazard.level === "priority" ? "High alert. " : hazard.level === "notice" ? "Notice. " : "Caution. ";
+  const target = `${hazardLabel(hazard.label)}, ${DIRECTIONS[hazard.direction]}. `;
+  const cue = hazard.reasons.includes("toward_screen_center") ? "Moving toward image center." :
+    hazard.reasons.includes("apparent_growth") ? "Appearing larger." :
+    hazard.reasons.includes("peripheral_motion") ? "Changing image position." :
+    hazard.reasons.includes("large_image_footprint") ? "Large in the image." : "Low in the image.";
   return lead + target + cue;
 }
 function cloneAssessment(value) {

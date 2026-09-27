@@ -13,7 +13,7 @@ export function boxOverlap(a, b) {
   const area = x => (x.right-x.left)*(x.bottom-x.top);
   return intersection / (area(a)+area(b)-intersection || 1);
 }
-const unknown = () => ({ status: "unknown", text: "보행 신호를 확인하지 못했습니다.", seconds: null, target: null, navigation_safe: false });
+const unknown = () => ({ status: "unknown", text: "Pedestrian signal not identified.", seconds: null, target: null, navigation_safe: false });
 function inside(b, region) {
   const x=(b.left+b.right)/2,y=(b.top+b.bottom)/2;
   return x>=region.left && x<=region.right && y>=region.top && y<=region.bottom;
@@ -37,7 +37,7 @@ export class CrossingTracker {
     if(this.selected) head=heads.filter(d=>boxOverlap(d.box,this.selected)>=.35).sort((a,b)=>boxOverlap(b.box,this.selected)-boxOverlap(a.box,this.selected))[0];
     else if(heads.length===1) head=heads[0];
     if(!head) {
-      this.history=[]; this.value={...unknown(),status:heads.length>1?"select_target":"unknown",text:heads.length>1?"여러 보행 신호가 보입니다. 확인할 신호를 선택해 주세요.":"보행 신호를 확인하지 못했습니다."};
+      this.history=[]; this.value={...unknown(),status:heads.length>1?"select_target":"unknown",text:heads.length>1?"Multiple pedestrian signals detected. Select the signal to check.":"Pedestrian signal not identified."};
       return structuredValue(this.value);
     }
     if(this.history.length && (frame.receivedAt-this.history.at(-1).at>1800 || boxOverlap(head.box,this.history.at(-1).box)<.35)) this.history=[];
@@ -57,15 +57,15 @@ export class CrossingTracker {
     const numberStable=stable && seconds!==null && prior.seconds!==null &&
       prior.seconds-seconds>=0 && prior.seconds-seconds<=Math.ceil((last.at-prior.at)/1000)+1;
     const symbolStable=stable && symbol!=="unknown" && prior.symbol===symbol;
-    let status="confirming",text="보행 신호를 반복 확인 중입니다.";
+    let status="confirming",text="Checking repeated pedestrian signal observations.";
     if(numberStable || (symbolStable && symbol==="hand")) {
       status=numberStable && seconds<10?"short_countdown":"dont_start";
-      const reading=numberStable?`보행 신호 숫자 ${seconds}초가 보입니다. `:"보행 정지 표시가 보입니다. ";
-      text=mode==="crossing"?reading+"횡단 중 안내입니다. 주변 차량에 주의하세요.":
-        mode==="waiting"?reading+"새로 건너지 말고 다음 보행 신호를 기다려 주세요.":
-        reading+"아직 건너기 전이라면 다음 보행 신호를 기다려 주세요.";
+      const reading=numberStable?`The signal shows ${seconds} ${seconds === 1 ? "second" : "seconds"}. `:"A DON'T WALK symbol is visible. ";
+      text=mode==="crossing"?reading+"You selected Crossing. Watch for nearby traffic.":
+        mode==="waiting"?reading+"Do not start crossing. Wait for the next WALK signal.":
+        reading+"If you have not started crossing, wait for the next WALK signal.";
     } else if(symbolStable && symbol==="walk") {
-      status="walk_observed"; text="보행자 표시가 보입니다. 회전 차량과 주변 상황을 확인해 주세요.";
+      status="walk_observed"; text="A WALK symbol is visible. Check for turning vehicles and your surroundings.";
     }
     this.value={status,text,seconds:numberStable?seconds:null,target:{...head.box},observedAt:frame.receivedAt,navigation_safe:false};
     return structuredValue(this.value);
@@ -78,25 +78,25 @@ export class StopScan {
   reset() { this.active=false;this.step=0;this.base=null;this.samples=0;this.firstAt=0;this.lastAt=-Infinity;this.startedAt=0;this.observations=[]; }
   start(frame, mode, now=Date.now()) {
     this.reset();
-    if(mode!=="waiting") return {status:"unavailable",text:"도로에 들어가기 전 대기 상태에서 스캔을 시작해 주세요.",navigation_safe:false};
+    if(mode!=="waiting") return {status:"unavailable",text:"Select Waiting on sidewalk and start the scan before entering the road.",navigation_safe:false};
     if(!frame || frame.quality!=="usable" || !fresh(frame.receivedAt,now) || !fresh(frame.headingAt,now,500) || !Number.isFinite(frame.heading) || !(frame.headingAccuracy>=1))
-      return {status:"unavailable",text:"휴대폰 방향을 확인할 수 없습니다.",navigation_safe:false};
+      return {status:"unavailable",text:"Phone orientation is unavailable.",navigation_safe:false};
     if(!(frame.detections??[]).slice(0,24).some(d=>d.label==="stop sign" && d.score>=.25 && validBox(d.box)))
-      return {status:"unavailable",text:"최신 영상에서 STOP 표지를 확인하지 못했습니다.",navigation_safe:false};
+      return {status:"unavailable",text:"No STOP sign identified in the latest frame.",navigation_safe:false};
     this.active=true;this.base=frame.heading;this.startedAt=now;
     return this.describe();
   }
   describe() {
     return {status:this.active?"scanning":this.step===3?"observed":"idle",step:this.step,
-      text:this.active?["제자리에서 카메라를 왼쪽으로 돌려 주세요.","이번에는 카메라를 오른쪽으로 돌려 주세요.","왼쪽을 다시 확인해 주세요."][this.step]:
-        this.step===3?"좌우 관찰을 마쳤습니다. 보이지 않는 차량이나 재출발 차량이 있을 수 있습니다. 횡단 가능 여부는 확인하지 못했습니다.":"STOP 표지에서 주변 스캔을 시작할 수 있습니다.",
+      text:this.active?["Stay in place and turn the camera to the left.","Now turn the camera to the right.","Check the left again."][this.step]:
+        this.step===3?"Left-right-left scan complete. Unseen vehicles or stopped vehicles may move. Crossing clearance has not been established.":"You can start a surroundings scan at a STOP sign.",
       observations:this.observations.map(o=>({...o})),navigation_safe:false};
   }
   update(frame,mode,now=Date.now()) {
     if(!this.active) return this.describe();
     if(mode!=="waiting" || !frame || !fresh(frame.receivedAt,now) || !fresh(frame.headingAt,now,500) || frame.quality!=="usable" ||
       !Number.isFinite(frame.heading) || !(frame.headingAccuracy>=1) || now-this.startedAt>20000) {
-      this.reset();return {status:"unavailable",text:"관찰이 끊겨 스캔을 중지했습니다. 제자리에서 다시 시작해 주세요.",navigation_safe:false};
+      this.reset();return {status:"unavailable",text:"Scan stopped because observations were interrupted. Stay in place and restart.",navigation_safe:false};
     }
     if(frame.receivedAt<=this.lastAt) return this.describe();
     this.lastAt=frame.receivedAt;
@@ -107,7 +107,7 @@ export class StopScan {
     if(this.samples<2 || frame.receivedAt-this.firstAt<200) return this.describe();
     const seen=(frame.detections??[]).slice(0,24).filter(d=>vehicles.has(d.label)&&d.score>=.2&&validBox(d.box));
     this.observations.push({direction:this.step===1?"right":"left",at:frame.receivedAt,vehicles:seen.length,
-      text:seen.length?`화면에 차량·자전거 후보 ${seen.length}개가 보입니다.`:"화면에서 차량을 식별하지 못했습니다. 차량이 없다는 뜻은 아닙니다."});
+      text:seen.length?`Possible vehicles or bicycles in the image: ${seen.length}.`:"No vehicles identified in the image. Vehicles may still be present."});
     this.step++;this.samples=0;this.firstAt=0;
     if(this.step===3) this.active=false;
     return this.describe();
