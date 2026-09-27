@@ -30,7 +30,7 @@ function useCameraController() {
   const [hazard, setHazard] = useState<HazardAssessment | null>(null);
   const latestAssessment = useRef<HazardAssessment | null>(null);
   const tracker = useRef(new HazardTracker());
-  const hazardGate = useRef(new HazardAnnouncementGate());
+  const hazardGate = useRef(new HazardAnnouncementGate({ includePeople: true }));
   const gate = useRef(new AnnouncementGate());
   const close = useCallback(() => {
     wanted.current = false; latest.current = null; latestAssessment.current = null; owned.current?.pause(); gate.current.reset(); tracker.current.reset(); hazardGate.current.reset(); stopFeedback();

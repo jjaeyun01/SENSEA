@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import {
   getRecordingPermissionsAsync,
   requestRecordingPermissionsAsync,
@@ -8,6 +8,7 @@ import {
   type AudioStreamBuffer,
 } from 'expo-audio';
 
+import { registerFeedbackAudioControl } from '../navigation/feedback';
 import { calculateDbfs, classifyDbfs, dbfsToProgress, type NoiseBand } from './noiseLevel';
 
 type PermissionState = 'unknown' | 'requesting' | 'granted' | 'denied';
@@ -124,6 +125,15 @@ export function NoiseMonitorProvider({ children }: { children: ReactNode }) {
   const resume = useCallback((reason: string) => {
     if (suspended.current.delete(reason)) setSuspensionVersion(value => value + 1);
   }, []);
+  useEffect(() => registerFeedbackAudioControl({
+    suspend: () => suspend('spoken-feedback'), resume: () => resume('spoken-feedback'),
+    prepare: async () => {
+      if (Platform.OS === 'ios') await new Promise(resolve => setTimeout(resolve, 150));
+      if (!suspended.current.has('spoken-feedback')) return;
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true, shouldPlayInBackground: false, shouldRouteThroughEarpiece: false });
+    },
+  }), [suspend, resume]);
+
   const setEnabled = useCallback(async (next: boolean) => {
     setEnabledState(next);
     setError(null);

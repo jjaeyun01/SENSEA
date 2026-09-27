@@ -32,6 +32,9 @@ export default function RoutesScreen() {
     {orderedRoutes.some(route => route.source === 'offline-cache') && <View accessibilityRole="alert" style={styles.offline}><Text style={styles.offlineTitle}>OFFLINE ROUTE</Text><Text style={styles.offlineText}>Using a route saved on this device. Conditions and closures may have changed.</Text></View>}
     <Text style={styles.intro}>Compare walking options. Stairs, slopes and current conditions are unverified.</Text>
     {error && <View accessibilityRole="alert" style={styles.error}><View style={styles.errorIcon}><Text style={styles.errorIconText}>!</Text></View><Text style={styles.errorTitle}>We couldn’t load routes</Text><Text style={styles.errorText}>{error}</Text><LargeActionButton label="Try again" onPress={() => void load()} /><LargeActionButton label="Change destination" onPress={() => { journey.reset(); router.replace('/'); }} variant="ghost" /></View>}
+    {!error && <LargeActionButton label={journey.listening ? 'Listening… Say “one” or “two”' : 'Choose a route by voice'}
+      onPress={() => { if (journey.listening) journey.stopListening(); else void journey.listen(); }} variant="ghost" />}
+    <Text accessibilityLiveRegion="polite" style={styles.intro}>{journey.message}</Text>
     <View style={styles.routeList}>
       {orderedRoutes.map((route, index) => {
         const shortest = orderedRoutes.reduce<RouteOption | undefined>((best, item) => !best || item.distance_m < best.distance_m ? item : best, undefined);

@@ -304,7 +304,7 @@ export class HazardTracker {
 
 /** Bounded speech decisions; caller replaces current speech, never queues it. */
 export class HazardAnnouncementGate {
-  constructor() { this.reset(); }
+  constructor({ includePeople = false } = {}) { this.includePeople = includePeople; this.reset(); }
   reset() {
     this.pending = null;
     this.entries = [];
@@ -329,7 +329,7 @@ export class HazardAnnouncementGate {
     if (assessment.observedAt <= this.lastFrameAt) return null;
     this.lastFrameAt = assessment.observedAt;
     // Informational side objects remain on screen/manual replay and never interrupt warnings.
-    const hazards = automaticWarnings(assessment).slice(0, HAZARD_LIMITS.maxHazards);
+    const hazards = (this.includePeople ? assessment.hazards.filter(item => item.level !== "notice") : automaticWarnings(assessment)).slice(0, HAZARD_LIMITS.maxHazards);
     const activeIds = new Set(hazards.map(h => h.trackId));
     this.entries = this.entries.filter(entry => now - entry.seenAt <= 12000);
     for (const entry of this.entries) {

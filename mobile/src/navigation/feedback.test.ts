@@ -4,7 +4,7 @@ vi.mock('react-native', () => ({ Platform: mocks.os, AccessibilityInfo: { announ
 vi.mock('expo-speech', () => ({ speak: mocks.speak, stop: mocks.stop }));
 vi.mock('expo-speech-recognition', () => ({ ExpoSpeechRecognitionModule: { abort: vi.fn() } }));
 vi.mock('./audit', () => ({ recordEvent: vi.fn() }));
-import { announce, stopFeedback, setFeedbackScreenReader } from './feedback';
+import { announce, stopFeedback, setFeedbackScreenReader, registerFeedbackAudioControl } from './feedback';
 beforeEach(() => { stopFeedback(); setFeedbackScreenReader(false); mocks.os.OS='android'; vi.useRealTimers(); vi.clearAllMocks(); });
 it('drops a camera observation that expires while speech is stopping', async () => {
   let fresh = true;
@@ -64,4 +64,17 @@ it('duplicate completion callbacks do not consume the next pending announcement'
  announce('second',2); first.onDone(); first.onStopped(); await Promise.resolve();
  expect(done).toHaveBeenCalledOnce();
  expect(mocks.speak.mock.calls.map(call=>call[0])).toEqual(['first','second']);
+});
+
+
+it('holds the noise microphone until a priority warning finishes', async () => {
+ const suspend=vi.fn(),resume=vi.fn();
+ const unregister=registerFeedbackAudioControl({suspend,resume});
+ try {
+   announce('High alert',0); await Promise.resolve();
+   expect(suspend).toHaveBeenCalledOnce(); expect(resume).not.toHaveBeenCalled();
+   mocks.speak.mock.calls.at(-1)![1].onStart();
+   mocks.speak.mock.calls.at(-1)![1].onDone();
+   expect(resume).toHaveBeenCalledOnce();
+ } finally { unregister(); }
 });

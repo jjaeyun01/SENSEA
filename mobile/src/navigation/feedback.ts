@@ -6,6 +6,11 @@ import type { DirectionHaptic } from './direction';
 
 type Delivery = { onDelivered?: () => void; onDropped?: () => void; haptic?: DirectionHaptic };
 type Notice = Delivery & { text: string; priority: number; at: number; language: string; done?: () => void; valid?: () => boolean; record: boolean; delivered: boolean };
+let audioControl: { suspend: () => void; resume: () => void; prepare?: () => Promise<void> } | null = null;
+export function registerFeedbackAudioControl(control: typeof audioControl) {
+  audioControl = control;
+  return () => { if (audioControl === control) audioControl = null; };
+}
 let active: Notice | null = null;
 let queue: Notice[] = [];
 let generation = 0;
@@ -32,7 +37,7 @@ export function stopFeedback() {
   generation++; clearCompletion();
   if (active) drop(active);
   queue.forEach(drop); queue = []; active = null;
-  Vibration.cancel(); void Speech.stop();
+  Vibration.cancel(); void Speech.stop(); audioControl?.resume();
 }
 export function announce(text: string, priority = 3, language = "en-US", done?: () => void, record = true, isValid?: () => boolean, delivery: Delivery = {}) {
   const notice: Notice = { text, priority, language, at: Date.now(), done, valid: isValid, record, delivered: false, ...delivery };
@@ -44,6 +49,7 @@ export function announce(text: string, priority = 3, language = "en-US", done?: 
   }
   if (active) drop(active);
   clearCompletion();
+  audioControl?.suspend();
   Recognition.abort();
   const token = ++generation; active = notice;
   const delivered = () => {
@@ -65,13 +71,15 @@ export function announce(text: string, priority = 3, language = "en-US", done?: 
       // Keep the remaining queue; only the selected item leaves it.
       play(next); break;
     }
+    if (!active) audioControl?.resume();
   };
   function play(next: Notice) {
     // Preserve original age and delivery metadata when dispatching queued items.
     announce(next.text, next.priority, next.language, next.done, next.record,
       () => valid(next), { onDelivered: next.onDelivered, onDropped: next.onDropped, haptic: next.haptic });
   }
-  void Speech.stop().then(() => {
+  const ready = audioControl?.prepare ? audioControl.prepare().then(() => Speech.stop()) : Speech.stop();
+  void ready.then(() => {
     if (token !== generation) return;
     if (!valid(notice)) { finish(); return; }
     Vibration.vibrate(vibrationPattern(notice.haptic, priority));

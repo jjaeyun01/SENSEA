@@ -442,12 +442,12 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     const text = event.results[0]?.transcript?.trim();
     if (!text) return;
     speechWanted.current = false; Recognition.stop(); recordEvent("voice_transcript", text);
-    const command = text.toLowerCase().replace(/[.!?,]+$/g, "");
+    const command = text.toLowerCase().replace(/[.!?,]+$/g, "").replace(/\s+/g, " ").trim();
     if (/^(stop|pause)$/.test(command)) { pause(); return; }
     if (command === "repeat") { say(lastMessage.current); return; }
     if (command === "back" || command === "no") { reset(); return; }
     if (busy) { say("Please wait for the current request."); return; }
-    const choice = command.match(/^(?:option )?(one|two|three|[1-9]|[12][0-9]|30)$/);
+    const choice = command.match(/^(?:(?:option|route|select|choose)(?: (?:route|option))? )?(one|two|three|[1-9]|[12][0-9]|30)$/);
     const index = choice ? (["one", "two", "three"].includes(choice[1]) ? ["one", "two", "three"].indexOf(choice[1]) : Number(choice[1]) - 1) : -1;
     if (stage === "search") {
       if (index >= 0 && places[index]) selectPlace(places[index]);
