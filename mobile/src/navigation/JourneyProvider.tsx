@@ -77,11 +77,9 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
   useEffect(() => {
     mounted.current = true;
     void getRecording().then(value => { if (mounted.current) setRecordingState(value); }).catch(() => { if (mounted.current) setMessage("Interaction recording is unavailable."); });
-    const timer = setTimeout(() => say("SENSEA is now running. Where would you like to go?", 3, () => {
-      // Automatically listen only after the user has previously granted OS permissions.
-      void Recognition.getPermissionsAsync().then(result => {
-        if (mounted.current && stageRef.current === "search" && result.granted && AppState.currentState === "active") void listen();
-      }).catch(() => {});
+    const timer = setTimeout(() => say("SENSEA is now running. Voice controls are active. Where would you like to go?", 3, () => {
+      // Ask once on first launch, then prepare voice input automatically on later launches.
+      if (mounted.current && stageRef.current === "search" && AppState.currentState === "active") void listen();
     }), 700);
     return () => { mounted.current = false; clearTimeout(timer); revision.current++; active.current?.abort(); stopTracking(); stopFeedback(); Recognition.abort(); };
   }, [listen, say, stopTracking]);

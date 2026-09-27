@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/src/components/AppHeader';
+import { BottomNav } from '@/src/components/BottomNav';
 import { LargeActionButton } from '@/src/components/LargeActionButton';
 import { useJourney } from '@/src/navigation/JourneyProvider';
 import { colors, radii, spacing, typography } from '@/src/theme';
@@ -12,7 +13,7 @@ export default function SettingsScreen() {
   const [licenses, setLicenses] = useState(false);
   const [saved, setSaved] = useState(false);
   const recording = () => { void journey.toggleRecording().then(() => setSaved(true)).catch(() => journey.say('Could not save recording preference.')); };
-  return <ScrollView style={styles.root} contentContainerStyle={[styles.container, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 30 }]} showsVerticalScrollIndicator={false}>
+  return <View style={styles.root}><ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 126 }]} showsVerticalScrollIndicator={false}>
     <AppHeader title="Settings" eyebrow="GUIDANCE PREFERENCES" onBack={() => router.back()} />
     <View style={styles.list}>
       <Setting title="Voice feedback" description="Required for guidance. Uses the screen reader when enabled." value={true} onChange={() => {}} disabled />
@@ -27,7 +28,7 @@ export default function SettingsScreen() {
     <LargeActionButton label={licenses ? "Hide open-source notices" : "Open-source notices"} onPress={() => setLicenses(!licenses)} variant="ghost" />
     {licenses && <Text style={styles.settingDescription}>{notices.text}</Text>}
     <Text style={styles.settingDescription}>Speech recognition may use Apple or Google services. Search terms go to UW. Current position and destination go to Google for routing. Camera frames are processed on-device.</Text>
-  </ScrollView>;
+  </ScrollView><BottomNav active="profile" /></View>;
 }
 
 function Setting({ title, description, value, onChange, children, disabled = false }: { title: string; description: string; value: boolean; onChange: (value: boolean) => void; children?: React.ReactNode; disabled?: boolean }) {

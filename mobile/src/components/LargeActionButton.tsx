@@ -50,8 +50,8 @@ export function LargeActionButton({
       ]}
     >
       <View style={styles.content} accessible={false}>
-        {loading ? <ActivityIndicator color={variant === 'primary' ? colors.primaryText : colors.text} /> : icon}
-        <Text style={[styles.label, variant === 'primary' ? styles.primaryLabel : styles.lightLabel]} numberOfLines={2}>
+        {loading ? <ActivityIndicator color={variant === 'primary' || variant === 'danger' ? colors.white : colors.text} /> : icon}
+        <Text style={[styles.label, variant === 'primary' ? styles.primaryLabel : variant === 'danger' ? styles.dangerLabel : variant === 'ghost' ? styles.ghostLabel : styles.lightLabel]} numberOfLines={2}>
           {label}
         </Text>
       </View>
@@ -101,6 +101,12 @@ const styles = StyleSheet.create({
   },
   lightLabel: {
     color: colors.text,
+  },
+  dangerLabel: {
+    color: colors.white,
+  },
+  ghostLabel: {
+    color: colors.primary,
   },
   pressed: {
     opacity: 0.78,
