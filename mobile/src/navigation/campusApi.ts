@@ -1,6 +1,6 @@
 export type Point = { latitude: number; longitude: number };
-export type ArrivalTarget = Point & { verifiedEntrance: boolean; kind: 'verified_entrance' | 'building_representative_point' };
-export type Place = { id: string; name: string; address?: string | null; source?: 'uw' | 'demo'; entrance?: Point | null; entranceVerified?: boolean } & Partial<Point>;
+export type ArrivalTarget = Point & { verifiedEntrance: boolean; kind: 'verified_entrance' | 'building_representative_point'; accuracyM?: number | null; surveyedAt?: string | null; description?: string | null };
+export type Place = { id: string; name: string; address?: string | null; source?: 'uw' | 'demo'; entrance?: (Point & { accuracyM: number; surveyedAt: string; description: string }) | null; entranceVerified?: boolean } & Partial<Point>;
 export type Route = { id: string; label?: string; distance_m: number; duration_seconds: number; encoded_polyline: string;
   source?: 'google' | 'demo'; hasStairs?: boolean; noiseStatus?: 'fresh' | 'stale' | 'unknown';
   relativeNoise?: number; noiseCellCount?: number; noiseMeasurementCount?: number;
@@ -46,10 +46,16 @@ export function parseCampusPlaceResponse(value: unknown): Place {
   if (value.address !== null && value.address !== undefined && typeof value.address !== 'string') {
     throw new Error('The server returned an invalid building address.');
   }
-  let entrance: Point | null = null;
+  let entrance: Place['entrance'] = null;
   if (value.entrance !== null && value.entrance !== undefined) {
     if (!isObject(value.entrance)) throw new Error('The server returned an invalid entrance coordinate.');
-    entrance = { latitude: coordinate(value.entrance.latitude, 'latitude'), longitude: coordinate(value.entrance.longitude, 'longitude') };
+    if (typeof value.entrance.accuracy_m !== 'number' || !Number.isFinite(value.entrance.accuracy_m) || value.entrance.accuracy_m <= 0 || value.entrance.accuracy_m > 10 ||
+        typeof value.entrance.surveyed_at !== 'string' || !value.entrance.surveyed_at ||
+        typeof value.entrance.description !== 'string' || !value.entrance.description.trim()) {
+      throw new Error('The server returned unverified entrance metadata.');
+    }
+    entrance = { latitude: coordinate(value.entrance.latitude, 'latitude'), longitude: coordinate(value.entrance.longitude, 'longitude'),
+      accuracyM: value.entrance.accuracy_m, surveyedAt: value.entrance.surveyed_at, description: value.entrance.description.trim() };
   }
   return {
     id: buildingId(value.id),

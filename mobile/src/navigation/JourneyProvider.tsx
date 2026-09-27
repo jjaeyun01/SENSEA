@@ -14,10 +14,12 @@ import { useNoise } from '../noise/NoiseProvider';
 import { routeNoiseSummary } from '../noise/routeNoise.mjs';
 import { useNoiseMonitor } from '../noise/NoiseMonitorProvider';
 import { PositionFusion } from './positionFusion.mjs';
+import type { NavigationPosition, VerifiedVisualAlignment } from './positionFusion.mjs';
 type Stage = 'search' | 'confirm' | 'routes' | 'setup' | 'navigating' | 'paused' | 'arrived';
+type ArrivalStatus = 'none' | 'verified_entrance_nearby' | 'building_nearby';
 function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAlignment }: {
   cameraReady: boolean; requestCamera: () => void; stopCamera: () => void;
-  cameraAlignment: null | { latitude: number; longitude: number; accuracy: number; confidence: number; timestamp: number; verified: true };
+  cameraAlignment: VerifiedVisualAlignment | null;
 }) {
   const auth = useAuth();
   const noise = useNoise();
@@ -36,8 +38,9 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const [rerouting, setRerouting] = useState(false);
+  const [arrivalStatus, setArrivalStatus] = useState<ArrivalStatus>('none');
   const [recording, setRecordingState] = useState(true);
-  const [position, setPosition] = useState<Point | null>(null);
+  const [position, setPosition] = useState<NavigationPosition | null>(null);
   const revision = useRef(0);
   const active = useRef<AbortController | null>(null);
   const mounted = useRef(true);
@@ -53,6 +56,10 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
   const routeRecorded = useRef(false);
   const rerouteInFlight = useRef(false);
   const lastRerouteAt = useRef(0);
+  const rerouteController = useRef<AbortController | null>(null);
+  const rerouteGeneration = useRef(0);
+  const cameraAlignmentRef = useRef(cameraAlignment);
+  cameraAlignmentRef.current = cameraAlignment;
   const stageRef = useRef(stage);
   stageRef.current = stage;
 
@@ -75,6 +82,10 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
   }, [noise.suspendForSpeech]);
   const stopTracking = useCallback(() => {
     watchGeneration.current++;
+    rerouteGeneration.current++;
+    rerouteController.current?.abort(); rerouteController.current = null;
+    rerouteInFlight.current = false;
+    if (mounted.current) setRerouting(false);
     watcher.current?.remove(); watcher.current = null;
     motionWatcher.current?.remove(); motionWatcher.current = null;
     fusion.current.reset();
@@ -199,12 +210,13 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
       say(`${details.name}. ${details.address ? `The street address is ${details.address}.` : "The street address is not available."} Is this your destination? Say yes or tap Confirm.`, 3, () => void listen());
     });
   }
-  function prepareLiveRoutes(rawRoutes: Route[], arrivalTarget?: { latitude: number; longitude: number; verified_entrance: boolean; kind: 'verified_entrance' | 'building_representative_point' }) {
+  function prepareLiveRoutes(rawRoutes: Route[], arrivalTarget?: { latitude: number; longitude: number; verified_entrance: boolean; kind: 'verified_entrance' | 'building_representative_point'; accuracy_m?: number | null; surveyed_at?: string | null; description?: string | null }) {
     const preference = auth.currentNoisePreference();
     return rawRoutes.map((route: Route) => {
       const summary = routeNoiseSummary(route.encoded_polyline, noise.cells);
       return { ...route, source: 'google' as const,
-        ...(arrivalTarget ? { arrivalTarget: { latitude: arrivalTarget.latitude, longitude: arrivalTarget.longitude, verifiedEntrance: arrivalTarget.verified_entrance, kind: arrivalTarget.kind } } : {}),
+        ...(arrivalTarget ? { arrivalTarget: { latitude: arrivalTarget.latitude, longitude: arrivalTarget.longitude, verifiedEntrance: arrivalTarget.verified_entrance, kind: arrivalTarget.kind,
+          accuracyM: arrivalTarget.accuracy_m, surveyedAt: arrivalTarget.surveyed_at, description: arrivalTarget.description } } : {}),
         noiseStatus: summary ? 'fresh' as const : 'unknown' as const,
         ...(summary ? { relativeNoise: summary.relativeNoise, noiseCellCount: summary.cellCount, noiseMeasurementCount: summary.measurementCount } : {}) };
     }).sort((a: Route, b: Route) => {
@@ -230,8 +242,9 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
       const fix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       if (signal.aborted || !mounted.current) return;
       if (fix.coords.accuracy == null || fix.coords.accuracy > 30 || Date.now() - fix.timestamp > 10000) throw new Error("Your location is not accurate enough. Please retry outdoors.");
-      setPosition(fix.coords);
-      const result = await request<{ routes: Route[]; arrival_target?: { latitude: number; longitude: number; verified_entrance: boolean; kind: 'verified_entrance' | 'building_representative_point' } }>("/campus/routes", signal, { origin: { latitude: fix.coords.latitude, longitude: fix.coords.longitude }, destination_id: Number(destination.id) });
+      setPosition({ latitude: fix.coords.latitude, longitude: fix.coords.longitude,
+        accuracy: fix.coords.accuracy, timestamp: fix.timestamp, source: 'gps' });
+      const result = await request<{ routes: Route[]; arrival_target?: { latitude: number; longitude: number; verified_entrance: boolean; kind: 'verified_entrance' | 'building_representative_point'; accuracy_m?: number | null; surveyed_at?: string | null; description?: string | null } }>("/campus/routes", signal, { origin: { latitude: fix.coords.latitude, longitude: fix.coords.longitude }, destination_id: Number(destination.id) });
       if (signal.aborted || !mounted.current) return;
       const preference = auth.currentNoisePreference();
       const scored = prepareLiveRoutes(result.routes, result.arrival_target);
@@ -241,35 +254,49 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
   }
   function choose(route: Route) {
     recordEvent("route_selected", route.id);
-    routeRecorded.current = false; setSelected(route); setStepIndex(0); guidance.current = new Guidance(route); setStage("setup");
+    routeRecorded.current = false; setArrivalStatus('none'); setSelected(route); setStepIndex(0); guidance.current = new Guidance(route); setStage("setup");
     say("Hold your phone upright at chest level, facing forward. Turn on the camera below, then start guidance when it is ready.");
   }
   async function rerouteFrom(origin: Point) {
-    if (!destination || rerouteInFlight.current || Date.now() - lastRerouteAt.current < 30000) return;
+    if (!destination || rerouteInFlight.current) return;
+    if (Date.now() - lastRerouteAt.current < 30000) {
+      guidance.current?.clearOffRoute();
+      pause();
+      say('The replacement route also appears unreliable. Guidance is paused. Please stop and choose a route again.', 1);
+      recordEvent('reroute_cooldown_pause');
+      return;
+    }
     rerouteInFlight.current = true; lastRerouteAt.current = Date.now(); setRerouting(true);
     say('You appear to be off route. Stop while SENSEA requests a new walking route.', 1);
-    const controller = new AbortController();
+    const generation = ++rerouteGeneration.current;
+    const controller = new AbortController(); rerouteController.current = controller;
     const timeout = setTimeout(() => controller.abort(), 25000);
     try {
-      const result = await request<{ routes: Route[]; arrival_target?: { latitude: number; longitude: number; verified_entrance: boolean; kind: 'verified_entrance' | 'building_representative_point' } }>(
+      const result = await request<{ routes: Route[]; arrival_target?: { latitude: number; longitude: number; verified_entrance: boolean; kind: 'verified_entrance' | 'building_representative_point'; accuracy_m?: number | null; surveyed_at?: string | null; description?: string | null } }>(
         '/campus/routes', controller.signal,
         { origin: { latitude: origin.latitude, longitude: origin.longitude }, destination_id: Number(destination.id) },
       );
-      if (!mounted.current || controller.signal.aborted) return;
+      if (!mounted.current || controller.signal.aborted || generation !== rerouteGeneration.current) return;
       const refreshed = prepareLiveRoutes(result.routes, result.arrival_target);
       const next = refreshed[0];
       if (!next) throw new Error('No replacement walking route is available.');
-      setRoutes(refreshed); setSelected(next); setStepIndex(0); guidance.current = new Guidance(next);
+      setRoutes(refreshed); setSelected(next); setStepIndex(0); setArrivalStatus('none'); guidance.current = new Guidance(next);
       recordEvent('route_recalculated', next.id);
       say(`A new route is ready. ${next.steps[0]?.instruction ?? 'Continue only when you are ready.'}`, 1);
     } catch (error) {
-      if (!mounted.current) return;
+      if (!mounted.current || generation !== rerouteGeneration.current) return;
+      guidance.current?.clearOffRoute();
       pause();
       say(error instanceof Error && error.name !== 'AbortError'
         ? `Automatic rerouting failed. Guidance is paused. ${error.message}`
         : 'Automatic rerouting timed out. Guidance is paused. Please retry.', 1);
     } finally {
-      clearTimeout(timeout); rerouteInFlight.current = false; if (mounted.current) setRerouting(false);
+      clearTimeout(timeout);
+      if (rerouteController.current === controller) rerouteController.current = null;
+      if (generation === rerouteGeneration.current) {
+        rerouteInFlight.current = false;
+        if (mounted.current) setRerouting(false);
+      }
     }
   }
   async function start() {
@@ -282,6 +309,10 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     };
     if (selected.source === 'demo') { recordRoute(); setStage('navigating'); say(selected.steps[stepIndex]?.instruction ?? 'Simulation complete.', 2); return; }
     if (!cameraReady) { say("Prepare the camera first using the button below."); return; }
+    if (arrivalStatus !== 'none') {
+      setArrivalStatus('none');
+      guidance.current?.clearArrival();
+    }
     recordRoute();
     recordEvent("navigation_start");
     const current = ++watchGeneration.current;
@@ -303,7 +334,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
       const subscription = await Location.watchPositionAsync({ accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 1 }, fix => {
         if (current !== watchGeneration.current) return;
         lastFixAt.current = fix.timestamp;
-        const fused = fusion.current.updateGps({ ...fix.coords, accuracy: fix.coords.accuracy ?? Infinity, timestamp: fix.timestamp }, cameraAlignment);
+        const fused = fusion.current.updateGps({ ...fix.coords, accuracy: fix.coords.accuracy ?? Infinity, timestamp: fix.timestamp }, cameraAlignmentRef.current);
         setPosition(fused);
         noise.offerLocation(fused);
         const event = guidance.current?.update(fused);
@@ -315,6 +346,14 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
         if (event?.kind === 'off_route') {
           recordEvent('off_route_detected', String(Math.round(event.distance)));
           void rerouteFrom(fused);
+          return;
+        }
+        if (event?.kind === 'entrance_reached' || event?.kind === 'near_destination') {
+          setArrivalStatus(event.kind === 'entrance_reached' ? 'verified_entrance_nearby' : 'building_nearby');
+          stopTracking();
+          setStage('paused');
+          say(event.text, 1);
+          recordEvent('arrival_candidate', event.kind);
           return;
         }
         if (event) { setStepIndex(guidance.current?.step ?? 0); say(event.text, 2); recordEvent("guidance", event.kind); }
@@ -338,7 +377,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
 
   function reset() {
     revision.current++; active.current?.abort(); setBusy(false); pause();
-    setStage("search"); setQuery(""); setPlaces([]); setRoutes([]); setSelected(null); setDestination(null);
+    setStage("search"); setArrivalStatus('none'); setQuery(""); setPlaces([]); setRoutes([]); setSelected(null); setDestination(null);
     recordEvent("navigation_reset"); say("Where would you like to go?");
   }
   useSpeechRecognitionEvent("start", () => setListening(true));
@@ -376,9 +415,9 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     if (next >= selected.steps.length) { arrive(); return; }
     setStepIndex(next); say(selected.steps[next].instruction, 2); recordEvent('demo_step', String(next));
   }
-  function arrive() { pause(); setStage('arrived'); recordEvent('arrival_confirmed'); say('Arrival confirmed. Guidance stopped.'); }
+  function arrive() { pause(); setStage('arrived'); recordEvent('arrival_confirmed', arrivalStatus); say('Arrival confirmed. Guidance stopped.'); }
   function changeDemo(value: boolean) { reset(); setDemoMode(value); }
-  return { query, setQuery, recentPlaces, search: (text: string) => { setStage('search'); setQuery(text); setSearchVersion(value => value + 1); }, places, destination, routes, selected, stage, message, busy, rerouting, listening, recording,
+  return { query, setQuery, recentPlaces, search: (text: string) => { setStage('search'); setQuery(text); setSearchVersion(value => value + 1); }, places, destination, routes, selected, stage, message, busy, rerouting, arrivalStatus, listening, recording,
     position, stepIndex, demoMode, baseUrl, orderRoutes, selectPlace, confirm, choose, start, pause, reset, arrive, nextDemo,
     reviewRoutes: () => { pause(); setStage('routes'); }, changeDemo, listen, say, repeat: () => say(lastMessage.current),
     stopListening: () => { speechWanted.current = false; Recognition.abort(); },

@@ -15,6 +15,10 @@ test('fusion rejects a large GPS jump while inertial data says stationary', () =
   const second = fusion.updateGps({ latitude: 43.001, longitude: -89, accuracy: 4, timestamp: 2000 });
   assert.equal(second.latitude, first.latitude);
   assert.equal(second.source, 'inertial-jump-rejected');
+  fusion.offerMotion({ acceleration: 0.01, timestamp: 2900 });
+  const third = fusion.updateGps({ latitude: 43.001, longitude: -89, accuracy: 4, timestamp: 3000 });
+  assert.equal(third.latitude, first.latitude);
+  assert.equal(third.source, 'inertial-jump-rejected');
 });
 
 test('fusion accepts only nearby verified VPS corrections', () => {

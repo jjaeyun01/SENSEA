@@ -23,10 +23,16 @@ export function distanceToSegmentMeters(point, start, end) {
   return Math.hypot(a.x + t * dx, a.y + t * dy);
 }
 
-export function routeDistanceMeters(route, point) {
+export function routeDistanceMeters(route, point, initialStep = 0) {
   const segments = [];
-  for (const step of route.steps ?? []) {
+  const remaining = (route.steps ?? []).slice(Math.max(0, initialStep));
+  for (const step of remaining) {
     if (step.start && step.end) segments.push([step.start, step.end]);
+  }
+  const finalEnd = remaining[remaining.length - 1]?.end;
+  if (finalEnd && route.arrivalTarget &&
+      Number.isFinite(route.arrivalTarget.latitude) && Number.isFinite(route.arrivalTarget.longitude)) {
+    segments.push([finalEnd, route.arrivalTarget]);
   }
   if (!segments.length) return Infinity;
   return Math.min(...segments.map(([start, end]) => distanceToSegmentMeters(point, start, end)));
@@ -62,10 +68,15 @@ export class PositionFusion {
     if (this.last && candidate.timestamp > this.last.timestamp) {
       const elapsed = (candidate.timestamp - this.last.timestamp) / 1000;
       const jump = distanceMeters(this.last, candidate);
-      const recentMotion = this.motion && candidate.timestamp - this.motion.timestamp <= 1500;
+      const recentMotion = this.motion && candidate.timestamp >= this.motion.timestamp && candidate.timestamp - this.motion.timestamp <= 1500;
       const stationary = recentMotion && this.motion.acceleration < 0.12;
       const maximum = stationary ? Math.max(8, candidate.accuracy + this.last.accuracy) : Math.max(25, elapsed * 4 + candidate.accuracy);
-      if (jump > maximum) return { ...this.last, timestamp: candidate.timestamp, accuracy: Math.max(candidate.accuracy, this.last.accuracy), source: 'inertial-jump-rejected' };
+      if (jump > maximum) {
+        const rejected = { ...this.last, timestamp: candidate.timestamp,
+          accuracy: Math.max(candidate.accuracy, this.last.accuracy), source: 'inertial-jump-rejected' };
+        this.last = rejected;
+        return rejected;
+      }
       const weight = candidate.accuracy <= 5 ? 0.8 : 0.55;
       candidate = { ...candidate,
         latitude: this.last.latitude * (1 - weight) + candidate.latitude * weight,
