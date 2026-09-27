@@ -4,6 +4,7 @@ import hmac
 import json
 import math
 import os
+from datetime import datetime
 from html.parser import HTMLParser
 from pathlib import Path as FilePath
 from typing import Literal
@@ -37,25 +38,32 @@ class Coordinate(BaseModel):
     longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
 
 
+class SurveyedEntrance(Coordinate):
+    verified: Literal[True]
+    accuracy_m: float = Field(gt=0, le=10, allow_inf_nan=False)
+    surveyed_at: datetime
+    description: str = Field(min_length=1, max_length=300)
+
+
 class CampusPlaceDetail(CampusPlaceSummary):
     latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
     longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
     address: str | None = None
     coordinate_kind: Literal["building_representative_point"]
-    entrance: Coordinate | None = None
+    entrance: SurveyedEntrance | None = None
     entrance_verified: bool = False
 
 
-def verified_entrance(place_id: int) -> Coordinate | None:
+def verified_entrance(place_id: int) -> SurveyedEntrance | None:
     """Return only explicitly verified, manually curated entrance coordinates."""
     default = FilePath(__file__).parents[1] / "data/entrances.json"
     path = FilePath(os.getenv("SENSEA_ENTRANCES_PATH", default))
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
         item = raw.get(str(place_id))
-        if not isinstance(item, dict) or item.get("verified") is not True:
+        if not isinstance(item, dict):
             return None
-        return Coordinate.model_validate(item)
+        return SurveyedEntrance.model_validate(item)
     except (OSError, ValueError, TypeError, ValidationError):
         return None
 
@@ -176,7 +184,8 @@ async def campus_routes(body: CampusRouteRequest):
     if not key:
         raise HTTPException(503, "Google Routes API 키가 설정되지 않았습니다.")
     destination = await place_details(body.destination_id)
-    target = destination["entrance"] or Coordinate(
+    entrance = destination["entrance"]
+    target = entrance or Coordinate(
         latitude=destination["latitude"], longitude=destination["longitude"]
     )
     payload = {
@@ -253,8 +262,12 @@ async def campus_routes(body: CampusRouteRequest):
         return {
             "destination": destination,
             "arrival_target": {
-                **target.model_dump(),
+                "latitude": target.latitude,
+                "longitude": target.longitude,
                 "verified_entrance": destination["entrance_verified"],
+                "accuracy_m": entrance.accuracy_m if entrance else None,
+                "surveyed_at": entrance.surveyed_at if entrance else None,
+                "description": entrance.description if entrance else None,
                 "kind": "verified_entrance"
                 if destination["entrance_verified"]
                 else "building_representative_point",
