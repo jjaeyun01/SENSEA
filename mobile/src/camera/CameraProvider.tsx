@@ -29,9 +29,17 @@ function useCameraController() {
   const closing = useRef<Promise<void> | null>(null);
   const [hazard, setHazard] = useState<HazardAssessment | null>(null);
   const latestAssessment = useRef<HazardAssessment | null>(null);
+  const [automaticAnnouncements, setAutomaticAnnouncementsState] = useState(false);
+  const automaticSpeech = useRef(false);
   const tracker = useRef(new HazardTracker());
   const hazardGate = useRef(new HazardAnnouncementGate({ includePeople: true }));
   const gate = useRef(new AnnouncementGate());
+  const setAutomaticAnnouncements = useCallback((enabled: boolean) => {
+    automaticSpeech.current = enabled;
+    setAutomaticAnnouncementsState(enabled);
+    hazardGate.current.reset();
+    gate.current.reset();
+  }, []);
   const close = useCallback(() => {
     wanted.current = false; latest.current = null; latestAssessment.current = null; owned.current?.pause(); gate.current.reset(); tracker.current.reset(); hazardGate.current.reset(); stopFeedback();
     if (mounted.current) { setResult(null); setHazard(null); setPhase('closing'); }
@@ -57,10 +65,11 @@ function useCameraController() {
     latest.current = next; setResult(next);
     const assessment = tracker.current.update(next, Date.now());
     latestAssessment.current = assessment; setHazard(assessment);
+    if (!automaticSpeech.current) return;
     const warning = hazardGate.current.reserve(assessment, Date.now());
     if (warning) {
       announce(warning.text, warning.level === 'priority' ? 0 : 1, 'en-US', undefined, true, () =>
-        wanted.current && !!latest.current && isFreshResult(latest.current, Date.now()) &&
+        automaticSpeech.current && wanted.current && !!latest.current && isFreshResult(latest.current, Date.now()) &&
         Date.now() - assessment.observedAt <= 1000 &&
         !!latestAssessment.current?.hazards.some(item => item.trackId === warning.trackId &&
           item.direction === warning.direction && item.level === warning.level), warning);
@@ -130,7 +139,7 @@ function useCameraController() {
     if (current && isFreshResult(current, Date.now())) announce(hazard?.hazards.length ? hazard.summary : describeResult(current), 1, 'en-US');
     else announce('No fresh camera observation is available.', 1);
   };
-  return { device, session, result, hazard, previewStarted, phase, message: hazard?.hazards.length ? hazard.summary : result ? describeResult(result) : message, open, close, repeat,
+  return { automaticAnnouncements, setAutomaticAnnouncements, device, session, result, hazard, previewStarted, phase, message: hazard?.hazards.length ? hazard.summary : result ? describeResult(result) : message, open, close, repeat,
     ready: phase === 'live' && result?.quality.status === 'usable',
     // Object detection is not VPS. Only a registered provider tied to a
     // surveyed spatial map may populate this value.
@@ -146,7 +155,7 @@ export function CameraProvider({ children }: { children: ReactNode }) {
 export function useCamera() { const value = useContext(Context); if (!value) throw new Error('CameraProvider is missing'); return value; }
 export function UrbanCameraGuidance() {
   const camera = useCamera();
-  const live = useRef(false); live.current = camera.phase === 'live';
+  const live = useRef(false); live.current = camera.phase === 'live' && camera.automaticAnnouncements;
   const haptics = useRef(new CollisionHaptics({ vibrate: Vibration.vibrate, cancel: Vibration.cancel, isAllowed: () => live.current }));
   useEffect(() => {
     const timer = setInterval(() => haptics.current.tick(), 200);
@@ -157,11 +166,11 @@ export function UrbanCameraGuidance() {
     else haptics.current.clear('base');
   }, [camera.hazard]);
   if (Platform.OS !== 'android') return null;
-  return <UrbanVisionPanel live={camera.phase === 'live'} enabled={camera.ready} voice={true}
+  return <UrbanVisionPanel live={camera.phase === 'live'} enabled={camera.ready} voice={camera.automaticAnnouncements}
     baseResult={camera.result} onResult={value => { if (value) haptics.current.offer('urban', value.receivedAt, hasPriorityObstacle(value.detections)); else haptics.current.clear('urban'); }}
     say={(text, at, manual, priority, onDropped) => {
       announce(text, priority ? 0 : 2, 'en-US', undefined, true,
-        () => camera.phase === 'live' && Date.now() - at <= 1000, { onDropped });
+        () => live.current && Date.now() - at <= 1000, { onDropped });
       return true;
     }} canAnnounce={() => !isFeedbackActive()} cancel={stopFeedback} />;
 }

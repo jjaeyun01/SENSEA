@@ -481,6 +481,10 @@ const Context = createContext<Journey | null>(null);
 export function JourneyProvider({ children }: { children: ReactNode }) {
   const camera = useCamera();
   const value = useJourneyController({ cameraReady: !!camera.ready, requestCamera: camera.open, stopCamera: camera.close, cameraAlignment: camera.visualAlignment });
+  useEffect(() => {
+    camera.setAutomaticAnnouncements(value.stage === 'navigating');
+    return () => camera.setAutomaticAnnouncements(false);
+  }, [value.stage, camera.setAutomaticAnnouncements]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 export function useJourney() { const value = useContext(Context); if (!value) throw new Error('JourneyProvider missing'); return value; }
