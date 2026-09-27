@@ -1,403 +1,184 @@
-# Integrated main application
-
-The current app combines `be1`, `fr1`, `fr_num2` and `fr2`, using **fr2’s design**. See [integration details](docs/branch-integration.md), [mobile setup](mobile/README.md), and [demo script](docs/demo-script.md).
-
 # SENSEA
 
-실제 작업 정리: [DEVELOPMENT_SUMMARY — 지금까지 구현·수정·빌드·검증한 내용](DEVELOPMENT_SUMMARY.md)
+시각장애인·저시력 사용자를 위한 음성 중심 캠퍼스 보행 안내 앱입니다. 목적지 검색, 경로 비교, GPS 안내와 기기 내 카메라 관찰을 iPhone·Android에서 제공합니다.
 
-개발 진행 내역: [README1 — 구현 내용·검증 결과·설치 파일·남은 작업](README1.md)
+현재 `main`은 Expo Router 기반 앱과 FastAPI 서버를 통합한 상태입니다. 모바일 버전은 **0.4.12**이며, 아래 내용은 2026-09-27의 구현 코드를 기준으로 합니다.
 
-**현재 개발 방향 (2026-09-27):** 사용자 요청에 따라 Android에서 경로 안내보다 **카메라 기반 위험 요소 관찰**을 우선합니다. v0.4.4 소스에는 반복 탐지·화면 내 위치·영상 크기 변화로 주의 후보를 선정하는 실험적 알고리즘과 화면·음성 연결을 구현했습니다. 실제 거리·충돌 확률·횡단 가능 여부를 계산하지 않으며 실기기 인식 성능은 아직 검증하지 않았습니다. 아래는 원래 해커톤 기획을 보존한 내용입니다. 현재 구현 범위와 한계는 [위험 요소 관찰 설계](docs/hazard-awareness.md)와 README1의 최신 기록을 기준으로 확인합니다.
+## 구현된 기능
 
-**Voice-first, noise-aware navigation with optional AI visual assistance for blind and low-vision users.**
+### 목적지 검색과 사용자 정보
 
-## Implementation quick start
+- UW–Madison 건물과 건물 내부의 부서·식당·도서관·InfoLab 이름 검색.
+- 검색 결과가 하나이면 바로 경로 요청, 여러 개이면 선택 후 경로 요청. 별도의 주소 확인 단계를 줄였습니다.
+- Supabase 이메일 회원가입·로그인, Google 로그인, 세션 복원, 로그아웃.
+- 사용자 프로필·설정·저장 장소·최근 목적지·경로 기록 저장 및 조회.
+- 로그인한 사용자의 최근 목적지를 홈 상단에 표시.
+- 비밀번호 재설정·변경, 사용자 데이터 내보내기·삭제, 계정 삭제. 해당 DB migration 및 인증 공급자 설정이 필요합니다.
 
-Track implemented modules and remaining app work in [CHECKLIST.md](CHECKLIST.md).
+### 지도와 보행 경로
 
-Code is separated into two folders:
+- Google Maps 지도 표시와 Google Routes API 도보 경로 요청.
+- 대안 경로의 시간·거리 비교와 사용자 설정에 따른 순위 조정.
+- 검증된 조건이 제공된 경우 계단·경사·장애물·공사·혼합 교통·횡단 조건을 점수에 반영하고, 검증된 폐쇄 경로를 제외합니다.
+- 낮에는 신뢰 기준을 충족하는 소음 관측의 낮은 소음값을, 밤에는 조명 자료와 활동 소음 선호를 제한적으로 반영합니다.
+- 소음 반영에는 최신 관측, 경로 커버리지 70% 이상, 측정 10개 이상, 기여자 3명 이상을 요구합니다. 소음만으로 사람 수나 범죄 안전성을 판단하지 않습니다.
+- 전경 GPS 안내, 방향별 음성·진동, 일시정지·재개·다시 듣기.
+- GPS 튐 보정, 오래되거나 부정확한 위치 거부, 경로 이탈 연속 확인과 자동 재탐색.
+- 조사된 출입구 데이터가 완전할 때만 출입구 근접 판정을 사용합니다. 그 외에는 건물 대표 지점 근접으로 안내합니다.
+- 최근 경로의 기기 내 캐시와 네트워크 실패 시 복구. 캐시에는 최신 공사·폐쇄 정보가 반영되지 않을 수 있습니다.
 
-- [mobile/src/legacy/](mobile/src/legacy/README.md): preserved simulation and wake-word prototypes; not imported by the running app.
-- [backend/](backend/README.md): FastAPI server, route data, persistence, and tests.
-- [docs/](docs/team-integration.md): shared API and team integration guide.
+UW 경사도 PDF와 캠퍼스 전체 조명·장애물 자료를 실제 보행 그래프로 변환하는 작업은 완료되지 않았습니다. 순위 알고리즘이 구현되어 있어도 Google 경로에 이러한 검증 자료가 없으면 해당 조건을 확인된 것으로 표시하지 않습니다.
 
-Backend APIs and independent mobile voice/navigation/noise modules are now available.
-See [팀 연결 및 실행 가이드](docs/team-integration.md) for setup, API contracts, frontend integration, and tests.
-The included graph is fictional and simulation-only. Storage currently uses local SQLite;
-Supabase, native recording/playback adapters, camera analysis, and live GPS guidance are not yet integrated.
-The roadmap below remains the original MVP plan, not a claim that every feature is implemented.
+### 음성과 소음
 
-> Hackathon prototype · 3–4 developers · 24 hours  
-> **Safety:** SENSEA is an experimental information aid, **not** a mobility aid or obstacle-avoidance system. Do not use it to decide whether a street crossing or route is safe. Test navigation in a controlled setting, not blindfolded in traffic. A camera description is not evidence that a route is clear.
+- OS 음성 인식으로 목적지·경로 선택 및 이동 명령 처리, 텍스트·버튼 조작 대안.
+- 공유 음성 출력 제어로 안내 중복을 줄이고 음성 인식과 발화 충돌을 조정합니다.
+- 서버 음성 전사 API는 별도 OpenAI 키를 설정한 경우 사용 가능합니다.
+- 기기 내 환경 소음 측정과 사용자 동의 기반 소음지도 기여.
+- Supabase에 동의 상태와 거친 위치 격자의 숫자 측정값을 저장하고 집계 소음을 조회합니다.
+- 실측 자료가 부족한 지도에는 데모 소음 자료를 구분해서 표시하는 대체 흐름이 있습니다.
 
-## 1. Problem and solution
+휴대폰 소음값은 보정된 dB SPL 측정이 아닙니다. 마이크·음성 인식 동시 사용과 실제 오디오 출력은 기기별 검증이 필요합니다.
 
-Traditional maps optimize for time or distance, but do not always provide the hands-free interaction, nearby landmark descriptions, or environmental preferences that a blind user may want. SENSEA combines:
+### 카메라와 장애물 관찰
 
-1. **Voice-first operation:** Set a destination, compare routes, start/pause navigation, and request a repeated instruction using speech; every essential action must also work with VoiceOver/TalkBack and standard controls.
-2. **Noise-aware routes:** Collect opt-in, short-duration microphone measurements and rank *verified pedestrian routes* by travel distance and relative noise. **Noise is not a reliable crowd counter**; label routes as “lower measured noise,” not “fewer people.”
-3. **Turn-by-turn guidance:** Read verified waypoint instructions aloud; if location accuracy is poor, announce uncertainty rather than precise directions.
-4. **Optional camera assistant:** While stopped, the user requests a snapshot or periodic frame analysis to identify signs, building names, or entrances, and hears a short description. Do not promise live hazard detection, collision avoidance, or safe crossing decisions.
+- VisionCamera 실시간 후면 카메라, 영상 품질 검사, EfficientDet Lite0/TFLite 기기 내 객체 탐지.
+- 최대 5 Hz 분석 및 처리 중 프레임 폐기로 과도한 작업을 제한합니다.
+- 연속 탐지·화면 내 위치·겉보기 크기 변화·근접 후보 확인을 이용한 실험적 주의 요소 분류.
+- 객체 박스와 주의 표시, 영어 관찰 안내, 진동. 자동 음성에서 사람을 제외하는 정책은 탐지·주의 판정과 별개입니다.
+- 카메라 종료·백그라운드 전환 시 입력과 자원을 정리하고 재시도를 지원합니다.
+- Android 내비게이션 화면에는 ONNX 도시 객체 모델과 ML Kit OCR 기반 확장 분석을 연결했습니다. 보행 신호 후보·카운트다운 관찰과 STOP 주변 스캔 안내를 제공합니다.
+- Android 확장 모델은 약 99 MB이며 네이티브 Android 자산으로 복사됩니다. iOS는 기존 TFLite 분석을 사용하며 Android 확장 분석을 지원하지 않습니다.
 
-**MVP scope:** A small, manually checked campus area with 2–3 destinations, at least two route alternatives, a few measured noise segments, voice UI, simulated waypoint progression, and camera-based landmark description. No wheelchair-specific routing in this version.
+실제 거리·충돌 확률·보행 가능 공간·횡단 허가를 계산하지 않습니다. 보행 신호 숫자 인식의 최종 E2E 검증은 완료되지 않았습니다. 카메라 객체 탐지는 VPS가 아니며, 조사된 공간 지도에 연결된 실제 VPS 공급자는 기본 제공되지 않습니다.
 
-## 2. Recommended app stack
-
-**Build a mobile app with Expo + React Native + TypeScript**, not a browser-only PWA. Expo accelerates cross-platform development and allows real-phone demos. Use **FastAPI + Python** for route computation and the camera-analysis API, and **Supabase Postgres** for places, paths, and aggregate noise observations. Keep routing deterministic; use a vision-capable AI model only to *describe* snapshots, not to generate navigable paths.
-
-| Layer | Recommendation | Why |
-|---|---|---|
-| Mobile frontend | Expo, React Native, TypeScript, Expo Router | iOS/Android app, shared codebase, accessible native controls |
-| UI/accessibility | React Native `accessibilityLabel`, `accessibilityRole`, `AccessibilityInfo`; large touch targets | VoiceOver/TalkBack support |
-| Voice output | `expo-speech` | Read navigation instructions aloud |
-| Voice input | Native speech-recognition Expo-compatible module **only after verifying Expo SDK and device support**; otherwise a press-to-record flow using `expo-audio` + backend speech-to-text | Speech recognition is the main platform risk; avoid assuming browser Web Speech API works in native apps |
-| Camera | VisionCamera 5 + fast-tflite | Native Android/iOS frames with local object detection; see mobile/README.md |
-| Location | `expo-location` | GPS with reported accuracy |
-| Map | `react-native-maps` (if compatible with chosen Expo SDK) | Visual fallback for sighted/low-vision users; map must not be the sole UI |
-| Backend | FastAPI, Python 3.11+ | Clear API contracts and easy route algorithms |
-| Data | Supabase Postgres | Places, graph edges, timestamped noise summaries |
-| Camera AI | Server-side vision-capable model API | Keep API keys off the phone; return short, uncertainty-aware descriptions |
-| Deployment | Expo development build on demo phones; backend on Render/Railway/Fly.io or other available host | Avoid last-minute native module surprises |
-
-**Important native-module check:** Expo Go does not support every native library. On the first hour, test voice input and microphone metering on the *actual demo phone*. If speech recognition fails, use a large press-to-record button with backend transcription; if that also fails, use accessible typed search and preserve voice *output*.
-
-## 3. MVP features and acceptance criteria
-
-### P0 — Must ship
-
-- [ ] **Accessible home:** “Where would you like to go?”; destination search, microphone button, recent destinations. Every control has a readable label, role, and logical focus order.
-- [ ] **Voice commands:** At minimum, “Take me to [destination],” “Start navigation,” “Repeat,” “Pause,” and “Describe surroundings.” Confirm the recognized destination aloud before navigation.
-- [ ] **Campus graph:** 2–3 buildings, checked pedestrian waypoints, two alternative paths, entrance coordinates, and route descriptions. Mark unknown data as unknown.
-- [ ] **Noise-aware routing:** Opt-in measurements for at least two segments; display/announce a *relative noise index* and measurement freshness. Route alternatives must never be invented from LLM output.
-- [ ] **Guidance:** Spoken step-by-step instructions; repeat/pause; simulation mode for the demo. Handle location-permission denial and poor GPS accuracy.
-- [ ] **Camera assistant:** User-initiated still image → backend vision analysis → spoken landmark/sign/entrance description, including “I cannot tell” when uncertain. Must work without continuous video.
-- [ ] **Privacy:** No audio recording stored by default; no raw camera frames retained by default; explicit permission and clear on/off state. Coarsen or aggregate shared location observations.
-
-### P1 — Only if P0 is stable
-
-- [ ] Short-interval camera snapshots **while stationary**, with a visible/audible stop control and rate limit.
-- [ ] Optional haptic cues for simple turn notifications; never require haptics to use the app.
-- [ ] Community-submitted temporary obstructions, clearly marked **unverified** until checked.
-- [ ] Simple natural-language route explanation: “This route is 2 minutes longer but has lower measured noise.”
-
-### Out of scope for the hackathon
-
-Real-time collision avoidance; traffic-light/crosswalk safety judgments; reliable crowd-density detection from audio; unverified whole-campus navigation; guaranteed accessible/safe routes; autonomous navigation without a cane, guide dog, or existing mobility practice.
-
-## 4. User journey
-
-1. Open app; VoiceOver/TalkBack announces the main controls. App asks: “Where would you like to go?”
-2. Speak or type a destination. App repeats its interpretation and requests confirmation.
-3. Backend finds **verified pedestrian graph** paths and returns a shortest and lower-noise alternative, including uncertainty and data age.
-4. App reads both choices and lets user choose by voice or accessible buttons.
-5. Navigation reads the next waypoint instruction. If GPS accuracy is insufficient, app requests manual confirmation or offers demo simulation; it must not assert an exact turn.
-6. Near the destination, user **stops walking**, requests “Describe surroundings,” and points the phone camera. App speaks a concise landmark description and its uncertainty.
-7. User can repeat, pause, stop, or switch to manual controls at any time.
-
-## 5. Architecture
+## 데이터와 연결 구조
 
 ```text
-Expo React Native app (TypeScript)
- ├── Accessible UI / voice command controller
- ├── expo-speech (spoken feedback)
- ├── Speech-to-text adapter (native or record + backend)
- ├── expo-location (GPS + accuracy)
- ├── expo-camera (user-triggered snapshot)
- ├── Microphone noise-meter adapter (device-tested native implementation)
- └── API client
-          │ HTTPS
-          ▼
-FastAPI backend (Python)
- ├── /places             destination lookup
- ├── /routes             deterministic shortest / noise-aware paths
- ├── /noise              consented, aggregated noise observations
- ├── /vision/describe    server-side vision model
- └── /speech/transcribe  optional fallback speech-to-text
-          │
-          ▼
-Supabase Postgres
- ├── places
- ├── waypoints
- ├── path_edges
- └── noise_observations (aggregated/coarsened)
+mobile/ — Expo Router · React Native · TypeScript
+ ├─ Supabase Auth 및 RLS → 사용자·설정·기록·UW 디렉터리·소음
+ ├─ FastAPI /campus → UW 검색 대체 흐름·Google 도보 경로
+ ├─ Google Maps SDK → 지도 표시
+ ├─ OS 음성 인식·expo-speech·expo-location → 명령·안내·GPS
+ └─ VisionCamera → 로컬 TFLite / Android ONNX·OCR
+
+backend/ — FastAPI · Python
+ ├─ app.main → 캠퍼스 경로·소음·선택적 음성 전사
+ └─ app.foundation → 별도 사진 품질 검사·서버 비전 실험 API
 ```
 
-Do not call an AI model directly from the mobile client using a secret API key. Rate-limit costly vision/transcription endpoints and validate upload size and MIME type.
+Supabase 연결은 모바일에서 공개용 키와 RLS를 사용합니다. 현재 FastAPI 기본 저장소는 SQLite/실험용 데이터이며 Supabase 저장소 어댑터를 사용하지 않습니다. 실시간 카메라는 서버 사진 분석 API를 호출하지 않습니다.
 
-## 6. Data model
+UW 공식 지도에서 수집한 데이터는 `backend/data/uw-buildings/`에 있습니다.
 
-Suggested minimal schema (SQL types illustrative):
+- 건물 지도 항목 **219개**: 건물 216개, 일부 건물 항목 3개. UW가 소유한 모든 물리적 건물의 개수라는 의미는 아닙니다.
+- 시설 항목 **589개**: 부서 506개, 식당 49개, 도서관 25개, InfoLab 9개. 같은 시설이 여러 분류에 나타날 수 있습니다.
+- 건물·시설 JSON, CSV 및 반복 실행 가능한 Supabase 가져오기 SQL.
+- 건물 좌표·이름과 조사된 실제 출입구 정보는 구분합니다.
 
-```sql
-create table places (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  latitude double precision not null,
-  longitude double precision not null,
-  entrance_notes text,
-  verified_at timestamptz
-);
+수집·새로고침·가져오기 방법은 [UW 데이터 설명](backend/data/uw-buildings/README.md)을 참고하세요.
 
-create table waypoints (
-  id text primary key,
-  latitude double precision not null,
-  longitude double precision not null,
-  landmark_description text,
-  verified_at timestamptz
-);
+## 저장소 구성
 
-create table path_edges (
-  id text primary key,
-  from_waypoint text references waypoints(id),
-  to_waypoint text references waypoints(id),
-  distance_m double precision not null check (distance_m > 0),
-  pedestrian_verified boolean not null default false,
-  instruction text,
-  bidirectional boolean not null default true
-);
+| 경로 | 역할 |
+| --- | --- |
+| `mobile/app/` | 홈·목적지·경로·내비게이션·카메라·설정·계정 화면 |
+| `mobile/src/` | 인증·API·GPS·카메라·소음·앱 상태 |
+| `mobile/native/urban-vision/` | Android ONNX·OCR 네이티브 구현 |
+| `mobile/src/legacy/` | 현재 앱에서 사용하지 않는 초기 프로토타입 |
+| `backend/app/` | FastAPI 및 경로·소음·사진 분석 모듈 |
+| `backend/migrations/` | Supabase 스키마·RLS·사용자 데이터 관리 SQL |
+| `backend/data/` | UW 수집 자료·출입구 입력·가상 그래프 |
+| `docs/` | 기능 설계·통합·시험 기록 |
 
-create table noise_observations (
-  id uuid primary key default gen_random_uuid(),
-  edge_id text references path_edges(id),
-  relative_noise double precision not null check (relative_noise between 0 and 1),
-  observed_at timestamptz not null default now(),
-  device_class text
-);
+`frontend/`는 별도로 사용하지 않습니다. 실제 UI는 `mobile/`에 있습니다. `mobile/App.tsx`는 Expo Router 레이아웃을 재내보내며, 카메라 단독 시험 진입점은 `CameraSmokeApp.tsx`입니다.
+
+## 실행 방법
+
+Node.js 22, Python 3.12 이상을 사용합니다. iOS는 macOS/Xcode/CocoaPods, Android는 Android SDK/JDK 환경이 필요합니다. 네이티브 카메라 모듈 때문에 **Expo Go로는 실행할 수 없습니다**.
+
+### 1. 환경변수와 DB
+
+```sh
+cp backend/.env.example backend/.env
+cp mobile/.env.example mobile/.env
 ```
 
-Use only pedestrian-verified edges for the live demo. In a real deployment, add row-level security, retention limits, abuse controls, and a review workflow for community contributions. Store *summaries*, not raw microphone audio. An uncalibrated phone measurement is **not** a certified dB SPL reading.
+| 파일 | 주요 설정 |
+| --- | --- |
+| `backend/.env` | `GOOGLE_ROUTES_API_KEY`, `SENSEA_WRITE_TOKEN`; 서버 전사 사용 시 `OPENAI_API_KEY` |
+| `mobile/.env` | `EXPO_PUBLIC_API_BASE_URL`, `EXPO_PUBLIC_API_TOKEN`, 플랫폼별 Maps SDK 키, Supabase URL·publishable 키 |
 
-## 7. API contract
+`EXPO_PUBLIC_API_TOKEN`은 서버의 `SENSEA_WRITE_TOKEN`과 같아야 합니다. 실제 휴대폰에서는 서버 주소를 `localhost` 대신 Mac의 LAN IP로 지정하고 같은 네트워크에서 연결합니다.
 
-| Method | Endpoint | Request | Response |
-|---|---|---|---|
-| GET | `/places?q=library` | Search query | Place IDs, names, coordinates |
-| POST | `/routes` | `start_waypoint`, `end_waypoint`, `noise_preference` | Alternatives, segments, distance, relative noise, freshness |
-| POST | `/noise` | `edge_id`, `relative_noise`, `consent` | Accepted / rejected |
-| POST | `/vision/describe` | JPEG image, optional expected place | Concise description, recognized text, uncertainty |
-| POST | `/speech/transcribe` | Short audio file, if needed | Transcript |
+Supabase는 `backend/migrations/001_initial.sql`부터 `005_account_management.sql`까지 적용하고 UW 건물·시설 가져오기 SQL을 실행합니다. Google 로그인은 Supabase 공급자와 앱 리다이렉트 설정도 필요합니다.
 
-Example route request:
+`EXPO_PUBLIC_*`는 앱에 포함됩니다. 서버 API 비밀키, Supabase service-role 키, DB 비밀번호는 넣지 않습니다. 실제 `.env`는 Git에 올리지 않습니다.
 
-```json
-{
-  "start_waypoint": "start",
-  "end_waypoint": "library_entrance",
-  "noise_preference": "quiet"
-}
+### 2. 서버
+
+```sh
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --env-file .env
 ```
 
-Example route response (illustrative only):
+`http://localhost:8000/docs`에서 API를 확인할 수 있습니다. 선택적 사진 분석 서버는 `app.foundation:app`을 별도 포트에서 실행합니다.
 
-```json
-{
-  "routes": [
-    {
-      "id": "quiet-route",
-      "distance_m": 610,
-      "relative_noise": 0.28,
-      "noise_data_status": "measured",
-      "segments": [
-        { "from": "start", "to": "quad", "instruction": "Continue to the next verified landmark." },
-        { "from": "quad", "to": "library_entrance", "instruction": "The library entrance is at the next waypoint." }
-      ]
-    }
-  ]
-}
-```
+### 3. 모바일
 
-## 8. Routing implementation
-
-Represent verified paths as a graph. For each edge, store distance and an aggregated noise score in `[0, 1]`. For the **shortest route**, edge cost is distance. For the **quiet route**, use a transparent weighted cost, for example:
-
-```python
-# backend/app/routing.py
-import heapq
-from math import inf
-
-
-def shortest_path(graph, start, goal, noise_weight=0.0):
-    """graph[node] = [(neighbor, distance_m, noise_score), ...].
-    noise_weight expresses the distance penalty for a maximally noisy edge.
-    All graph edges must be verified pedestrian paths.
-    """
-    queue = [(0.0, start)]
-    best = {start: 0.0}
-    previous = {}
-
-    while queue:
-        cost, node = heapq.heappop(queue)
-        if cost > best.get(node, inf):
-            continue
-        if node == goal:
-            path = [goal]
-            while path[-1] != start:
-                path.append(previous[path[-1]])
-            return list(reversed(path)), cost
-
-        for neighbor, distance_m, noise_score in graph.get(node, []):
-            # Scale the noise penalty by segment distance.
-            next_cost = cost + distance_m * (1 + noise_weight * noise_score)
-            if next_cost < best.get(neighbor, inf):
-                best[neighbor] = next_cost
-                previous[neighbor] = node
-                heapq.heappush(queue, (next_cost, neighbor))
-
-    return None, inf
-```
-
-Here `noise_weight` is a dimensionless multiplier. Missing measurements should carry an `unknown` status rather than silently receiving a zero-noise score. Always explain when the quieter route is longer and how recent its measurements are.
-
-## 9. Mobile app implementation starter
-
-Current project layout (two application directories):
-
-```text
-SENSEA/
-├── backend/                    # Python APIs and server tests
-├── mobile/
-│   ├── app/                    # Expo Router UI screens
-│   ├── src/navigation/         # UW/Google routes, GPS, voice/haptics
-│   ├── src/camera/             # Integrated camera provider
-│   ├── src/vision/             # On-device image analysis
-│   ├── src/auth/               # Supabase accounts
-│   ├── src/noise/              # Foreground sound measurement
-│   ├── src/components/         # Shared UI
-│   ├── src/legacy/             # Preserved independent prototypes and tests
-│   └── package.json
-├── docs/                       # Shared documentation
-└── .github/                    # CI workflows
-```
-
-Bootstrap commands:
-
-```bash
-# Existing mobile camera app (native development build, not Expo Go)
+```sh
 cd mobile
 npm ci
-npm run models:download
-npm run android -- --device
-# On macOS with Xcode: npm run ios -- --device
-
-# Backend (separate terminal, from project root)
-cd backend
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install fastapi 'uvicorn[standard]' supabase python-multipart httpx
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+npm run ios -- --device
+# 또는
+npm run android
 ```
 
-Minimal accessible voice-output screen (`mobile/app/index.tsx`):
+개발 서버만 시작하려면 `npm start`를 사용합니다. 지도 SDK 키·네이티브 플러그인 변경 시 앱을 다시 빌드해야 합니다. Android 도시 객체 분석 플러그인도 네이티브 재빌드가 필요합니다.
 
-```tsx
-import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, AccessibilityInfo } from 'react-native';
-import * as Speech from 'expo-speech';
+## 주요 서버 API
 
-export default function HomeScreen() {
-  const [destination, setDestination] = useState('');
+| API | 역할 |
+| --- | --- |
+| `GET /health` | 서버 상태 |
+| `GET /campus/places`, `GET /campus/places/{id}` | UW 목적지 검색·상세 |
+| `POST /campus/routes` | Google 도보 경로 |
+| `GET /places`, `GET /graph`, `POST /routes` | 가상 그래프·경로 실험 |
+| `GET /noise`, `POST /noise` | 서버 구간 소음 저장·조회 |
+| `POST /speech/transcribe` | 설정 시 서버 음성 전사 |
+| `POST /demo/routes` | 명시적인 데모 경로 |
+| `POST /vision/describe` | foundation 서버의 선택적 사진 분석 |
 
-  const confirmDestination = () => {
-    const name = destination.trim();
-    if (!name) {
-      Speech.speak('Please enter a destination.');
-      return;
-    }
-    Speech.speak(`You selected ${name}. Confirm before starting navigation.`);
-    AccessibilityInfo.announceForAccessibility(`Destination: ${name}`);
-    // TODO: look up place, show accessible confirmation, then request routes.
-  };
+사용자 계정·기록·UW 디렉터리·격자 소음 DB 접근은 모바일의 Supabase 모듈을 통해 이루어집니다. 전체 계약은 [팀 연결 가이드](docs/team-integration.md)와 각 서버의 Swagger를 참고하세요.
 
-  return (
-    <View style={{ flex: 1, padding: 24, justifyContent: 'center', gap: 20, backgroundColor: '#101827' }}>
-      <Text accessibilityRole="header" style={{ color: 'white', fontSize: 32, fontWeight: '700' }}>
-        SENSEA
-      </Text>
-      <Text style={{ color: 'white', fontSize: 24 }}>Where would you like to go?</Text>
-      <TextInput
-        accessibilityLabel="Destination"
-        accessibilityHint="Type a building or location"
-        placeholder="Search destination"
-        placeholderTextColor="#666"
-        value={destination}
-        onChangeText={setDestination}
-        style={{ backgroundColor: 'white', padding: 18, borderRadius: 12, fontSize: 20 }}
-      />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Confirm destination"
-        onPress={confirmDestination}
-        style={{ backgroundColor: '#A7F3D0', padding: 20, borderRadius: 12, minHeight: 60 }}
-      >
-        <Text style={{ fontSize: 20, fontWeight: '700', color: '#064E3B' }}>Confirm destination</Text>
-      </Pressable>
-      {/* Add a speech-input button after verifying microphone/STT on the demo phone. */}
-    </View>
-  );
-}
+## 검증과 남은 작업
+
+```sh
+cd mobile
+npm run typecheck
+npm test
+npm run test:ui
+npm run export:check
+
+cd ../backend
+python -m pytest
 ```
 
-**Voice command state machine:** `IDLE → LISTENING → CONFIRM_DESTINATION → ROUTE_SELECTION → NAVIGATING → CAMERA_ASSIST → NAVIGATING`. Every state must support “Repeat,” “Back,” and “Stop” where applicable. Pause speech recognition while the app is speaking to avoid transcribing its own voice.
+최근 병합에서 모바일 타입 검사, Node 테스트 **300개**, UI/상태 테스트 **46개**, iOS·Android 번들 생성 및 Android 시험 도구 테스트 **8개**가 통과했습니다. 번들 생성 성공은 네이티브 빌드나 실기기 인식 성능 검증을 대신하지 않습니다.
 
-**Camera flow:** Ask permission → tell the user to stop walking → take a snapshot → send over HTTPS to `/vision/describe` → read a brief response → discard image unless explicit retention consent is given. For the demo, prioritize signs and door labels; do not issue precise walking or safety instructions from image interpretation alone.
+남은 주요 작업은 캠퍼스 보행 구간·경사·조명·실제 출입구 조사, iOS/Android 반복 실행·음성·마이크 시험, 신호 숫자 인식 E2E 검증, VoiceOver/TalkBack 및 사용자 현장 검토입니다. 현재 앱은 실험적 정보 제공 도구이며 경로가 안전하거나 장애물이 없다는 것을 보장하지 않습니다.
 
-**Noise flow:** Ask for microphone permission separately → collect a short sample → compute relative RMS or use a device-tested metering library → aggregate by known route segment → upload only the summary. Microphone APIs and background recording vary by OS; do not promise passive always-on collection.
+## 관련 문서
 
-## 10. 24-hour build schedule
+- [통합 기록](docs/branch-integration.md)
+- [모바일 실행·카메라](mobile/README.md)
+- [백엔드 설명](backend/README.md)
+- [내비게이션 동작과 한계](docs/in-app-navigation.md)
+- [장애물 관찰 설계](docs/hazard-awareness.md)
+- [전체 개발 정리](DEVELOPMENT_SUMMARY.md)
+- [브랜치별 작업·빌드 기록](README1.md)
 
-| Time | Team milestone | Exit criterion |
-|---|---|---|
-| 0–2 h | Choose 2–3 campus destinations, test native permissions/voice, define API | One real phone can speak, open camera, and request permissions |
-| 2–8 h | Parallel: UI/voice, graph routing, camera AI, noise collection | Each module works independently |
-| 8–12 h | Integrate destination → routes → spoken instructions | Complete simulated journey |
-| 12–16 h | Add measured noise to routing; connect camera descriptions | Quiet route changes with test data; camera reads a sign |
-| 16–20 h | Test with VoiceOver/TalkBack and real device; handle failure modes | No essential screen requires visual interaction |
-| 20–24 h | Freeze scope, rehearse demo, deploy backend, record fallback demo | Repeatable 3-minute demonstration |
-
-### Ownership
-
-- **Developer 1 — Mobile/accessibility:** Expo app, voice command flow, accessible screens, screen-reader tests.
-- **Developer 2 — Routing/maps:** Verified campus graph, shortest/quiet paths, route API, guidance waypoints.
-- **Developer 3 — Camera AI:** Camera capture, server-side vision integration, uncertainty handling, spoken descriptions.
-- **Developer 4 — Noise/data/integration:** Metering proof of concept, aggregation, Supabase, integration tests. For a 3-person team, Developer 2 owns noise weighting and Developer 1 owns DB integration.
-
-Agree on request/response schemas before coding in parallel. Make a working end-to-end skeleton by hour 8; do not wait until every feature is polished to integrate.
-
-## 11. Tests and demo
-
-**Accessibility checks:** VoiceOver (iOS) or TalkBack (Android) can find every button, search destinations, compare routes, repeat instructions, pause navigation, and trigger camera capture. Dynamic announcements must not overlap endlessly. Provide a typed fallback for noisy environments.
-
-**Failure checks:** Deny camera/microphone/location permission; disconnect the network; provide an unknown destination; provide stale noise data; return an uncertain vision result; simulate poor GPS accuracy. Each case needs an understandable spoken or screen-reader-accessible fallback.
-
-**3-minute demo:**
-
-1. Speak or enter a campus destination; SENSEA repeats it for confirmation.
-2. Compare shortest and lower-measured-noise routes; explain that noise is a proxy for sound environment, **not proof of low crowd density**.
-3. Start a **simulated** route and hear waypoint instructions.
-4. Stop at a prepared sign/door, request a camera description, and hear the recognized text.
-5. Close with what is real in the prototype versus what requires user testing, calibrated sensing, and verified route coverage.
-
-## 12. Privacy and safety rules
-
-구현 상태: 앱 내 안내·권한·중지·현재 결과 지우기, 화면 읽기와 자동 음성 조정, 사진 외부 전송 동의·임시 파일 정리 계약, 소음 자동 만료, 경로 검증 기한을 구현했습니다. 실제 기기·현장·당사자 검토는 완료하지 않았습니다. [구현 범위](docs/privacy-and-safety.md) · [기기/사용자 시험 계획](docs/accessibility-test-plan.md).
-
-- Ask permission only when a feature needs it; show microphone/camera active state and a clear stop action.
-- Do not store raw audio or photos by default; never expose secret API keys in the app.
-- Aggregate and expire location-linked noise measurements; avoid publishing individual user movement traces.
-- Camera AI can hallucinate or miss obstacles. It cannot confirm that a path is clear, a road is safe to cross, or a door is accessible.
-- Use manually verified pedestrian segments in the prototype; unknown or stale route information must be described as uncertain.
-- Invite blind/low-vision users or accessibility specialists to review the interaction design when feasible. Blindfolded developer testing is not a substitute for lived-experience feedback.
-
-## 13. Definition of done
-
-The hackathon MVP is complete when a tester can use accessible controls or speech to select a destination, hear and choose between verified route alternatives informed by measured noise, follow a simulated spoken journey, and request a spoken camera description of a stationary landmark. The team must also be able to explain the limits of its location, noise, and AI measurements without claiming real-world navigation safety.
-
-
-## Backend implementation
-
-A runnable FastAPI foundation is available in [backend/README.md](backend/README.md), with setup instructions, API examples, tests, and an initial Supabase schema. The included route/noise dataset is synthetic and simulation-only; camera descriptions require a configured server-side model key. Supabase persistence and speech transcription remain integration points.
-
-### Camera processing modules
-
-The [Android/iPhone camera app](mobile/README.md) connects native live frames, local quality checks, EfficientDet Lite0 object detection, and Korean speech. It drops frames while busy, limits analysis to 5 Hz, and releases camera/model resources on close or background. See [real-time frame handling](docs/realtime-camera.md) for ownership and verification limits. Road/sidewalk segmentation, distance estimation, GPS navigation UI, and the stationary server-description flow remain separate integration work; the earlier sections describe the broader product roadmap.
+README1과 이전 개발 기록에는 당시의 단독 카메라 앱·데모 계획이 포함되어 있습니다. 현재 통합 앱의 범위는 이 README와 실제 `main` 코드를 기준으로 확인하세요.
