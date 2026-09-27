@@ -48,6 +48,10 @@ type SignUpDetails = { email: string; password: string; name: string; phoneNumbe
 type AuthResult = { needsEmailConfirmation?: boolean };
 type PlaceFlag = 'is_saved' | 'is_favorite';
 
+// Multiple destinations can share one building coordinate (for example a library
+// and café). Keep their visit history separate while routing by the numeric ID.
+const historyKey = (place: Place) => place.buildingName ? `${place.id}:${place.name}` : place.id;
+
 type AuthContextValue = {
   configured: boolean;
   loading: boolean;
@@ -221,10 +225,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const saveRecentPlace = useCallback(async (place: Place) => {
     const userId = session?.user.id;
     if (!userId) return;
-    const previous = places.find(item => item.external_place_id === place.id);
+    const externalId = historyKey(place);
+    const previous = places.find(item => item.external_place_id === externalId);
     const { error } = await supabase.from('user_places').upsert({
       user_id: userId,
-      external_place_id: place.id,
+      external_place_id: externalId,
       name: place.name,
       address: place.address ?? null,
       latitude: place.latitude ?? null,
@@ -258,7 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const recordRouteStart = useCallback(async (destination: Place, route: Route) => {
     const userId = session?.user.id;
     if (!userId) return;
-    const place = places.find(item => item.external_place_id === destination.id);
+    const place = places.find(item => item.external_place_id === historyKey(destination));
     const { error } = await supabase.from('route_history').insert({
       user_id: userId,
       destination_place_id: place?.id ?? null,

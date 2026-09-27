@@ -36,7 +36,11 @@ function useCameraController() {
     const active = owned.current; owned.current = null;
     closing.current = (async () => {
       try { await active?.dispose(); }
-      catch { if (mounted.current) setMessage('Camera cleanup failed. Restart the app.'); }
+      catch (error) {
+        const reason = error instanceof Error ? error.message : 'Unknown cleanup error';
+        console.warn('[SENSEA] Camera cleanup failed', reason);
+        if (mounted.current) setMessage('Camera cleanup failed. Try opening the camera again.');
+      }
       finally { closing.current = null; if (mounted.current) { setSession(null); setPhase('closed'); } }
     })();
     recordEvent('camera', 'closed');
@@ -64,7 +68,8 @@ function useCameraController() {
     }
   }, []);
   const open = useCallback(async () => {
-    if (opening.current || closing.current || owned.current || AppState.currentState !== 'active') return;
+    if (closing.current) await closing.current;
+    if (opening.current || owned.current || !mounted.current || AppState.currentState !== 'active') return;
     if (!device) { setMessage('No rear camera is available on this device.'); return; }
     opening.current = true; wanted.current = true; setPhase('opening'); setMessage('Preparing camera and on-device model.');
     recordEvent('camera', 'open_requested');
@@ -75,7 +80,12 @@ function useCameraController() {
       const created = await createNativeSession(receive, fail, text => { if (mounted.current && wanted.current) { latest.current = null; latestAssessment.current = null; setResult(null); setHazard(null); tracker.current.reset(); hazardGate.current.reset(); setMessage(text); announce(text, 1, 'ko-KR'); } });
       if (!wanted.current || !mounted.current) { await created.dispose(); return; }
       owned.current = created; setSession(created);
-    } catch { wanted.current = false; if (mounted.current) setMessage('Camera analysis could not start. Please try again.'); }
+    } catch (error) {
+      wanted.current = false;
+      const reason = error instanceof Error ? error.message : 'Unknown native camera error';
+      console.warn('[SENSEA] Camera startup failed', reason);
+      if (mounted.current) setMessage(`Camera could not start: ${reason}`);
+    }
     finally { opening.current = false; if (!wanted.current) { const pending = owned.current; owned.current = null; await pending?.dispose().catch(() => {}); if (mounted.current) { setSession(null); setPhase('closed'); } } }
   }, [device, permission, receive, fail]);
   const previewDidStart = useCallback(() => {

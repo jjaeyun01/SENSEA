@@ -11,7 +11,7 @@ const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 
-function fixture({ platform = "android", supported = true, failModel = false, pendingModel = false, failAttach = false, frameDurations = [] } = {}) {
+function fixture({ platform = "android", supported = true, failModel = false, pendingModel = false, failAttach = false, failModelDispose = false, frameDurations = [] } = {}) {
   const events = [], fatal = [], analysis = [], results = [], info = [], warnings = [];
   const processingDurations = [...frameDurations];
   let resolveModel, frameOutputs = 0, gpuChecks = 0, frameCallback, clock = 0;
@@ -26,7 +26,8 @@ function fixture({ platform = "android", supported = true, failModel = false, pe
     } };
   };
   const newModel = () => ({
-    ...disposable("model"), inputs: [{ dataType: "uint8", shape: [1, 320, 320, 3] }],
+    ...disposable("model"), dispose() { events.push("dispose:model"); if (failModelDispose) throw new Error("model disposal failed"); },
+    inputs: [{ dataType: "uint8", shape: [1, 320, 320, 3] }],
     outputs: Array.from({ length: 4 }, () => ({ dataType: "float32" })),
   });
   const camera = {
@@ -153,6 +154,17 @@ test("failed analysis output binding restores preview and reports a separate err
   assert.equal(f.fatal.length, 0);
   assert.equal(f.analysis.length, 1);
   await session.dispose();
+});
+
+test("model cleanup failure does not permanently lock a detached camera", async () => {
+  const f = fixture({ platform: "ios", failModelDispose: true });
+  const session = await f.create();
+  await session.start();
+  await session.startAnalysis();
+  await assert.rejects(session.dispose(), /카메라 정리/);
+  const reopened = await f.create();
+  await reopened.start();
+  await reopened.dispose();
 });
 
 for (const platform of ["android", "ios"]) {

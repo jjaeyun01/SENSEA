@@ -6,16 +6,15 @@ import { LargeActionButton } from '@/src/components/LargeActionButton';
 import { RouteMap } from '@/src/components/RouteMap';
 import { CameraPreview, useCamera } from '@/src/camera/CameraProvider';
 import { useJourney } from '@/src/navigation/JourneyProvider';
-import { announce } from '@/src/navigation/feedback';
 import { colors, radii, spacing, typography } from '@/src/theme';
 import { useNoise } from '@/src/noise/NoiseProvider';
 export default function NavigateScreen() {
   const router = useRouter(); const pathname = usePathname(); const insets = useSafeAreaInsets(); const journey = useJourney(); const cameraState = useCamera(); const noise = useNoise();
-  useFocusEffect(useCallback(() => () => journey.pause(), [journey.pause]));
-  const route = journey.selected;
   const cameraRequested = useRef(false);
+  useFocusEffect(useCallback(() => () => { cameraRequested.current = false; journey.pause(); }, [journey.pause]));
+  const route = journey.selected;
   useEffect(() => {
-    if (pathname !== '/navigate' || !route || route.source === 'demo' || !cameraState.device || cameraRequested.current) return;
+    if (pathname !== '/navigate' || !route || !cameraState.device || cameraRequested.current) return;
     cameraRequested.current = true;
     void cameraState.open();
   }, [pathname, route, cameraState.device, cameraState.open]);
@@ -26,11 +25,10 @@ export default function NavigateScreen() {
   const segment = route?.steps[journey.stepIndex];
   const remaining = route ? Math.max(0, Math.round(route.distance_m - route.steps.slice(0, journey.stepIndex).reduce((sum, item) => sum + (item.distance_m ?? 0), 0))) : 0;
   const location = journey.message;
-  const noiseMessage = route?.source === 'demo' ? `Demo noise fixture: ${route.noiseStatus}. Not a microphone reading.` : noise.collecting ? 'Aggregating a five-second live sound window. No audio file is created.' : noise.latest ? `${noise.latest.label} relative sound level. Private preview until three users contribute to this area.` : noise.status;
+  const noiseMessage = noise.collecting ? 'Aggregating a five-second live sound window. No audio file is created.' : noise.latest ? `${noise.latest.label} relative sound level. Private preview until three users contribute to this area.` : noise.status;
   useEffect(() => { if (journey.stage === 'search') router.replace('/'); }, [journey.stage, router]);
   if (!route) return null;
   const start = () => journey.start();
-  const next = journey.nextDemo;
   const togglePause = () => { if (paused) void journey.start(); else journey.pause(); };
   const stop = () => { journey.reset(); router.replace('/'); };
   const camera = () => { journey.pause(); router.push('/camera'); };
@@ -38,17 +36,17 @@ export default function NavigateScreen() {
   const contributeNoise = () => journey.say(noiseMessage);
   if (!started) return <ScrollView style={styles.root} contentContainerStyle={[styles.preflight, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 30 }]}>
     <Text style={styles.eyebrow}>READY TO GO</Text><Text accessibilityRole="header" style={styles.preflightTitle}>{state.destination?.name}</Text>
-    {route.source !== 'demo' && <View style={styles.cameraFrame}>{pathname === '/navigate' && <CameraPreview />}</View>}
-    {route.source !== 'demo' && <Text accessibilityLiveRegion="polite" style={styles.cameraStatus}>{cameraState.message}</Text>}
+    <View style={styles.cameraFrame}>{pathname === '/navigate' && <CameraPreview />}</View>
+    <Text accessibilityLiveRegion="polite" style={styles.cameraStatus}>{cameraState.message}</Text>
     <View style={styles.preflightActions}>
-      {route.source !== 'demo' && !cameraState.ready && <LargeActionButton label={cameraState.phase === 'opening' ? 'Preparing camera…' : 'Retry camera'} loading={cameraState.phase === 'opening'} onPress={() => void cameraState.open()} />}
-      <LargeActionButton label="Start navigating" disabled={journey.busy || (route.source !== 'demo' && !cameraState.ready)} onPress={() => void start()} icon={<Text style={styles.darkIcon}>→</Text>} />
-      {route.source !== 'demo' && cameraState.phase === 'closed' && <LargeActionButton label="Camera permission settings" onPress={() => void Linking.openSettings()} variant="ghost" />}
+      {!cameraState.ready && <LargeActionButton label={cameraState.phase === 'opening' ? 'Preparing camera…' : 'Retry camera'} loading={cameraState.phase === 'opening'} onPress={() => void cameraState.open()} />}
+      <LargeActionButton label="Start navigating" disabled={journey.busy || !cameraState.ready} onPress={() => void start()} icon={<Text style={styles.darkIcon}>→</Text>} />
+      {cameraState.phase === 'closed' && <LargeActionButton label="Camera permission settings" onPress={() => void Linking.openSettings()} variant="ghost" />}
       <LargeActionButton label="Back to routes" onPress={() => { journey.reviewRoutes(); router.replace('/routes'); }} variant="ghost" />
     </View>
     <RouteMap route={route} position={journey.position} noiseCells={noise.cells} latestNoise={noise.latest} />
-    <View style={styles.summaryCard}><View style={styles.routeLine}><View style={styles.routeDot} /><View style={styles.routeStem} /><View style={[styles.routeDot, styles.routeDotEnd]} /></View><View style={styles.summaryCopy}><Text style={styles.summaryLabel}>{route.label}</Text><Text style={styles.summaryMetric}>{Math.max(1, Math.ceil(route.duration_seconds / 60))} min · {route.distance_m} m</Text><Text style={styles.summaryHint}>{route.source === 'demo' ? 'SIMULATION · Manual steps' : 'Google Maps · Accessibility unverified'}</Text></View></View>
-    <View style={styles.notice}><Text style={styles.noticeIcon}>i</Text><Text style={styles.noticeText}>{route.source === 'demo' ? 'Fictional demo guidance advances manually.' : route.arrivalTarget?.verifiedEntrance ? 'This route ends at a manually verified entrance coordinate. Stop and visually confirm before entering.' : 'Hold the phone upright facing forward. No verified entrance or VPS alignment is available; the route ends at a representative building point.'}</Text></View>
+    <View style={styles.summaryCard}><View style={styles.routeLine}><View style={styles.routeDot} /><View style={styles.routeStem} /><View style={[styles.routeDot, styles.routeDotEnd]} /></View><View style={styles.summaryCopy}><Text style={styles.summaryLabel}>{route.label}</Text><Text style={styles.summaryMetric}>{Math.max(1, Math.ceil(route.duration_seconds / 60))} min · {route.distance_m} m</Text><Text style={styles.summaryHint}>Google Maps · Accessibility unverified</Text></View></View>
+    <View style={styles.notice}><Text style={styles.noticeIcon}>i</Text><Text style={styles.noticeText}>{route.arrivalTarget?.verifiedEntrance ? 'This route ends at a manually verified entrance coordinate. Stop and visually confirm before entering.' : 'Hold the phone upright facing forward. No verified entrance or VPS alignment is available; the route ends at a representative building point.'}</Text></View>
 
   </ScrollView>;
 
@@ -56,7 +54,7 @@ export default function NavigateScreen() {
     <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 160 }]} showsVerticalScrollIndicator={false}>
       <View style={styles.navTop}><View><Text style={styles.navStatus}>{journey.rerouting ? 'RECALCULATING ROUTE' : journey.stage === 'arrived' ? 'ARRIVAL CONFIRMED' : arrivalPending ? 'ARRIVAL CHECK' : paused ? 'NAVIGATION PAUSED' : 'NAVIGATING'}</Text><Text style={styles.destination}>{state.destination?.name}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Open camera assist" onPress={camera} style={styles.cameraButton}><Text style={styles.cameraIcon}>▣</Text></Pressable></View>
 
-      {route.source !== 'demo' && <><View style={styles.cameraFrame}>{pathname === '/navigate' && <CameraPreview />}</View><Text accessibilityLiveRegion="polite" style={styles.cameraStatus}>{cameraState.message}</Text></>}
+      <View style={styles.cameraFrame}>{pathname === '/navigate' && <CameraPreview />}</View><Text accessibilityLiveRegion="polite" style={styles.cameraStatus}>{cameraState.message}</Text>
       <View style={[styles.guidanceCard, paused && styles.guidancePaused]}>
         <View style={styles.turnIcon}><Text style={styles.turnArrow}>↑</Text></View>
         <Text style={styles.instruction} accessibilityLiveRegion="assertive">{journey.rerouting ? 'Finding a new route. Please stop.' : journey.stage === 'arrived' ? 'Arrival confirmed' : arrivalPending ? journey.arrivalStatus === 'verified_entrance_nearby' ? 'Near the verified entrance coordinate' : 'Near the mapped building location' : paused ? 'Guidance paused' : segment?.instruction ?? `Final waypoint near ${state.destination?.name}`}</Text>
@@ -65,14 +63,13 @@ export default function NavigateScreen() {
 
       <RouteMap route={route} position={journey.position} noiseCells={noise.cells} latestNoise={noise.latest} />
 
-      <View style={styles.headingOrb}><Text style={styles.orbLabel}>HEADING</Text><Text style={styles.orbValue}>{route.source === 'demo' ? 'Simulation' : 'GPS guidance'}</Text><Text style={styles.orbPulse}>◉</Text></View>
+      <View style={styles.headingOrb}><Text style={styles.orbLabel}>HEADING</Text><Text style={styles.orbValue}>GPS guidance</Text><Text style={styles.orbPulse}>◉</Text></View>
 
       <View style={styles.conditions}><View style={styles.conditionIcon}><Text style={styles.conditionIconText}>⌖</Text></View><View style={styles.conditionCopy}><Text style={styles.conditionTitle}>Location status</Text><Text style={styles.conditionText}>{location}</Text></View></View>
       <View style={styles.conditions}><View style={styles.conditionIcon}><Text style={styles.conditionIconText}>◎</Text></View><View style={styles.conditionCopy}><Text style={styles.conditionTitle}>Position alignment</Text><Text style={styles.conditionText}>{cameraState.alignmentStatus === 'unavailable' ? 'GPS with inertial jump filtering. Verified VPS alignment is not available.' : 'Verified visual alignment active.'}</Text></View></View>
       <View style={styles.conditions}><View style={styles.conditionIcon}><Text style={styles.conditionIconText}>≋</Text></View><View style={styles.conditionCopy}><Text style={styles.conditionTitle}>Environmental sound</Text><Text style={styles.conditionText}>{noiseMessage}</Text></View></View>
 
       <View style={styles.secondaryGrid}><Pressable accessibilityRole="button" accessibilityLabel="Repeat instruction" onPress={journey.repeat} style={styles.smallButton}><Text style={styles.smallIcon}>↻</Text><Text style={styles.smallLabel}>Repeat</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={paused ? 'Resume navigation' : 'Pause navigation'} onPress={togglePause} disabled={journey.rerouting} style={[styles.smallButton, journey.rerouting && styles.disabled]}><Text style={styles.smallIcon}>{paused ? '▶' : 'Ⅱ'}</Text><Text style={styles.smallLabel}>{arrivalPending ? 'Continue' : paused ? 'Resume' : 'Pause'}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Measure environmental noise" onPress={() => void contributeNoise()} style={styles.smallButton}><Text style={styles.smallIcon}>≋</Text><Text style={styles.smallLabel}>Noise</Text></Pressable></View>
-      {route.source === 'demo' && <><LargeActionButton label="Next simulated waypoint" onPress={next} disabled={paused || !segment} /><LargeActionButton label="Test priority alert (simulation)" onPress={() => announce('Simulation priority alert. Pause and check your surroundings.', 0)} variant="ghost" /></>}
       {journey.stage !== 'arrived' && <LargeActionButton label="Speak command" onPress={() => void journey.listen()} variant="ghost" />}
       {journey.stage !== 'arrived' && <LargeActionButton label={arrivalPending ? 'Confirm this is the entrance' : 'Confirm arrival manually'} onPress={journey.arrive} variant="ghost" />}
       <LargeActionButton label="End navigation" onPress={stop} variant="danger" />

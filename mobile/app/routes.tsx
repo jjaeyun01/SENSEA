@@ -10,7 +10,6 @@ import { colors, radii, spacing, typography } from '@/src/theme';
 import { useAppPreferences } from '@/src/state/AppPreferences';
 import { noiseLabel } from '@/src/noise/noiseMath.mjs';
 function noiseText(route: RouteOption) {
-  if (route.source === 'demo') return `Demo noise: ${route.noiseStatus ?? 'unknown'}`;
   if (route.relativeNoise == null) return 'Crowdsourced noise coverage unavailable';
   return `${noiseLabel(route.relativeNoise)} relative sound · ${route.noiseMeasurementCount ?? 0} samples`;
 }
@@ -30,7 +29,7 @@ export default function RoutesScreen() {
   if (journey.busy) return <View accessibilityLabel="Loading route alternatives" style={styles.center}><View style={styles.loaderRing}><ActivityIndicator color={colors.primary} size="large" /></View><Text style={styles.loadingTitle}>Finding your best routes</Text><Text style={styles.loadingText}>Checking walking distance and estimated duration…</Text></View>;
   return <ScrollView style={styles.root} contentContainerStyle={[styles.container, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 36 }]} showsVerticalScrollIndicator={false}>
     <AppHeader title="Select a route" eyebrow={state.destination?.name} onBack={() => { journey.reset(); router.replace('/'); }} />
-    <Text style={styles.intro}>Compare walking options. Stairs, slopes and current conditions are unverified unless explicitly labeled as demo fixtures.</Text>
+    <Text style={styles.intro}>Compare walking options. Stairs, slopes and current conditions are unverified.</Text>
     {error && <View accessibilityRole="alert" style={styles.error}><View style={styles.errorIcon}><Text style={styles.errorIconText}>!</Text></View><Text style={styles.errorTitle}>We couldn’t load routes</Text><Text style={styles.errorText}>{error}</Text><LargeActionButton label="Try again" onPress={() => void load()} /><LargeActionButton label="Change destination" onPress={() => { journey.reset(); router.replace('/'); }} variant="ghost" /></View>}
     <View style={styles.routeList}>
       {orderedRoutes.map((route, index) => {
@@ -42,13 +41,13 @@ export default function RoutesScreen() {
           <Text style={styles.routeTitle}>{route.label}</Text>
           <View style={styles.metrics}><Text style={styles.duration}>{minutes} min</Text><Text style={styles.dot}>•</Text><Text style={styles.distance}>{route.distance_m} m</Text></View>
           <View style={styles.divider} />
-          <View style={styles.tags}><Tag label={noiseText(route)} accent={false} /><Tag label={extra > 0 ? `${extra} m longer` : 'Walking route'} /><Tag label={route.source === 'demo' ? (route.hasStairs ? 'Demo: stairs' : 'Demo: no stairs') : 'Accessibility unknown'} /></View>
+          <View style={styles.tags}><Tag label={noiseText(route)} accent={false} /><Tag label={extra > 0 ? `${extra} m longer` : 'Walking route'} /><Tag label="Accessibility unknown" /></View>
           {route.warnings.map((warning, i) => <Text key={i} style={styles.freshness}>{warning}</Text>)}
           <View style={styles.selectRow}><Text style={styles.selectText}>Choose this route</Text><Text style={styles.selectArrow}>→</Text></View>
         </Pressable>;
       })}
     </View>
-    {state.routes.length > 0 && <Text style={styles.freshness}>{journey.demoMode ? 'SIMULATION ONLY · Manual walkthrough' : 'Google Maps · Building representative point, not a verified entrance'}</Text>}
+    {state.routes.length > 0 && <Text style={styles.freshness}>{'Google Maps · Building representative point, not a verified entrance'}</Text>}
     {orderedRoutes.length > 0 && <LargeActionButton label="Hear route choices again" onPress={() => void speak(orderedRoutes.map((route) => `${route.label}: ${route.distance_m} meters. ${noiseText(route)}.`).join(' '))} variant="ghost" />}
   </ScrollView>;
 }

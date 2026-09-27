@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type Place } from '@/src/navigation/campusApi';
+import { campusSuggestions } from '@/src/navigation/uwDirectory';
 import { useJourney } from '@/src/navigation/JourneyProvider';
 import { BrandMark } from '@/src/components/BrandMark';
 import { LargeActionButton } from '@/src/components/LargeActionButton';
@@ -10,23 +11,27 @@ import { BottomNav } from '@/src/components/BottomNav';
 import { LiveNoiseMeter } from '@/src/components/LiveNoiseMeter';
 import { colors, radii, spacing, typography } from '@/src/theme';
 import { useAuth } from '@/src/auth/AuthProvider';
-const SUGGESTIONS = [
-  { name: 'Memorial Library', meta: 'Search UW building directory', icon: '▦' },
-  { name: 'Memorial Union', meta: 'Search UW building directory', icon: '◎' },
-];
 export default function HomeScreen() {
   const router = useRouter(); const pathname = usePathname(); const insets = useSafeAreaInsets();
   const journey = useJourney();
   const auth = useAuth();
   const [query, setQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<Place[]>([]);
+  const [directoryError, setDirectoryError] = useState<string | null>(null);
   const { places: matches, busy, message } = journey;
-  const state = { destination: journey.destination, status: journey.stage === 'confirm' ? 'CONFIRM_DESTINATION' : journey.stage, demoMode: journey.demoMode };
   const selectPlace = (place: Place) => journey.selectPlace(place);
   const findDestination = (text = query) => {
     if (!text.trim()) { journey.say('Please enter a destination.'); return; }
     setQuery(text); journey.search(text);
   };
-  useEffect(() => { if (pathname === '/' && journey.stage === 'routes') router.push('/routes'); }, [journey.stage, pathname, router]);
+  useEffect(() => {
+    if (pathname !== '/') return;
+    if (journey.stage === 'routes') router.push('/routes');
+    else if (journey.stage === 'setup') router.push('/navigate');
+  }, [journey.stage, pathname, router]);
+  useEffect(() => {
+    void campusSuggestions().then(setSuggestions).catch(error => setDirectoryError(error instanceof Error ? error.message : 'Campus directory unavailable.'));
+  }, []);
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 110 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -62,32 +67,16 @@ export default function HomeScreen() {
         </View>
 
         <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text>
-        {matches.length > 0 && <View style={styles.results}>{matches.map((place) => <DestinationCard key={place.id} title={place.name} meta={place.address ?? 'Select to confirm street address'} icon="⌖" onPress={() => selectPlace(place)} />)}</View>}
+        {matches.length > 0 && <View style={styles.results}>{matches.map((place) => <DestinationCard key={`${place.id}:${place.name}`} title={place.name} meta={place.buildingName ? `${place.facilityCategory ?? 'Facility'} · ${place.buildingName}` : place.address ?? 'UW–Madison building'} icon="⌖" onPress={() => selectPlace(place)} />)}</View>}
 
-        {state.status === 'CONFIRM_DESTINATION' && state.destination ? (
-          <View style={styles.confirmCard}>
-            <View style={styles.confirmIcon}><Text style={styles.confirmIconText}>▦</Text></View>
-            <View style={styles.confirmCopy}>
-              <Text style={styles.cardLabel}>UW–MADISON BUILDING</Text>
-              <Text style={styles.confirmTitle}>{state.destination.name}</Text>
-              <Text style={styles.cardMeta}>{state.destination.address ?? 'Street address not available'}</Text>
-              {Number.isFinite(state.destination.latitude) && Number.isFinite(state.destination.longitude) && (
-                <Text style={styles.verifiedLocation}>✓ Location verified · {state.destination.latitude?.toFixed(4)}, {state.destination.longitude?.toFixed(4)}</Text>
-              )}
-            </View>
-            <LargeActionButton label="Find routes" onPress={journey.confirm} loading={busy} icon={<Text style={styles.buttonIcon}>⌖</Text>} />
-            <LargeActionButton label="Change destination" onPress={journey.reset} variant="ghost" />
-          </View>
-        ) : (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>{journey.recentPlaces.length ? 'Recent destinations' : 'Campus destinations'}</Text><Text style={styles.sectionMeta}>{journey.demoMode ? 'DEMO FIXTURES' : 'UW–MADISON'}</Text></View>
-            {(journey.recentPlaces.length ? journey.recentPlaces.map(place => ({ name: place.name, meta: place.address ?? 'Confirm location', icon: '▦' })) : SUGGESTIONS).map((item) => <DestinationCard key={item.name} title={item.name} meta={item.meta} icon={item.icon} onPress={() => void findDestination(item.name)} />)}
-          </View>
-        )}
-
-        <View style={styles.demoRow}>
-          <View style={styles.demoCopy}><Text style={styles.demoTitle}>Demo destination data</Text><Text style={styles.demoText}>Enable fictional walkthroughs without location or a server. Actual UW search is used when off.</Text></View>
-          <Switch accessibilityLabel="Demo destination data" value={state.demoMode} onValueChange={journey.changeDemo} trackColor={{ false: colors.surfaceHighlight, true: colors.primary }} thumbColor={colors.background} />
+        {auth.user && journey.recentPlaces.length > 0 && <View style={styles.section}>
+          <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recently visited</Text><Text style={styles.sectionMeta}>YOUR PLACES</Text></View>
+          {journey.recentPlaces.map(place => <DestinationCard key={`${place.id}:${place.name}`} title={place.name} meta={place.address ?? 'Campus destination'} icon="◷" onPress={() => selectPlace(place)} />)}
+        </View>}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Campus directory</Text><Text style={styles.sectionMeta}>UW–MADISON</Text></View>
+          {directoryError && <Text accessibilityRole="alert" style={styles.message}>{directoryError}</Text>}
+          {suggestions.map(place => <DestinationCard key={place.id} title={place.name} meta={place.address ?? 'Campus building'} icon="▦" onPress={() => selectPlace(place)} />)}
         </View>
         <Text style={styles.safety}>SENSEA is an experimental information aid, not a mobility or obstacle-avoidance system.</Text>
       </ScrollView>

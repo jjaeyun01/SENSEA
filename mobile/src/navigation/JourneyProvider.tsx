@@ -6,8 +6,8 @@ import { ExpoSpeechRecognitionModule as Recognition, useSpeechRecognitionEvent }
 import { announce, stopFeedback, isFeedbackActive } from './feedback';
 import { clearEvents, eventStatus, recordEvent, setRecording, getRecording } from './audit';
 import { Guidance } from './guidance.mjs';
-import { baseUrl, getCampusPlace, request, searchCampusPlaces, type Place, type Point, type Route } from './campusApi';
-import { demoRoutes, searchDemo } from './demo';
+import { request, type Place, type Point, type Route } from './campusApi';
+import { searchDirectory, directoryPlace } from './uwDirectory';
 import { useCamera } from '../camera/CameraProvider';
 import { useAuth } from '../auth/AuthProvider';
 import { useNoise } from '../noise/NoiseProvider';
@@ -15,7 +15,7 @@ import { routeNoiseSummary } from '../noise/routeNoise.mjs';
 import { useNoiseMonitor } from '../noise/NoiseMonitorProvider';
 import { PositionFusion } from './positionFusion.mjs';
 import type { NavigationPosition, VerifiedVisualAlignment } from './positionFusion.mjs';
-type Stage = 'search' | 'confirm' | 'routes' | 'setup' | 'navigating' | 'paused' | 'arrived';
+type Stage = 'search' | 'routes' | 'setup' | 'navigating' | 'paused' | 'arrived';
 type ArrivalStatus = 'none' | 'verified_entrance_nearby' | 'building_nearby';
 function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAlignment }: {
   cameraReady: boolean; requestCamera: () => void; stopCamera: () => void;
@@ -26,7 +26,6 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
   const { suspend: suspendNoiseMonitor, resume: resumeNoiseMonitor } = useNoiseMonitor();
   const [searchVersion, setSearchVersion] = useState(0);
   const [recentPlaces, setRecentPlaces] = useState<Place[]>([]);
-  const [demoMode, setDemoMode] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [query, setQuery] = useState("");
   const [places, setPlaces] = useState<Place[]>([]);
@@ -64,9 +63,9 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
   stageRef.current = stage;
 
   useEffect(() => {
-    if (!auth.user) return;
+    if (!auth.user) { setRecentPlaces([]); return; }
     const cloudRecent: Place[] = auth.places.filter(place => place.last_visited_at).slice(0, 3).map(place => ({
-      id: place.external_place_id, name: place.name, address: place.address,
+      id: place.external_place_id.split(':', 1)[0], name: place.name, address: place.address,
       ...(place.latitude == null ? {} : { latitude: place.latitude }),
       ...(place.longitude == null ? {} : { longitude: place.longitude }),
     }));
@@ -137,7 +136,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     });
     return () => subscription.remove();
   }, [pause]);
-  useEffect(() => { if (!cameraReady && stage === "navigating" && selected?.source !== "demo") pause(); }, [cameraReady, stage, pause, selected]);
+  useEffect(() => { if (!cameraReady && stage === "navigating") pause(); }, [cameraReady, stage, pause]);
 
   useEffect(() => {
     if (stage !== "search") return;
@@ -146,17 +145,14 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     stopFeedback();
     setPlaces([]);
     if (query.trim().length < 2) return;
-    if (!demoMode && !baseUrl) {
-      setMessage('Building search is not connected. Set EXPO_PUBLIC_API_BASE_URL in mobile/.env.');
-      return;
-    }
     const controller = new AbortController(); active.current = controller;
     let timeout: ReturnType<typeof setTimeout>;
     const timer = setTimeout(() => {
       setBusy(true);
       timeout = setTimeout(() => controller.abort(), 15000);
-      void (demoMode ? Promise.resolve(searchDemo(query)) : searchCampusPlaces(query, controller.signal)).then(foundPlaces => {
+      void searchDirectory(query).then(foundPlaces => {
         if (current !== revision.current) return;
+        if (foundPlaces.length === 1) { selectPlace(foundPlaces[0]); return; }
         setPlaces(foundPlaces);
         say(foundPlaces.length ? `${foundPlaces.length} buildings found. ${foundPlaces.slice(0, 3).map((place: Place, index: number) => `Option ${index + 1}: ${place.name}`).join('. ')}. Select a building or say its option number.` : "No buildings found. Try another English building name.", 3, () => { if (foundPlaces.length) void listen(); });
       }).catch(error => {
@@ -167,7 +163,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
         .finally(() => { clearTimeout(timeout); if (current === revision.current) setBusy(false); });
     }, 400);
     return () => { clearTimeout(timer); clearTimeout(timeout); controller.abort(); };
-  }, [query, stage, say, listen, demoMode, searchVersion]);
+  }, [query, stage, say, listen, searchVersion]);
 
   async function perform(action: (signal: AbortSignal) => Promise<void>) {
     const current = ++revision.current;
@@ -200,14 +196,13 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     });
   }, []);
   function selectPlace(place: Place) {
-    if (busy) return;
     recordEvent("destination_selected", place.id);
     void perform(async signal => {
-      const details = place.source === 'demo' ? place : await getCampusPlace(place.id, signal);
-      if (signal.aborted || !mounted.current) return;
-      setDestination(details); setRecentPlaces(previous => [details, ...previous.filter(place => place.id !== details.id)].slice(0, 3)); setStage("confirm");
-      void auth.saveRecentPlace(details).catch(() => {});
-      say(`${details.name}. ${details.address ? `The street address is ${details.address}.` : "The street address is not available."} Is this your destination? Say yes or tap Confirm.`, 3, () => void listen());
+      const details = await directoryPlace(place.id, place.name);
+      if (!details || signal.aborted || !mounted.current) return;
+      setDestination(details); setPlaces([]); setStage("routes");
+      recordEvent("destination_confirmed", details.id);
+      await loadLiveRoutes(details, signal);
     });
   }
   function prepareLiveRoutes(rawRoutes: Route[], arrivalTarget?: { latitude: number; longitude: number; verified_entrance: boolean; kind: 'verified_entrance' | 'building_representative_point'; accuracy_m?: number | null; surveyed_at?: string | null; description?: string | null }) {
@@ -226,15 +221,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
       return preference === 'quiet' ? a.relativeNoise - b.relativeNoise : b.relativeNoise - a.relativeNoise;
     }).map((route: Route, index: number) => ({ ...route, label: `Walking route ${index + 1}` }));
   }
-  function confirm() {
-    if (!destination || busy) return;
-    recordEvent("destination_confirmed", destination.id);
-    if (destination.source === 'demo') {
-      const options = demoRoutes(destination); setRoutes(options); setStage('routes');
-      say('Simulation only. Three route fixtures are available: flat, shortest, and reviewed. Choose an option.', 3, () => void listen());
-      return;
-    }
-    void perform(async signal => {
+  async function loadLiveRoutes(place: Place, signal: AbortSignal) {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (signal.aborted || !mounted.current) return;
       if (!permission.granted) throw new Error("Location permission is needed to route from your current position.");
@@ -244,13 +231,18 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
       if (fix.coords.accuracy == null || fix.coords.accuracy > 30 || Date.now() - fix.timestamp > 10000) throw new Error("Your location is not accurate enough. Please retry outdoors.");
       setPosition({ latitude: fix.coords.latitude, longitude: fix.coords.longitude,
         accuracy: fix.coords.accuracy, timestamp: fix.timestamp, source: 'gps' });
-      const result = await request<{ routes: Route[]; arrival_target?: { latitude: number; longitude: number; verified_entrance: boolean; kind: 'verified_entrance' | 'building_representative_point'; accuracy_m?: number | null; surveyed_at?: string | null; description?: string | null } }>("/campus/routes", signal, { origin: { latitude: fix.coords.latitude, longitude: fix.coords.longitude }, destination_id: Number(destination.id) });
+      const result = await request<{ routes: Route[]; arrival_target?: { latitude: number; longitude: number; verified_entrance: boolean; kind: 'verified_entrance' | 'building_representative_point'; accuracy_m?: number | null; surveyed_at?: string | null; description?: string | null } }>("/campus/routes", signal, { origin: { latitude: fix.coords.latitude, longitude: fix.coords.longitude }, destination_id: Number(place.id) });
       if (signal.aborted || !mounted.current) return;
       const preference = auth.currentNoisePreference();
       const scored = prepareLiveRoutes(result.routes, result.arrival_target);
+      if (!scored.length) throw new Error('No walking route is available for this destination.');
       setRoutes(scored); setStage("routes");
+      if (scored.length === 1) { choose(scored[0]); return; }
       say(scored.map((route: Route, index: number) => `Option ${index + 1}: ${Math.ceil(route.duration_seconds / 60)} minutes, ${route.distance_m} meters${route.relativeNoise == null ? ', noise coverage unavailable' : `, ${preference === 'quiet' ? 'daytime quieter-route' : 'nighttime active-sound-route'} preference applied`}.`).join(" ") + " Noise does not prove crowd presence or safety. Stairs, slopes, and route safety have not been verified. Choose a route.", 3, () => void listen());
-    });
+  }
+  function confirm() {
+    if (!destination || busy) return;
+    void perform(signal => loadLiveRoutes(destination, signal));
   }
   function choose(route: Route) {
     recordEvent("route_selected", route.id);
@@ -307,7 +299,6 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
         void auth.recordRouteStart(destination, selected).catch(() => { routeRecorded.current = false; });
       }
     };
-    if (selected.source === 'demo') { recordRoute(); setStage('navigating'); say(selected.steps[stepIndex]?.instruction ?? 'Simulation complete.', 2); return; }
     if (!cameraReady) { say("Prepare the camera first using the button below."); return; }
     if (arrivalStatus !== 'none') {
       setArrivalStatus('none');
@@ -365,7 +356,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     finally { if (mounted.current) setBusy(false); }
   }
   useEffect(() => {
-    if (stage !== "navigating" || selected?.source === "demo") return;
+    if (stage !== "navigating") return;
     const timer = setInterval(() => {
       if (Date.now() - lastFixAt.current > 5000 && !uncertain.current) {
         uncertain.current = true; say("Location signal is stale. Guidance is paused. Please stop and check your surroundings.", 1);
@@ -401,25 +392,17 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera, cameraAl
     if (stage === "search") {
       if (index >= 0 && places[index]) selectPlace(places[index]);
       else setQuery(text.replace(/^take me to\s+/i, ""));
-    } else if (stage === "confirm" && /^(yes|confirm)$/.test(command)) confirm();
-    else if (stage === "routes" && routes[index]) choose(routes[index]);
+    } else if (stage === "routes" && routes[index]) choose(routes[index]);
     else if ((stage === "setup" || stage === "paused") && /^(camera|prepare camera|turn on camera)$/.test(command)) requestCamera();
     else if ((stage === "setup" || stage === "paused") && /^(start|resume|start navigation)$/.test(command)) void start();
     else say("Please use the available option number or the buttons on screen.");
   });
 
 
-  function nextDemo() {
-    if (selected?.source !== 'demo' || stage !== 'navigating') return;
-    const next = stepIndex + 1;
-    if (next >= selected.steps.length) { arrive(); return; }
-    setStepIndex(next); say(selected.steps[next].instruction, 2); recordEvent('demo_step', String(next));
-  }
-  function arrive() { pause(); setStage('arrived'); recordEvent('arrival_confirmed', arrivalStatus); say('Arrival confirmed. Guidance stopped.'); }
-  function changeDemo(value: boolean) { reset(); setDemoMode(value); }
+  function arrive() { pause(); setStage('arrived'); recordEvent('arrival_confirmed', arrivalStatus); if (destination) void auth.saveRecentPlace(destination).catch(() => {}); say('Arrival confirmed. Guidance stopped.'); }
   return { query, setQuery, recentPlaces, search: (text: string) => { setStage('search'); setQuery(text); setSearchVersion(value => value + 1); }, places, destination, routes, selected, stage, message, busy, rerouting, arrivalStatus, listening, recording,
-    position, stepIndex, demoMode, baseUrl, orderRoutes, selectPlace, confirm, choose, start, pause, reset, arrive, nextDemo,
-    reviewRoutes: () => { pause(); setStage('routes'); }, changeDemo, listen, say, repeat: () => say(lastMessage.current),
+    position, stepIndex, orderRoutes, selectPlace, confirm, choose, start, pause, reset, arrive,
+    reviewRoutes: () => { pause(); setStage('routes'); }, listen, say, repeat: () => say(lastMessage.current),
     stopListening: () => { speechWanted.current = false; Recognition.abort(); },
     toggleRecording: async () => { await setRecording(!recording); setRecordingState(!recording); },
     checkRecords: async () => say(await eventStatus()),

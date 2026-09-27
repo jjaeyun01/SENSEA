@@ -36,6 +36,7 @@ export async function createNativeSession(
     let pipeline: ReturnType<typeof getFramePipeline> | undefined;
     let active: ReturnType<typeof createSynchronizable<boolean>> | undefined;
     let cleanupFailed = false;
+    let hardwareReleaseFailed = false;
     const errors = camera.addOnErrorListener(() => {
       if (!stopped) onError("카메라 연결에 실패했습니다. 다른 앱에서 카메라를 사용 중인지 확인해 주세요.");
     });
@@ -228,16 +229,18 @@ export async function createNativeSession(
         closing = (async () => {
           try { await starting; } catch { /* Still detach on failed startup. */ }
           // Stop hardware immediately; model loading must not keep the camera on.
-          try { await camera.stop(); } catch { cleanupFailed = true; }
-          try { await camera.configure([]); } catch { cleanupFailed = true; }
+          try { await camera.stop(); } catch { cleanupFailed = true; hardwareReleaseFailed = true; }
+          try { await camera.configure([]); } catch { cleanupFailed = true; hardwareReleaseFailed = true; }
           try { await analysisStarting; } catch { cleanupFailed = true; }
           // A configure already in flight may have completed after the first detach.
-          try { await camera.configure([]); } catch { cleanupFailed = true; }
+          try { await camera.configure([]); } catch { cleanupFailed = true; hardwareReleaseFailed = true; }
           errors.remove();
           interruptions.remove();
           try { await releaseAnalysis(); } catch (error) { cleanupFailed = true; console.warn("[SENSEA] Analysis cleanup failed", error instanceof Error ? error.message : "native error"); }
           try { previewOutput.dispose(); } catch { cleanupFailed = true; }
-          occupied = cleanupFailed;
+          // Analysis resource disposal can fail after the camera has detached.
+          // Keep retry available when the hardware itself was released.
+          occupied = hardwareReleaseFailed;
           if (cleanupFailed) throw new Error("카메라 정리를 완료하지 못했습니다. 앱을 다시 실행해 주세요.");
         })();
         return closing;

@@ -1,6 +1,6 @@
 export type Point = { latitude: number; longitude: number };
 export type ArrivalTarget = Point & { verifiedEntrance: boolean; kind: 'verified_entrance' | 'building_representative_point'; accuracyM?: number | null; surveyedAt?: string | null; description?: string | null };
-export type Place = { id: string; name: string; address?: string | null; source?: 'uw' | 'demo'; entrance?: (Point & { accuracyM: number; surveyedAt: string; description: string }) | null; entranceVerified?: boolean } & Partial<Point>;
+export type Place = { id: string; name: string; address?: string | null; source?: 'uw' | 'demo'; buildingName?: string; facilityCategory?: string; entrance?: (Point & { accuracyM: number; surveyedAt: string; description: string }) | null; entranceVerified?: boolean } & Partial<Point>;
 export type Route = { id: string; label?: string; distance_m: number; duration_seconds: number; encoded_polyline: string;
   source?: 'google' | 'demo'; hasStairs?: boolean; noiseStatus?: 'fresh' | 'stale' | 'unknown';
   relativeNoise?: number; noiseCellCount?: number; noiseMeasurementCount?: number;

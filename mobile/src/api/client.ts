@@ -4,11 +4,6 @@ export type RouteOption = { id: string; label: string; distance_m: number; relat
 export type VisionResult = { description: string; recognized_text: string | null; uncertainty: number; provider_mode: string; image_retained: false };
 
 export const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'http://127.0.0.1:8000';
-const DEMO_PLACES: Place[] = [
-  { id: 'library', name: 'Memorial Library', latitude: 43.0752, longitude: -89.3971, entrance_waypoint: 'library_entrance', entrance_notes: 'Demo north entrance; verification required before field use.', verification_status: 'demo' },
-  { id: 'student_center', name: 'Campus Student Center', latitude: 43.07465, longitude: -89.398, entrance_waypoint: 'student_center_entrance', entrance_notes: 'Demo east entrance; verification required before field use.', verification_status: 'demo' },
-  { id: 'science_hall', name: 'Science Hall', latitude: 43.07565, longitude: -89.39625, entrance_waypoint: 'science_entrance', entrance_notes: 'Demo south entrance; verification required before field use.', verification_status: 'demo' },
-];
 
 export class ApiError extends Error {}
 
@@ -28,11 +23,7 @@ async function apiFetch(path: string, init?: RequestInit, timeoutMs = 6000): Pro
   } finally { clearTimeout(timeout); }
 }
 
-export async function searchPlaces(query: string, demoMode = false): Promise<Place[]> {
-  if (demoMode) {
-    const needle = query.trim().toLowerCase();
-    return DEMO_PLACES.filter((place) => place.name.toLowerCase().includes(needle) || place.id.includes(needle));
-  }
+export async function searchPlaces(query: string): Promise<Place[]> {
   const response = await apiFetch(`/places?q=${encodeURIComponent(query)}`);
   return ((await response.json()) as { places: Place[] }).places;
 }

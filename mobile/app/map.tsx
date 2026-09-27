@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import MapView, { Circle, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Circle, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useNoise } from '@/src/noise/NoiseProvider';
@@ -27,8 +27,6 @@ export default function MapScreen() {
       accessibilityLabel="Campus map"
       userInterfaceStyle="dark"
     >
-      <Marker coordinate={{ latitude: 43.0752, longitude: -89.3971 }} title="Memorial Library" description="Campus destination" pinColor={colors.primary} />
-      <Marker coordinate={{ latitude: 43.0766, longitude: -89.4001 }} title="Memorial Union" description="Campus destination" pinColor={colors.primary} />
       {noiseVisible && contributions.cells.map(cell => { const color = cell.average_relative_noise < 0.33 ? '#24C875' : cell.average_relative_noise < 0.66 ? '#FFAA17' : '#FF514B'; return <Circle key={cell.grid_cell_id} center={{ latitude: cell.grid_latitude, longitude: cell.grid_longitude }} radius={25} fillColor={`${color}52`} strokeColor={color} strokeWidth={2} />; })}
     </MapView>
 
