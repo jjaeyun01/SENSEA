@@ -1,9 +1,11 @@
 """On-demand UW map lookup. No harvested directory or floor plans are stored."""
 
 import hmac
+import json
 import math
 import os
 from html.parser import HTMLParser
+from pathlib import Path as FilePath
 from typing import Literal
 
 import httpx
@@ -30,11 +32,32 @@ class CampusSearchResponse(BaseModel):
     source: str
 
 
+class Coordinate(BaseModel):
+    latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
+    longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
+
+
 class CampusPlaceDetail(CampusPlaceSummary):
     latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
     longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
     address: str | None = None
     coordinate_kind: Literal["building_representative_point"]
+    entrance: Coordinate | None = None
+    entrance_verified: bool = False
+
+
+def verified_entrance(place_id: int) -> Coordinate | None:
+    """Return only explicitly verified, manually curated entrance coordinates."""
+    default = FilePath(__file__).parents[1] / "data/entrances.json"
+    path = FilePath(os.getenv("SENSEA_ENTRANCES_PATH", default))
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        item = raw.get(str(place_id))
+        if not isinstance(item, dict) or item.get("verified") is not True:
+            return None
+        return Coordinate.model_validate(item)
+    except (OSError, ValueError, TypeError, ValidationError):
+        return None
 
 
 class SearchResults(HTMLParser):
@@ -114,6 +137,7 @@ async def place_details(place_id: int = Path(gt=0)):
             raise ValueError("Invalid name")
     except (ValueError, KeyError, TypeError) as exc:
         raise HTTPException(502, "UW 건물 위치를 확인하지 못했습니다.") from exc
+    entrance = verified_entrance(place_id)
     return {
         "id": str(place_id),
         "name": name,
@@ -121,12 +145,9 @@ async def place_details(place_id: int = Path(gt=0)):
         "longitude": lon,
         "address": data.get("street_address") or None,
         "coordinate_kind": "building_representative_point",
+        "entrance": entrance,
+        "entrance_verified": entrance is not None,
     }
-
-
-class Coordinate(BaseModel):
-    latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
-    longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
 
 
 class CampusRouteRequest(BaseModel):
@@ -155,13 +176,16 @@ async def campus_routes(body: CampusRouteRequest):
     if not key:
         raise HTTPException(503, "Google Routes API 키가 설정되지 않았습니다.")
     destination = await place_details(body.destination_id)
+    target = destination["entrance"] or Coordinate(
+        latitude=destination["latitude"], longitude=destination["longitude"]
+    )
     payload = {
         "origin": {"location": {"latLng": body.origin.model_dump()}},
         "destination": {
             "location": {
                 "latLng": {
-                    "latitude": destination["latitude"],
-                    "longitude": destination["longitude"],
+                    "latitude": target.latitude,
+                    "longitude": target.longitude,
                 }
             }
         },
@@ -226,7 +250,18 @@ async def campus_routes(body: CampusRouteRequest):
             )
         if not routes:
             raise HTTPException(404, "도보 경로를 찾지 못했습니다.")
-        return {"destination": destination, "routes": routes, "attribution": "Google Maps"}
+        return {
+            "destination": destination,
+            "arrival_target": {
+                **target.model_dump(),
+                "verified_entrance": destination["entrance_verified"],
+                "kind": "verified_entrance"
+                if destination["entrance_verified"]
+                else "building_representative_point",
+            },
+            "routes": routes,
+            "attribution": "Google Maps",
+        }
     except (
         httpx.HTTPError,
         KeyError,

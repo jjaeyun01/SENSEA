@@ -24,7 +24,7 @@ export default function SettingsScreen() {
     if (!enabled) { void noise.setConsent(false).catch(error => journey.say(error instanceof Error ? error.message : 'Could not stop noise contribution.')); return; }
     Alert.alert(
       'Contribute to the noise map?',
-      'During active navigation, SENSEA will use the microphone and foreground location for five-second samples. Audio is processed on this device and immediately deleted. Only a relative sound number, time, accuracy, and a roughly 30–45 metre grid cell are uploaded. This is optional and can be stopped at any time.',
+      'During active navigation, SENSEA will aggregate five seconds of the live sound meter with foreground location. No audio file is created. Only a relative sound number, time, accuracy, and a roughly 30–45 metre grid cell are uploaded. This is optional and can be stopped at any time.',
       [
         { text: 'Not now', style: 'cancel' },
         { text: 'Allow and continue', onPress: () => void noise.setConsent(true).catch(error => journey.say(error instanceof Error ? error.message : 'Could not enable noise contribution.')) },

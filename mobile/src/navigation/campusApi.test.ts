@@ -23,8 +23,40 @@ describe('campus building API contract', () => {
       address: '800 Langdon St.',
       latitude: 43.076,
       longitude: -89.399,
+      entrance: null,
+      entranceVerified: false,
       source: 'uw',
     });
+  });
+
+  it('accepts only an entrance with complete survey metadata', () => {
+    expect(parseCampusPlaceResponse({
+      id: '432', name: 'Memorial Union', address: null,
+      latitude: 43.076, longitude: -89.399,
+      entrance_verified: true,
+      entrance: {
+        latitude: 43.0759,
+        longitude: -89.3991,
+        accuracy_m: 3,
+        surveyed_at: '2026-09-27T12:00:00-05:00',
+        description: ' Field-surveyed east public entrance ',
+      },
+    }).entrance).toEqual({
+      latitude: 43.0759,
+      longitude: -89.3991,
+      accuracyM: 3,
+      surveyedAt: '2026-09-27T12:00:00-05:00',
+      description: 'Field-surveyed east public entrance',
+    });
+  });
+
+  it('rejects entrance coordinates without survey metadata', () => {
+    expect(() => parseCampusPlaceResponse({
+      id: '432', name: 'Memorial Union', address: null,
+      latitude: 43.076, longitude: -89.399,
+      entrance_verified: true,
+      entrance: { latitude: 43.0759, longitude: -89.3991 },
+    })).toThrow(/unverified entrance metadata/i);
   });
 
   it.each([

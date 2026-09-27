@@ -1,13 +1,5 @@
 import { useNoiseMonitor } from './NoiseMonitorProvider';
 import Constants from 'expo-constants';
-import { File } from 'expo-file-system';
-import {
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
-  useAudioRecorder,
-  useAudioRecorderState,
-} from 'expo-audio';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState, Platform } from 'react-native';
 
@@ -61,14 +53,13 @@ function delay(ms: number) { return new Promise(resolve => setTimeout(resolve, m
 
 export function NoiseProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
-  const { suspend: suspendMonitor, resume: resumeMonitor } = useNoiseMonitor();
+  const monitor = useNoiseMonitor();
+  const monitorReading = useRef({ active: monitor.active, dbfs: monitor.dbfs, measuredAtMs: monitor.measuredAtMs });
   const samples = useRef<number[]>([]);
   const lastAttemptAt = useRef(0);
   const busy = useRef(false);
   const contaminated = useRef(false);
   const suspendedUntil = useRef(0);
-  const recorder = useAudioRecorder({ ...RecordingPresets.LOW_QUALITY, numberOfChannels: 1, isMeteringEnabled: true, directory: 'cache' });
-  const recorderState = useAudioRecorderState(recorder, 250);
   const [consentEnabled, setConsentEnabled] = useState(false);
   const [collecting, setCollecting] = useState(false);
   const [latest, setLatest] = useState<NoiseReading | null>(null);
@@ -77,8 +68,8 @@ export function NoiseProvider({ children }: { children: ReactNode }) {
   const [uploadedCount, setUploadedCount] = useState(0);
 
   useEffect(() => {
-    if (collecting && Number.isFinite(recorderState.metering)) samples.current.push(recorderState.metering as number);
-  }, [collecting, recorderState.metering]);
+    monitorReading.current = { active: monitor.active, dbfs: monitor.dbfs, measuredAtMs: monitor.measuredAtMs };
+  }, [monitor.active, monitor.dbfs, monitor.measuredAtMs]);
 
   const refreshMap = useCallback(async () => {
     if (!auth.user) { setCells([]); return; }
@@ -120,8 +111,8 @@ export function NoiseProvider({ children }: { children: ReactNode }) {
     if (!auth.user) throw new Error('Sign in before contributing noise measurements.');
     if (Platform.OS === 'web') throw new Error('Noise contribution is available in the iOS and Android app.');
     if (enabled) {
-      const permission = await requestRecordingPermissionsAsync();
-      if (!permission.granted) throw new Error('Microphone permission was not granted. Noise contribution remains off.');
+      const granted = await monitor.requestPermission();
+      if (!granted) throw new Error('Microphone permission was not granted. Noise contribution remains off.');
       const { error } = await supabase.from('noise_collection_consents').upsert({
         user_id: auth.user.id, consent_version: CONSENT_VERSION, foreground_only: true,
         granted_at: new Date().toISOString(), revoked_at: null,
@@ -136,25 +127,27 @@ export function NoiseProvider({ children }: { children: ReactNode }) {
       setConsentEnabled(false);
       setStatus('Noise contribution is off.');
     }
-  }, [auth.user]);
+  }, [auth.user, monitor.requestPermission]);
 
   const capture = useCallback(async (position: Position) => {
     if (!auth.user || busy.current || !consentEnabled || AppState.currentState !== 'active') return;
     if (position.accuracy == null || position.accuracy > 30 || isFeedbackActive() || Date.now() < suspendedUntil.current) return;
-    suspendMonitor('noise-contribution');
+    if (!monitorReading.current.active) { setStatus('Live sound meter is paused; no measurement was saved.'); return; }
     busy.current = true; contaminated.current = false; samples.current = []; setCollecting(true);
-    setStatus('Measuring environmental sound. No audio will be uploaded.');
-    let temporaryUri: string | null = null;
+    setStatus('Aggregating the live sound meter. No audio is stored or uploaded.');
     try {
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true, interruptionMode: 'mixWithOthers' });
-      await recorder.prepareToRecordAsync();
-      recorder.record();
-      await delay(SAMPLE_DURATION_MS);
-      await recorder.stop();
-      temporaryUri = recorder.uri;
-      if (contaminated.current || isFeedbackActive() || AppState.currentState !== 'active') {
-        setStatus('Measurement discarded because speech played or the app left the foreground.');
-        return;
+      const deadline = Date.now() + SAMPLE_DURATION_MS;
+      while (Date.now() < deadline) {
+        await delay(250);
+        if (contaminated.current || isFeedbackActive() || AppState.currentState !== 'active') {
+          setStatus('Measurement discarded because speech played or the app left the foreground.');
+          return;
+        }
+        const reading = monitorReading.current;
+        if (!reading.active) { setStatus('Measurement discarded because the live sound meter paused.'); return; }
+        if (reading.dbfs !== null && reading.measuredAtMs !== null && Date.now() - reading.measuredAtMs <= 750) {
+          samples.current.push(reading.dbfs);
+        }
       }
       const summary = summarizeDbfs(samples.current);
       const grid = gridForLocation(position.latitude, position.longitude);
@@ -189,13 +182,9 @@ export function NoiseProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Noise measurement failed.');
     } finally {
-      temporaryUri = temporaryUri || recorder.uri;
-      if (temporaryUri) { try { new File(temporaryUri).delete(); } catch {} }
-      try { await setAudioModeAsync({ allowsRecording: false }); } catch {}
       samples.current = []; busy.current = false; setCollecting(false);
-      resumeMonitor('noise-contribution');
     }
-  }, [auth.user, consentEnabled, recorder, refreshMap, suspendMonitor, resumeMonitor]);
+  }, [auth.user, consentEnabled, refreshMap]);
 
   const offerLocation = useCallback((position: Position) => {
     if (!consentEnabled || Date.now() - lastAttemptAt.current < SAMPLE_INTERVAL_MS) return;
@@ -205,12 +194,8 @@ export function NoiseProvider({ children }: { children: ReactNode }) {
 
   const suspendForSpeech = useCallback(() => {
     suspendedUntil.current = Date.now() + 7000;
-    if (busy.current) {
-      contaminated.current = true;
-      try { recorder.pause(); } catch {}
-      void recorder.stop().catch(() => {}).finally(() => { void setAudioModeAsync({ allowsRecording: false }).catch(() => {}); });
-    }
-  }, [recorder]);
+    if (busy.current) contaminated.current = true;
+  }, []);
 
   const deleteMyMeasurements = useCallback(async () => {
     if (!auth.user) throw new Error('Sign in first.');

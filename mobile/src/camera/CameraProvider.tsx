@@ -7,6 +7,7 @@ import type { LiveResult, NativeSession } from '../vision/types';
 import { announce, stopFeedback } from '../navigation/feedback';
 import { recordEvent } from '../navigation/audit';
 import { colors } from '../theme';
+import { isFreshVisualAlignment, subscribeVisualAlignment, type VpsAlignment } from '../navigation/visualAlignment.mjs';
 
 function useCameraController() {
   const permission = useCameraPermission();
@@ -15,6 +16,7 @@ function useCameraController() {
   const [result, setResult] = useState<LiveResult | null>(null);
   const [phase, setPhase] = useState<'closed' | 'opening' | 'live' | 'closing'>('closed');
   const [message, setMessage] = useState('Camera is off. Images are processed on this device.');
+  const [visualAlignment, setVisualAlignment] = useState<VpsAlignment | null>(null);
   const owned = useRef<NativeSession | null>(null);
   const latest = useRef<LiveResult | null>(null);
   const wanted = useRef(false), opening = useRef(false), mounted = useRef(true);
@@ -70,13 +72,27 @@ function useCameraController() {
     }, 250);
     return () => { mounted.current = false; listener.remove(); clearInterval(timer); close(); };
   }, [close]);
+  useEffect(() => subscribeVisualAlignment(value => {
+    if (mounted.current) setVisualAlignment(value);
+  }), []);
+  useEffect(() => {
+    if (!visualAlignment) return;
+    const timer = setInterval(() => {
+      if (!isFreshVisualAlignment(visualAlignment)) setVisualAlignment(null);
+    }, 250);
+    return () => clearInterval(timer);
+  }, [visualAlignment]);
   const repeat = () => {
     const current = latest.current;
     if (current && isFreshResult(current, Date.now())) announce(describeResult(current), 1, 'ko-KR');
     else announce('No fresh camera observation is available.', 1);
   };
   return { device, session, result, phase, message: result ? describeResult(result) : message, open, close, repeat,
-    ready: phase === 'live' && result?.quality.status === 'usable' };
+    ready: phase === 'live' && result?.quality.status === 'usable',
+    // Object detection is not VPS. Only a registered provider tied to a
+    // surveyed spatial map may populate this value.
+    visualAlignment,
+    alignmentStatus: visualAlignment ? 'verified' as const : 'unavailable' as const };
 }
 type CameraState = ReturnType<typeof useCameraController>;
 const Context = createContext<CameraState | null>(null);
