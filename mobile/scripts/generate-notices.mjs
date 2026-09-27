@@ -6,6 +6,11 @@ let text = "SENSEA camera prototype\n\nEfficientDet Lite0 V1 — TensorFlow\n";
 text += "The model and its extracted label map are used unmodified under Apache-2.0.\n";
 text += "Source: " + JSON.parse(await readFile(path.join(root, "assets/models/manifest.json"), "utf8")).url + "\n\n";
 text += await readFile(path.join(root, "assets/models/LICENSE.txt"), "utf8");
+text += "\n\n---\nLiteRT 1.4.0 XNNPACK C API header — Apache-2.0\n";
+text += "Copyright 2019 The TensorFlow Authors. Header used without modification.\n";
+text += "Source: https://github.com/google-ai-edge/LiteRT/blob/0348ffbe4232df35ab2651e6383528b3d8bf792f/tflite/delegates/xnnpack/xnnpack_delegate.h\n";
+text += "SENSEA adds an Android CPU delegate integration to react-native-fast-tflite 3.0.1.\n\n";
+text += await readFile(path.join(root, "native/litert-1.4.0/LICENSE"), "utf8");
 for (const [name, version] of Object.entries(pkg.dependencies)) {
   const directory = path.join(root, "node_modules", name);
   const names = await readdir(directory);

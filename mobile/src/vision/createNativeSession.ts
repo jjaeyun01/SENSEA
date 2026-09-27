@@ -1,199 +1,275 @@
+import { Platform } from "react-native";
+import { Asset } from "expo-asset";
 import { loadTensorflowModel, type TfliteModel } from "react-native-fast-tflite";
 import { VisionCamera, type CameraPreviewOutput } from "react-native-vision-camera";
-import { createResizer, type Resizer } from "react-native-vision-camera-resizer";
+import { createResizer, isResizerAvailable, type Resizer } from "react-native-vision-camera-resizer";
 import { createWorkletRuntimeForThread } from "react-native-vision-camera-worklets";
 import { createSynchronizable, scheduleOnRN, scheduleOnRuntime } from "react-native-worklets";
 import labels from "../../assets/models/labels.json";
 import { analyzeOwnedFrame, isFreshResult } from "./detection.mjs";
 import type { LiveResult, NativeSession } from "./types";
 
-// A second opening cannot allocate another interpreter while the first is closing.
 let occupied = false;
+let cameraPromise: ReturnType<typeof VisionCamera.createCameraSession> | undefined;
 
+/** Preview owns startup. No model, GPU converter or worklet is required to open it. */
 export async function createNativeSession(
   onResult: (result: LiveResult) => void,
   onError: (message: string) => void,
+  onAnalysisError: (message: string) => void,
 ): Promise<NativeSession> {
-  if (occupied) throw new Error("이전 카메라 처리를 정리하고 있습니다. 잠시 후 다시 열어 주세요.");
+  if (occupied) throw new Error("이전 카메라를 정리하고 있습니다. 잠시 후 다시 시도해 주세요.");
   occupied = true;
-  let model: TfliteModel | undefined;
-  let resizer: Resizer | undefined;
   let preview: CameraPreviewOutput | undefined;
-  let pipeline: Awaited<ReturnType<typeof getPipeline>> | undefined;
   try {
-    model = await loadTensorflowModel(require("../../assets/models/efficientdet-lite0.tflite"), []);
-    const input = model.inputs[0];
-    if (model.inputs.length !== 1 || input.dataType !== "uint8" ||
-        input.shape.join(",") !== "1,320,320,3" || model.outputs.length !== 4 ||
-        model.outputs.some(tensor => tensor.dataType !== "float32")) {
-      throw new Error("객체 인식 모델 형식을 확인하지 못했습니다.");
-    }
-    resizer = await createResizer({
-      width: 320, height: 320, channelOrder: "rgb", dataType: "uint8",
-      scaleMode: "contain", pixelLayout: "interleaved",
-    });
-    pipeline = await getPipeline();
-    const { frameOutput, runtime, cameraSession } = pipeline;
+    cameraPromise ??= VisionCamera.createCameraSession(false);
+    const camera = await cameraPromise;
     preview = VisionCamera.createPreviewOutput();
-    const detector = model, converter = resizer, previewOutput = preview;
-    previewOutput.outputOrientation = "up";
-    const active = createSynchronizable(true);
-    const notificationPending = createSynchronizable(false);
-    let disposed = false;
+    preview.outputOrientation = "up";
+    const previewOutput = preview;
+    let stopped = false;
     let closing: Promise<void> | undefined;
-
-    const deliver = (result: LiveResult) => {
-      try {
-        if (!disposed && active.getBlocking() && isFreshResult(result, Date.now())) onResult(result);
-      } finally { notificationPending.setBlocking(false); }
-    };
-    const fail = (message: string) => {
-      if (!disposed) onError(message);
-    };
-
-    // Initialization and teardown use the SAME native thread as inference.
-    await new Promise<void>((resolve, reject) => {
-      scheduleOnRuntime(runtime, () => {
-        "worklet";
-        try {
-          let lastStartedAt = -Infinity;
-          frameOutput.setOnFrameCallback(frame => {
-            const now = performance.now();
-            const receivedAt = Date.now();
-            const shouldAnalyze = active.getBlocking() && !notificationPending.getBlocking() &&
-              now - lastStartedAt >= 200;
-            if (shouldAnalyze) lastStartedAt = now;
-            try {
-              const result = analyzeOwnedFrame(frame, converter, detector, labels, shouldAnalyze);
-              if (result && active.getBlocking() && Date.now() - receivedAt <= 1000) {
-                notificationPending.setBlocking(true);
-                scheduleOnRN(deliver, {
-                  ...result, receivedAt,
-                  processedMs: performance.now() - now, navigation_safe: false,
-                });
-              }
-            } catch {
-              active.setBlocking(false);
-              scheduleOnRN(fail, "카메라 분석을 중지했습니다. 카메라를 다시 열어 주세요.");
-            }
-            // This callback has taken ownership and disposed the frame on every path.
-            return true;
-          });
-          scheduleOnRN(resolve);
-        } catch { scheduleOnRN(reject, new Error("카메라 분석 스레드를 시작하지 못했습니다.")); }
-      });
-    });
-
-    await cameraSession.configure([{
-      input: "back",
-      outputs: [
-        { output: frameOutput, mirrorMode: "off" },
-        { output: previewOutput, mirrorMode: "off" },
-      ],
-      constraints: [{ fps: 30 }, { resolutionBias: frameOutput }],
-    }]);
-    const errors = cameraSession.addOnErrorListener(() => {
-      if (!disposed && active.getBlocking()) fail("카메라 연결이 끊겼습니다. 다시 열어 주세요.");
-    });
-    const interruptions = cameraSession.addOnInterruptionStartedListener(() => {
-      if (!disposed && active.getBlocking()) fail("카메라가 일시 중단되었습니다. 다시 열어 주세요.");
-    });
     let starting: Promise<void> | undefined;
+    let analysisStarting: Promise<void> | undefined;
+    let model: TfliteModel | undefined;
+    let converter: Resizer | undefined;
+    let pipeline: ReturnType<typeof getFramePipeline> | undefined;
+    let active: ReturnType<typeof createSynchronizable<boolean>> | undefined;
+    let cleanupFailed = false;
+    const errors = camera.addOnErrorListener(() => {
+      if (!stopped) onError("카메라 연결에 실패했습니다. 다른 앱에서 카메라를 사용 중인지 확인해 주세요.");
+    });
+    const interruptions = camera.addOnInterruptionStartedListener(() => {
+      if (!stopped) onError("카메라가 일시 중단되었습니다. 다시 켜 주세요.");
+    });
+    const configurePreview = () => camera.configure([{
+      input: "back", outputs: [{ output: previewOutput, mirrorMode: "off" }], constraints: [],
+    }]);
+
+    const releaseAnalysis = async () => {
+      active?.setBlocking(false);
+      const detector = model, resizer = converter;
+      if (pipeline) {
+        const { frameOutput, runtime } = pipeline;
+        await new Promise<void>((resolve, reject) => {
+          const complete = (failed: boolean) => failed ? reject(new Error("analysis cleanup failed")) : resolve();
+          scheduleOnRuntime(runtime, () => {
+            "worklet";
+            let failed = false;
+            try { frameOutput.setOnFrameCallback(undefined); } catch { failed = true; }
+            try { resizer?.dispose(); } catch { failed = true; }
+            try { detector?.dispose(); } catch { failed = true; }
+            scheduleOnRN(complete, failed);
+          });
+        });
+      }
+      // Nitro creates one JS wrapper per runtime; release the RN wrappers too.
+      for (const resource of [converter, model]) resource?.dispose();
+      converter = undefined;
+      model = undefined;
+    };
+
+    const prepareAnalysis = async () => {
+      // Called only after onPreviewStarted confirms that the user sees camera frames.
+      let stage = "model asset";
+      const useCpuRgb = Platform.OS === "android";
+      try {
+        await starting;
+        if (stopped) return;
+        if (!useCpuRgb && !isResizerAvailable()) {
+          onAnalysisError("이 기기는 현재 사물 분석 방식을 지원하지 않습니다. 실시간 카메라 화면은 사용할 수 있습니다.");
+          return;
+        }
+        // Android release require() resolves to a raw resource name, but
+        // fast-tflite 3's Android loader accepts URLs only. Materialize the
+        // bundled public model locally; this does not store camera images.
+        const asset = Asset.fromModule(require("../../assets/models/efficientdet-lite0.tflite"));
+        await asset.downloadAsync();
+        if (stopped) return;
+        if (!asset.localUri?.startsWith("file://")) throw new Error("No local model asset");
+        stage = "model load";
+        model = await loadTensorflowModel({ url: asset.localUri }, []);
+        if (stopped) return;
+        const input = model.inputs[0];
+        if (model.inputs.length !== 1 || input.dataType !== "uint8" ||
+            input.shape.join(",") !== "1,320,320,3" || model.outputs.length !== 4 ||
+            model.outputs.some(tensor => tensor.dataType !== "float32")) {
+          throw new Error("Invalid model contract");
+        }
+        console.info("[SENSEA] Local model ready");
+        stage = "frame converter";
+        if (!useCpuRgb) {
+          converter = await createResizer({
+            width: 320, height: 320, channelOrder: "rgb", dataType: "uint8",
+            scaleMode: "contain", pixelLayout: "interleaved",
+          });
+        }
+        if (stopped) return;
+        stage = "frame runtime";
+        pipeline = getFramePipeline();
+        const { frameOutput, runtime } = pipeline;
+        const detector = model, resizer = converter;
+        const enabled = createSynchronizable(true);
+        active = enabled;
+        const pending = createSynchronizable(false);
+        let inferenceReported = false;
+        const deliver = (result: LiveResult) => {
+          try {
+            if (!stopped && enabled.getBlocking() && isFreshResult(result, Date.now())) {
+              if (result.quality.status === "usable" && !inferenceReported) {
+                inferenceReported = true;
+                console.info("[SENSEA] First frame inference ready");
+              }
+              onResult(result);
+            }
+          } finally { pending.setBlocking(false); }
+        };
+        const reportTiming = (milliseconds: number, quality: string, preprocessingMs: number, inferenceMs: number) => {
+          console.info("[SENSEA] First frame processing", Math.round(milliseconds), quality,
+            { preprocessingMs: Math.round(preprocessingMs), inferenceMs: Math.round(inferenceMs) });
+        };
+        const failAnalysis = (reason: string) => {
+          console.warn("[SENSEA] Frame analysis stopped", reason);
+          if (!stopped) onAnalysisError("사물 분석을 중지했습니다. 실시간 카메라 화면은 계속 표시합니다.");
+        };
+        await new Promise<void>((resolve, reject) => {
+          scheduleOnRuntime(runtime, () => {
+            "worklet";
+            try {
+              // One model-sized buffer per session; camera pixels never cross to RN.
+              const cpuRgbBuffer = useCpuRgb ? new Uint8Array(320 * 320 * 3) : undefined;
+              let lastStartedAt = -Infinity;
+              let timingReported = false;
+              let consecutiveDeadlineMisses = 0;
+              frameOutput.setOnFrameCallback(frame => {
+                const now = performance.now(), receivedAt = Date.now();
+                const shouldAnalyze = enabled.getBlocking() && !pending.getBlocking() && now - lastStartedAt >= 200;
+                if (shouldAnalyze) lastStartedAt = now;
+                try {
+                  const result = analyzeOwnedFrame(frame, resizer, detector, labels, shouldAnalyze, cpuRgbBuffer);
+                  if (result && !timingReported) {
+                    timingReported = true;
+                    scheduleOnRN(reportTiming, performance.now() - now, result.quality.status, result.preprocessingMs, result.inferenceMs);
+                  }
+                  if (result && enabled.getBlocking()) {
+                    if (Date.now() - receivedAt > 1000) {
+                      // Allow a slow warmup, but do not leave analysis preparing forever
+                      // on a device that cannot produce results within the freshness limit.
+                      consecutiveDeadlineMisses++;
+                      if (consecutiveDeadlineMisses >= 3) {
+                        enabled.setBlocking(false);
+                        scheduleOnRN(failAnalysis, "Frame processing deadline exceeded");
+                      }
+                    } else {
+                      consecutiveDeadlineMisses = 0;
+                      pending.setBlocking(true);
+                      scheduleOnRN(deliver, { ...result, receivedAt, processedMs: performance.now() - now, navigation_safe: false });
+                    }
+                  }
+                } catch (error) {
+                  enabled.setBlocking(false);
+                  // One bounded diagnostic, no pixels or frame references cross runtimes.
+                  const reason = error instanceof Error ? error.message.slice(0, 240) : "Native frame error";
+                  scheduleOnRN(failAnalysis, reason);
+                }
+                return true;
+              });
+              scheduleOnRN(resolve);
+            } catch { scheduleOnRN(reject, new Error("Cannot initialize frame processing")); }
+          });
+        });
+        if (stopped) return;
+        stage = "analysis output";
+        await camera.configure([{
+          input: "back",
+          outputs: [{ output: previewOutput, mirrorMode: "off" }, { output: frameOutput, mirrorMode: "off" }],
+          constraints: [{ resolutionBias: frameOutput }],
+        }]);
+      } catch (error) {
+        console.warn(`[SENSEA] Analysis initialization failed at ${stage}`, error instanceof Error ? error.message : "native error");
+        try { await releaseAnalysis(); } catch { cleanupFailed = true; }
+        if (!stopped) {
+          // If attaching an analysis output failed, restore the plain preview.
+          try { await configurePreview(); }
+          catch { onError("카메라 미리보기를 연결하지 못했습니다. 다시 켜 주세요."); return; }
+          onAnalysisError("사물 분석을 준비하지 못했습니다. 실시간 카메라 화면은 사용할 수 있습니다.");
+        }
+      }
+    };
+
     return {
       preview: previewOutput,
       start() {
-        if (disposed || !active.getBlocking()) return Promise.resolve();
-        starting ??= cameraSession.start();
+        if (stopped) return Promise.resolve();
+        starting ??= (async () => {
+          await configurePreview();
+          if (!stopped) await camera.start();
+        })();
         return starting;
       },
-      pause() { active.setBlocking(false); },
+      startAnalysis() {
+        if (stopped) return Promise.resolve();
+        analysisStarting ??= prepareAnalysis();
+        return analysisStarting;
+      },
+      pause() { stopped = true; active?.setBlocking(false); },
       dispose() {
         if (closing) return closing;
-        disposed = true;
-        active.setBlocking(false);
+        stopped = true;
+        active?.setBlocking(false);
         closing = (async () => {
-          try { await starting; } catch { /* A failed start still needs cleanup. */ }
-          let detachFailed = false;
-          try { await cameraSession.stop(); } catch { detachFailed = true; }
-          try { await cameraSession.configure([]); } catch { detachFailed = true; }
+          try { await starting; } catch { /* Still detach on failed startup. */ }
+          // Stop hardware immediately; model loading must not keep the camera on.
+          try { await camera.stop(); } catch { cleanupFailed = true; }
+          try { await camera.configure([]); } catch { cleanupFailed = true; }
+          try { await analysisStarting; } catch { cleanupFailed = true; }
+          // A configure already in flight may have completed after the first detach.
+          try { await camera.configure([]); } catch { cleanupFailed = true; }
           errors.remove();
           interruptions.remove();
-          await new Promise<void>((resolve, reject) => {
-            const complete = (failure?: string) => {
-              // Nitro creates a separate JS wrapper in each runtime. Release the
-              // RN wrappers too, after the worker has stopped using the resources.
-              for (const resource of [converter, detector, previewOutput]) {
-                try { resource.dispose(); }
-                catch { failure = "카메라 자원 정리에 실패했습니다."; }
-              }
-              occupied = Boolean(failure);
-              if (failure) reject(new Error(failure)); else resolve();
-            };
-            scheduleOnRuntime(runtime, () => {
-              "worklet";
-              let failure = detachFailed;
-              try { frameOutput.setOnFrameCallback(undefined); } catch { failure = true; }
-              try { converter.dispose(); } catch { failure = true; }
-              try { detector.dispose(); } catch { failure = true; }
-              try { previewOutput.dispose(); } catch { failure = true; }
-              scheduleOnRN(complete, failure ? "카메라 자원 정리에 실패했습니다." : undefined);
-            });
-          });
+          try { await releaseAnalysis(); } catch { cleanupFailed = true; }
+          try { previewOutput.dispose(); } catch { cleanupFailed = true; }
+          occupied = cleanupFailed;
+          if (cleanupFailed) throw new Error("카메라 정리를 완료하지 못했습니다. 앱을 다시 실행해 주세요.");
         })();
         return closing;
       },
     };
   } catch (error) {
-    let cleanupFailed = false;
-    if (pipeline) {
-      const { cameraSession, frameOutput, runtime } = pipeline;
-      try { await cameraSession.stop(); } catch { cleanupFailed = true; }
-      try { await cameraSession.configure([]); } catch { cleanupFailed = true; }
-      try {
-        await new Promise<void>((resolve, reject) => {
-          scheduleOnRuntime(runtime, () => {
-            "worklet";
-            try { frameOutput.setOnFrameCallback(undefined); scheduleOnRN(resolve); }
-            catch { scheduleOnRN(reject, new Error("프레임 입력을 해제하지 못했습니다.")); }
-          });
-        });
-      } catch { cleanupFailed = true; }
-    }
-    for (const resource of [preview, resizer, model]) {
-      try { resource?.dispose(); } catch { cleanupFailed = true; }
-    }
-    occupied = cleanupFailed;
+    try { preview?.dispose(); } finally { occupied = false; }
+    if (!preview) cameraPromise = undefined;
     throw error;
   }
 }
 
-// Keep one idle pipeline for the app lifetime. VisionCamera 5.2.3's Android
-// FrameOutput.dispose() clears the analyzer but does not shut down its executor.
-// Reusing the output/runtime avoids a new native thread for every camera open.
-// stop() + configure([]) explicitly release the camera hardware between sessions.
-let pipelinePromise: Promise<{
+// Reuse the frame executor/runtime; creating one on every open leaks native threads
+// with VisionCamera 5.2.3. The preview does not depend on this pipeline.
+let framePipeline: {
   frameOutput: ReturnType<typeof VisionCamera.createFrameOutput>;
   runtime: ReturnType<typeof createWorkletRuntimeForThread>;
-  cameraSession: Awaited<ReturnType<typeof VisionCamera.createCameraSession>>;
-}> | undefined;
-function getPipeline() {
-  pipelinePromise ??= (async () => {
-    const frameOutput = VisionCamera.createFrameOutput({
-      targetResolution: { width: 640, height: 480 },
-      pixelFormat: "yuv", dropFramesWhileBusy: true,
-      enablePreviewSizedOutputBuffers: true, enableCameraMatrixDelivery: false,
-      enablePhysicalBufferRotation: true, allowDeferredStart: false,
-    });
-    try {
-      frameOutput.outputOrientation = "up";
-      const runtime = createWorkletRuntimeForThread(frameOutput.thread);
-      const cameraSession = await VisionCamera.createCameraSession(false);
-      return { frameOutput, runtime, cameraSession };
-    } catch (error) {
-      frameOutput.dispose();
-      // Retain the rejected promise: initialization cannot repeatedly allocate threads.
-      throw error;
-    }
-  })();
-  return pipelinePromise;
+} | undefined;
+let framePipelineFailed = false;
+function getFramePipeline() {
+  if (framePipeline) return framePipeline;
+  if (framePipelineFailed) throw new Error("Frame runtime is unavailable until app restart");
+  const frameOutput = VisionCamera.createFrameOutput({
+    targetResolution: { width: 640, height: 480 },
+    // CameraX converts Android frames to readable RGBA; no Vulkan support is required.
+    // Resize/rotation then use one reusable model-sized RGB buffer in the worklet.
+    pixelFormat: Platform.OS === "android" ? "rgb" : "yuv", dropFramesWhileBusy: true,
+    enablePreviewSizedOutputBuffers: true, enableCameraMatrixDelivery: false,
+    enablePhysicalBufferRotation: Platform.OS !== "android", allowDeferredStart: false,
+  });
+  frameOutput.outputOrientation = "up";
+  try {
+    const runtime = createWorkletRuntimeForThread(frameOutput.thread);
+    framePipeline = { frameOutput, runtime };
+  } catch (error) {
+    // The library does not shut down the executor on dispose; do not allocate
+    // another thread on each retry after an unsupported runtime failure.
+    framePipelineFailed = true;
+    frameOutput.dispose();
+    throw error;
+  }
+  return framePipeline;
 }

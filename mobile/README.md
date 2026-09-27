@@ -74,3 +74,7 @@ python scripts/check-model.py
 검색어는 UW로, 경로 요청의 현재 위치·목적지는 Google로 전달됩니다. 음성 인식은 OS 제공자의 네트워크 서비스를 사용할 수 있습니다. 원본 음성·영상이나 GPS 이동 이력은 저장하지 않습니다. 인식 텍스트·주요 버튼·터치 이벤트·안내 이벤트 종류는 로컬 SQLite에 최대 2,000개 기록합니다. 앱 사용 시 7일 지난 이벤트를 정리하며, 기록 끄기·삭제가 가능합니다. Google 경로 지시문은 기록에 저장하지 않습니다.
 
 [구현 범위와 실기기 검증 항목](../docs/in-app-navigation.md)을 확인하세요. 보수적인 경로 이탈 감지·자동 재탐색·관성 기반 GPS 튐 제거·조사된 출입구 근접 판정과 전경 상대 소음 센싱은 구현되어 있습니다. 실제 VPS 공급자 정합, 보행 안전 판정, 정확한 장애물 거리와 검증된 무계단 경로는 아직 제공하지 않습니다.
+
+## Integrated foundation camera (0.4.6)
+
+Production still uses Expo Router and the main UI, account, noise, and UW/Google routes providers. CameraProvider now starts preview before model analysis and uses bounded HazardTracker observations with shared voice and vibration priorities. Android uses the pinned fast-tflite CPU/XNNPACK patch and local expo-asset model loading; preview remains available if analysis fails. CameraSmokeApp and index.smoke are a separate camera-only emulator harness, never the production entrypoint. Hazard observations cannot establish real distance, collision risk, stairs, or safe passage. Native device performance and the combined navigation/camera flow still require device validation.

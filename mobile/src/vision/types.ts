@@ -6,6 +6,7 @@ export interface Detection {
 export interface LiveResult {
   quality: { status: string; reason: string | null };
   detections: Detection[];
+  imageSize?: { width: number; height: number };
   receivedAt: number;
   processedMs: number;
   navigation_safe: false;
@@ -13,6 +14,37 @@ export interface LiveResult {
 export interface NativeSession {
   preview: CameraPreviewOutput;
   start(): Promise<void>;
+  startAnalysis(): Promise<void>;
   pause(): void;
   dispose(): Promise<void>;
+}
+
+export interface HazardObservation {
+  trackId: number;
+  label: string;
+  direction: "left" | "center" | "right";
+  level: "notice" | "caution" | "priority";
+  box: Detection["box"];
+  kind: "dynamic" | "static" | "elevation" | "overhead";
+  mobility: "dynamic_capable" | "usually_static";
+  screenRelation: "direct" | "offset" | "side" | "unknown";
+  pathInterference: "unknown";
+  distance: "unknown";
+  distanceMeters: null;
+  imageScale: "large" | "medium" | "small";
+  motion: "toward_center" | "growing" | "lateral" | "unresolved";
+  /** Relative ordering of image cues, not a collision probability. */
+  priorityScore: number;
+  reasons: string[];
+}
+export interface HazardAssessment {
+  status: "unavailable" | "observing" | "notice" | "caution" | "priority";
+  summary: string;
+  confirmedCount: number;
+  warningCount: number;
+  action: "check_priority" | "check_surroundings" | "observe" | "unavailable";
+  guidance: string;
+  hazards: HazardObservation[];
+  observedAt: number;
+  navigation_safe: false;
 }

@@ -1,6 +1,11 @@
+import { resizeCpuRgbFrame } from "./cpu-rgb.mjs";
+
 /** Fixed contract for the SHA-256-pinned TensorFlow model with built-in NMS. */
-export function decodeDetections(outputs, labels, threshold = 0.55) {
+export function decodeDetections(outputs, labels, threshold = 0.55, maxDetections = 5) {
   "worklet";
+  if (!Number.isInteger(maxDetections) || maxDetections < 1 || maxDetections > 25) {
+    throw new Error("Invalid detector result limit");
+  }
   if (outputs.length !== 4) throw new Error("Unexpected detector output count");
   const [boxBuffer, classBuffer, scoreBuffer, countBuffer] = outputs;
   if (outputs.some(buffer => buffer.byteLength % 4 !== 0) ||
@@ -28,7 +33,39 @@ export function decodeDetections(outputs, labels, threshold = 0.55) {
     if (bottom <= top || right <= left) continue;
     result.push({ classId, label, score, box: { top, left, bottom, right } });
   }
-  return result.sort((a, b) => b.score - a.score).slice(0, 5);
+  return result.sort((a, b) => b.score - a.score).slice(0, maxDetections);
+}
+
+/** Remove the model's contain padding. Width/height describe already-upright
+ * image content, matching the resizer; sensor rotation/mirroring is not repeated.
+ * Only bounded detection metadata is allocated, never another image buffer.
+ */
+export function mapDetectionsToImageContent(detections, sourceWidth, sourceHeight) {
+  "worklet";
+  if (!Number.isInteger(sourceWidth) || !Number.isInteger(sourceHeight) ||
+      sourceWidth <= 0 || sourceHeight <= 0) {
+    throw new Error("Invalid detection image geometry");
+  }
+  const size = 320;
+  const scale = Math.min(size / sourceWidth, size / sourceHeight);
+  const width = Math.max(1, Math.floor(sourceWidth * scale));
+  const height = Math.max(1, Math.floor(sourceHeight * scale));
+  const left = Math.floor((size - width) / 2), top = Math.floor((size - height) / 2);
+  const result = [];
+  for (let i = 0; i < Math.min(detections.length, 25); i++) {
+    const detection = detections[i], box = detection?.box;
+    if (!box || !Number.isFinite(box.top) || !Number.isFinite(box.left) ||
+        !Number.isFinite(box.bottom) || !Number.isFinite(box.right) ||
+        box.bottom <= box.top || box.right <= box.left) continue;
+    const mappedTop = Math.max(0, Math.min(1, (box.top * size - top) / height));
+    const mappedLeft = Math.max(0, Math.min(1, (box.left * size - left) / width));
+    const mappedBottom = Math.max(0, Math.min(1, (box.bottom * size - top) / height));
+    const mappedRight = Math.max(0, Math.min(1, (box.right * size - left) / width));
+    if (mappedBottom <= mappedTop || mappedRight <= mappedLeft) continue;
+    result.push({ classId: detection.classId, label: detection.label, score: detection.score,
+      box: { top: mappedTop, left: mappedLeft, bottom: mappedBottom, right: mappedRight } });
+  }
+  return result;
 }
 
 /** Samples the image content, excluding the resizer's black letterbox bars. */
@@ -68,6 +105,8 @@ const KOREAN = {
   bus: "버스", truck: "트럭", train: "기차", "traffic light": "신호등",
   "stop sign": "정지 표지판", bench: "벤치", chair: "의자", dog: "개", cat: "고양이",
   backpack: "가방", umbrella: "우산", suitcase: "여행 가방",
+  "potted plant": "화분", "fire hydrant": "소화전", "parking meter": "주차 요금기",
+  couch: "소파", "dining table": "식탁", bed: "침대", handbag: "손가방",
 };
 export function labelInKorean(label) { return KOREAN[label] ?? label; }
 
@@ -103,19 +142,38 @@ export class AnnouncementGate {
   }
 }
 
-/** The only owner of each incoming native frame, including skipped/error paths. */
-export function analyzeOwnedFrame(frame, converter, detector, labels, shouldAnalyze) {
+/** The only owner of each incoming native frame, including skipped/error paths.
+ * @param {Uint8Array | undefined} [cpuRgbBuffer] Reusable Android model input.
+ */
+export function analyzeOwnedFrame(frame, converter, detector, labels, shouldAnalyze, cpuRgbBuffer = undefined) {
   "worklet";
   let converted;
   try {
     if (!shouldAnalyze) return null;
+    if (!Number.isInteger(frame.width) || !Number.isInteger(frame.height) ||
+        frame.width <= 0 || frame.height <= 0) throw new Error("Invalid camera dimensions");
     if (frame.width * frame.height > 1280 * 720) throw new Error("Camera resolution exceeds budget");
-    converted = converter.resize(frame);
-    const input = converted.getPixelBuffer();
-    const quality = assessRgbQuality(input, frame.width, frame.height);
+    const preprocessingStarted = performance.now();
+    let input;
+    if (cpuRgbBuffer) input = resizeCpuRgbFrame(frame, cpuRgbBuffer);
+    else {
+      converted = converter.resize(frame);
+      input = converted.getPixelBuffer();
+    }
+    // Resize has already applied sensor orientation; match its letterbox
+    // dimensions so rotated portrait content is not mistaken for dark padding.
+    const rotated = frame.orientation === "right" || frame.orientation === "left";
+    const uprightWidth = rotated ? frame.height : frame.width;
+    const uprightHeight = rotated ? frame.width : frame.height;
+    const quality = assessRgbQuality(input, uprightWidth, uprightHeight);
+    const inferenceStarted = performance.now();
+    // Keep the model's bounded candidates until hazard ranking; confidence alone
+    // must not remove a lower-ranked object directly in the walking corridor.
     const detections = quality.status === "usable"
-      ? decodeDetections(detector.runSync([input]), labels) : [];
-    return { quality, detections };
+      ? mapDetectionsToImageContent(decodeDetections(detector.runSync([input]), labels, 0.55, 25),
+        uprightWidth, uprightHeight) : [];
+    return { quality, detections, imageSize: { width: uprightWidth, height: uprightHeight }, preprocessingMs: inferenceStarted - preprocessingStarted,
+      inferenceMs: performance.now() - inferenceStarted };
   } finally {
     try { converted?.dispose(); } finally { frame.dispose(); }
   }

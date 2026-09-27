@@ -1,9 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState, Platform, StyleSheet, Text, View } from 'react-native';
 import { NativePreviewView, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
+import { callback } from 'react-native-nitro-modules';
+import { HazardTracker, HazardAnnouncementGate } from '../vision/hazards.mjs';
+import { projectBoxToPreview } from '../vision/preview-geometry.mjs';
 import { createNativeSession } from '../vision/createNativeSession';
 import { AnnouncementGate, describeResult, isFreshResult } from '../vision/detection.mjs';
-import type { LiveResult, NativeSession } from '../vision/types';
+import type { HazardAssessment, LiveResult, NativeSession } from '../vision/types';
 import { announce, stopFeedback } from '../navigation/feedback';
 import { recordEvent } from '../navigation/audit';
 import { colors } from '../theme';
@@ -21,10 +24,13 @@ function useCameraController() {
   const latest = useRef<LiveResult | null>(null);
   const wanted = useRef(false), opening = useRef(false), mounted = useRef(true);
   const closing = useRef<Promise<void> | null>(null);
+  const [hazard, setHazard] = useState<HazardAssessment | null>(null);
+  const tracker = useRef(new HazardTracker());
+  const hazardGate = useRef(new HazardAnnouncementGate());
   const gate = useRef(new AnnouncementGate());
   const close = useCallback(() => {
-    wanted.current = false; latest.current = null; owned.current?.pause(); gate.current.reset(); stopFeedback();
-    if (mounted.current) { setResult(null); setPhase('closing'); }
+    wanted.current = false; latest.current = null; owned.current?.pause(); gate.current.reset(); tracker.current.reset(); hazardGate.current.reset(); stopFeedback();
+    if (mounted.current) { setResult(null); setHazard(null); setPhase('closing'); }
     if (opening.current || closing.current) return;
     const active = owned.current; owned.current = null;
     closing.current = (async () => {
@@ -41,8 +47,19 @@ function useCameraController() {
   const receive = useCallback((next: LiveResult) => {
     if (!mounted.current || !wanted.current || !isFreshResult(next, Date.now())) return;
     latest.current = next; setResult(next);
-    const text = gate.current.offer(next, Date.now());
-    if (text) announce(text, 1, 'ko-KR');
+    const assessment = tracker.current.update(next, Date.now());
+    setHazard(assessment);
+    const warning = hazardGate.current.offer(assessment, Date.now());
+    if (warning) {
+      const observed = assessment.hazards.find(item => item.level !== 'notice');
+      announce(warning, assessment.status === 'priority' ? 0 : 1, 'ko-KR', undefined, true, () =>
+        wanted.current && !!latest.current && isFreshResult(latest.current, Date.now()) &&
+        Date.now() - assessment.observedAt <= 1000 && !!observed);
+    }
+    else if (next.quality.status !== 'usable') {
+      const text = gate.current.offer(next, Date.now());
+      if (text) announce(text, 3, 'ko-KR');
+    }
   }, []);
   const open = useCallback(async () => {
     if (opening.current || closing.current || owned.current || AppState.currentState !== 'active') return;
@@ -53,12 +70,23 @@ function useCameraController() {
       const granted = permission.hasPermission || (permission.canRequestPermission && await permission.requestPermission());
       if (!granted) { wanted.current = false; setMessage('Camera permission was denied. Enable it in system settings to retry.'); return; }
       if (!wanted.current || !mounted.current) return;
-      const created = await createNativeSession(receive, fail);
+      const created = await createNativeSession(receive, fail, text => { if (mounted.current && wanted.current) { latest.current = null; setResult(null); setHazard(null); tracker.current.reset(); hazardGate.current.reset(); setMessage(text); announce(text, 1, 'ko-KR'); } });
       if (!wanted.current || !mounted.current) { await created.dispose(); return; }
-      owned.current = created; setSession(created); setPhase('live');
+      owned.current = created; setSession(created);
     } catch { wanted.current = false; if (mounted.current) setMessage('Camera analysis could not start. Please try again.'); }
     finally { opening.current = false; if (!wanted.current) { const pending = owned.current; owned.current = null; await pending?.dispose().catch(() => {}); if (mounted.current) { setSession(null); setPhase('closed'); } } }
   }, [device, permission, receive, fail]);
+  const previewDidStart = useCallback(() => {
+    if (!mounted.current || !wanted.current || !owned.current) return;
+    setPhase('live'); setMessage('Camera preview is live. Preparing analysis.');
+    void owned.current.startAnalysis().catch(() => { if (mounted.current) setMessage('Analysis unavailable. Camera preview remains available.'); });
+  }, []);
+  const previewStarted = useMemo(() => callback(previewDidStart), [previewDidStart]);
+  useEffect(() => {
+    if (phase !== 'opening' || !session) return;
+    const timer = setTimeout(() => fail('Camera startup timed out. Please retry.'), 15000);
+    return () => clearTimeout(timer);
+  }, [phase, session, fail]);
   useEffect(() => {
     if (session && wanted.current) void session.start().catch(() => fail('Camera could not start. Please retry.'));
   }, [session, fail]);
@@ -67,7 +95,7 @@ function useCameraController() {
     const listener = AppState.addEventListener('change', value => { if (value === 'background') close(); });
     const timer = setInterval(() => {
       if (latest.current && !isFreshResult(latest.current, Date.now())) {
-        latest.current = null; setResult(null); setMessage('Waiting for a fresh camera frame.');
+        latest.current = null; setResult(null); setHazard(null); tracker.current.reset(); hazardGate.current.reset(); setMessage('Waiting for a fresh camera frame.');
       }
     }, 250);
     return () => { mounted.current = false; listener.remove(); clearInterval(timer); close(); };
@@ -84,10 +112,10 @@ function useCameraController() {
   }, [visualAlignment]);
   const repeat = () => {
     const current = latest.current;
-    if (current && isFreshResult(current, Date.now())) announce(describeResult(current), 1, 'ko-KR');
+    if (current && isFreshResult(current, Date.now())) announce(hazard?.summary ?? describeResult(current), 1, 'ko-KR');
     else announce('No fresh camera observation is available.', 1);
   };
-  return { device, session, result, phase, message: result ? describeResult(result) : message, open, close, repeat,
+  return { device, session, result, hazard, previewStarted, phase, message: hazard?.summary ?? (result ? describeResult(result) : message), open, close, repeat,
     ready: phase === 'live' && result?.quality.status === 'usable',
     // Object detection is not VPS. Only a registered provider tied to a
     // surveyed spatial map may populate this value.
@@ -103,7 +131,12 @@ export function CameraProvider({ children }: { children: ReactNode }) {
 export function useCamera() { const value = useContext(Context); if (!value) throw new Error('CameraProvider is missing'); return value; }
 export function CameraPreview() {
   const camera = useCamera();
-  return camera.session && camera.device ? <View style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-    <NativePreviewView style={StyleSheet.absoluteFill} previewOutput={camera.session.preview} implementationMode="compatible" resizeMode="cover" />
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  return camera.session && camera.device ? <View onLayout={event => setSize(event.nativeEvent.layout)} style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <NativePreviewView style={StyleSheet.absoluteFill} onPreviewStarted={camera.previewStarted} previewOutput={camera.session.preview} implementationMode="compatible" resizeMode="cover" />
+    {camera.result?.imageSize && camera.hazard?.hazards.map(item => {
+      const box = projectBoxToPreview(item.box, camera.result!.imageSize!, size);
+      return box ? <View key={item.trackId} pointerEvents="none" style={{ position: 'absolute', left: box.left, top: box.top, width: box.width, height: box.height, borderWidth: 2, borderColor: item.level === 'priority' ? '#E65100' : colors.primary }} /> : null;
+    })}
   </View> : <View style={{ flex: 1, justifyContent: 'center', padding: 24 }}><Text style={{ color: colors.muted, textAlign: 'center' }}>{Platform.OS === 'web' ? 'Camera analysis is available in the native app.' : camera.message}</Text></View>;
 }
