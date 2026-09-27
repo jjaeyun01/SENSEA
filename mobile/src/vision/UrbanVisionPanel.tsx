@@ -8,10 +8,10 @@ import vocabulary from "../../assets/models/urban-labels.json";
 const name=(label:string)=>vocabulary.find(x=>x.label===label)?.name??label;
 type Mode="unknown"|"waiting"|"crossing";
 type Observation={status:string;text:string;seconds?:number|null;observedAt?:number};
-type Props={live:boolean;voice:boolean;onResult:(value:UrbanResult|null)=>void;
+type Props={live:boolean;enabled:boolean;voice:boolean;onResult:(value:UrbanResult|null)=>void;
  say:(text:string,at:number,manual?:boolean,priority?:boolean,onDropped?:()=>void)=>boolean;
  canAnnounce:()=>boolean;cancel:()=>void};
-export function UrbanVisionPanel({live,voice,onResult,say,canAnnounce,cancel}:Props){
+export function UrbanVisionPanel({live,enabled,voice,onResult,say,canAnnounce,cancel}:Props){
  const [mode,setMode]=useState<Mode>("unknown"),modeRef=useRef<Mode>("unknown");
  const [status,setStatus]=useState("카메라를 켜면 확장 분석을 준비합니다.");
  const [frame,setFrame]=useState<UrbanResult|null>(null),latest=useRef<UrbanResult|null>(null);
@@ -29,6 +29,7 @@ export function UrbanVisionPanel({live,voice,onResult,say,canAnnounce,cancel}:Pr
   setSignal({status:"unknown",text:"보행 신호를 확인하지 못했습니다."});
   setScan({status:"idle",text:"STOP 표지에서 좌우 스캔을 시작할 수 있습니다."});setFacilityText("");
   if(!live){setStatus("카메라를 켜면 확장 분석을 준비합니다.");return;}
+  if(!enabled){setStatus("기본 위험 분석을 우선하고 있어 확장 분석은 대기 중입니다.");return;}
   setStatus("시설물·보행 신호 분석 준비 중");
   let active=true;
   const stop=startUrbanAnalysis(next=>{
@@ -80,7 +81,7 @@ export function UrbanVisionPanel({live,voice,onResult,say,canAnnounce,cancel}:Pr
    }
   },200);
   return()=>{active=false;clearInterval(timer);stop();};
- },[live]);
+ },[live,enabled]);
  useEffect(()=>{gate.current.reset();lastFacility.current={key:"",at:-Infinity};},[voice]);
  const changeMode=(next:Mode)=>{callbacks.current.cancel();modeRef.current=next;setMode(next);crossing.current.reset();gate.current.reset();scanner.current.reset();setScan(scanner.current.describe());setSignal({status:"unknown",text:"새 상태에서 보행 신호를 다시 확인합니다."});};
  return <View style={styles.panel} testID="urban-panel">

@@ -2,7 +2,7 @@ import { validBox } from "./crossing.mjs";
 import { screenPathRelation } from "./hazard-policy.mjs";
 
 // Image-space urgency only: no metric distance or collision probability.
-export const HAPTIC_LIMITS = Object.freeze({ freshnessMs: 1000, cooldownMs: 1800 });
+export const HAPTIC_LIMITS = Object.freeze({ freshnessMs: 1000, cooldownMs: 1200 });
 export const COLLISION_PATTERN = Object.freeze([0, 180, 100, 180]);
 export function hasPriorityObstacle(items) {
   return Array.isArray(items) && items.slice(0, 25).some(item => {

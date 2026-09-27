@@ -1,5 +1,6 @@
 import { resizeCpuRgbFrame } from "./cpu-rgb.mjs";
 import { isAutomaticSpeechTarget } from "./automatic-speech.mjs";
+import { selectNearFieldDetections } from "./near-field.mjs";
 
 /** Fixed contract for the SHA-256-pinned TensorFlow model with built-in NMS. */
 export function decodeDetections(outputs, labels, threshold = 0.55, maxDetections = 5) {
@@ -134,7 +135,7 @@ export class AnnouncementGate {
   reset() { this.key = ""; this.hits = 0; this.spoken = ""; this.lastAt = -Infinity; }
   offer(result, now) {
     // Filter only the automatic speech view; keep the original result intact.
-    result = { ...result, detections: result.detections.filter(isAutomaticSpeechTarget) };
+    result = { ...result, detections: result.detections.filter(item => isAutomaticSpeechTarget(item) && !item.nearCandidate) };
     const key = result.quality.reason ??
       [...new Set(result.detections.map(item => item.label))].sort().join("|");
     if (key !== this.key) { this.key = key; this.hits = 1; } else this.hits++;
@@ -173,8 +174,8 @@ export function analyzeOwnedFrame(frame, converter, detector, labels, shouldAnal
     // Keep the model's bounded candidates until hazard ranking; confidence alone
     // must not remove a lower-ranked object directly in the walking corridor.
     const detections = quality.status === "usable"
-      ? mapDetectionsToImageContent(decodeDetections(detector.runSync([input]), labels, 0.55, 25),
-        uprightWidth, uprightHeight) : [];
+      ? selectNearFieldDetections(mapDetectionsToImageContent(
+        decodeDetections(detector.runSync([input]), labels, 0.45, 25), uprightWidth, uprightHeight)) : [];
     return { quality, detections, imageSize: { width: uprightWidth, height: uprightHeight }, preprocessingMs: inferenceStarted - preprocessingStarted,
       inferenceMs: performance.now() - inferenceStarted };
   } finally {

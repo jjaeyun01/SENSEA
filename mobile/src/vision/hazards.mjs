@@ -1,6 +1,7 @@
 import { getHazardProfile, hazardLabel, evaluateHazardPolicy, movesTowardScreenCenter, guidanceFor, LEVEL_RANK } from "./hazard-policy.mjs";
 
 import { automaticWarnings } from "./automatic-speech.mjs";
+import { isNearFieldBox, confirmedNearField } from "./near-field.mjs";
 
 /**
  * Image-only attention cues, not a collision predictor or a navigable-path model.
@@ -11,7 +12,7 @@ import { automaticWarnings } from "./automatic-speech.mjs";
  */
 export const HAZARD_LIMITS = Object.freeze({
   maxInputDetections: 25, maxTracks: 12, maxHistory: 4, maxHazards: 3,
-  freshnessMs: 1000, maxSampleGapMs: 1000, minConfirmationMs: 180,
+  freshnessMs: 1000, maxSampleGapMs: 1000, historyWindowMs: 1500, minConfirmationMs: 180,
   minGrowthSpanMs: 400, minScore: 0.62,
 });
 
@@ -89,7 +90,7 @@ function sanitizeDetections(input) {
   // Slice BEFORE validation/sorting; detector output cannot cause an unbounded scan.
   for (const raw of input.slice(0, HAZARD_LIMITS.maxInputDetections)) {
     if (!raw || !getHazardProfile(raw.label) || !Number.isFinite(raw.score) ||
-        raw.score < HAZARD_LIMITS.minScore || raw.score > 1 || !raw.box) continue;
+        raw.score < (isNearFieldBox(raw.box) ? .50 : HAZARD_LIMITS.minScore) || raw.score > 1 || !raw.box) continue;
     const b = raw.box;
     if (![b.top, b.left, b.bottom, b.right].every(Number.isFinite) ||
         b.left < 0 || b.top < 0 || b.right > 1 || b.bottom > 1 ||
@@ -113,7 +114,7 @@ function sanitizeDetections(input) {
   return unique.slice(0, HAZARD_LIMITS.maxTracks);
 }
 function visualRank(d) {
-  return (inAttentionZone(d.box) ? 2 : 0) + (VEHICLES.has(d.label) ? 1 : 0) + area(d.box);
+  return (isNearFieldBox(d.box) ? 3 : 0) + (inAttentionZone(d.box) ? 2 : 0) + (VEHICLES.has(d.label) ? 1 : 0) + area(d.box);
 }
 function matchesClass(track, detection) {
   return track.label === detection.label && track.classId === detection.classId;
@@ -183,9 +184,10 @@ function peripheralMotion(history) {
 }
 function assessTrack(track) {
   const history = track.history, latest = fromEnd(history), box = latest.box;
+  const nearEvidence = confirmedNearField(history);
   if (history.length < 2 || latest.at - history[0].at < HAZARD_LIMITS.minConfirmationMs ||
-      history.some(s => s.score < 0.65) ||
-      history.reduce((sum, s) => sum + s.score, 0) / history.length < 0.72) return null;
+      (!nearEvidence && (history.some(s => s.score < 0.65) ||
+       history.reduce((sum, s) => sum + s.score, 0) / history.length < 0.72))) return null;
   const vehicle = VEHICLES.has(track.label);
   const dynamic = getHazardProfile(track.label)?.kind === "dynamic";
   return evaluateHazardPolicy(track, {
@@ -255,7 +257,7 @@ export class HazardTracker {
         dx: newCenter.x - oldCenter.x, dy: newCenter.y - oldCenter.y,
         scale: Math.sqrt(area(detection.box) / area(before.box)) });
       track.history.push(sample);
-      track.history = track.history.filter(s => at - s.at <= HAZARD_LIMITS.maxSampleGapMs).slice(-HAZARD_LIMITS.maxHistory);
+      track.history = track.history.filter(s => at - s.at <= HAZARD_LIMITS.historyWindowMs).slice(-HAZARD_LIMITS.maxHistory);
       track.lastSeen = at;
       track.direction = direction(detection.box, track.direction);
       track.missed = false;

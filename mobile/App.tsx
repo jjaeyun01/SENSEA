@@ -14,6 +14,7 @@ import { HAZARD_COVERAGE, hazardLabel, describeScreenRelation, describeHazardKin
 import { buildObjectOverlays } from "./src/vision/overlay.mjs";
 import { UrbanVisionPanel } from "./src/vision/UrbanVisionPanel";
 import urbanLabels from "./assets/models/urban-labels.json";
+import { AnalysisBudget } from "./src/vision/analysis-budget.mjs";
 import { automaticWarnings, isAutomaticSpeechTarget } from "./src/vision/automatic-speech.mjs";
 import { LatestSpeechChannel } from "./src/vision/speech-channel.mjs";
 import type { HazardAssessment, LiveResult, NativeSession, UrbanResult } from "./src/vision/types";
@@ -28,6 +29,9 @@ function CameraScreen() {
   const [result, setResult] = useState<LiveResult | null>(null);
   const [hazard, setHazard] = useState<HazardAssessment | null>(null);
   const [urban, setUrban] = useState<UrbanResult | null>(null);
+  const [urbanEnabled, setUrbanEnabled] = useState(false);
+  const analysisBudget = useRef(new AnalysisBudget());
+  useEffect(() => { console.info(`[SENSEA] Expanded analysis budget: ${urbanEnabled ? "ready" : "waiting"}`); }, [urbanEnabled]);
   const [previewSize, setPreviewSize] = useState({ width: 0, height: 0 });
   const [message, setMessage] = useState("카메라를 켜면 실시간 화면을 먼저 표시합니다.");
   const [voice, setVoice] = useState(true);
@@ -131,6 +135,8 @@ function CameraScreen() {
 
   const close = useCallback(() => {
     wanted.current = false;
+    analysisBudget.current.reset();
+    if (mounted.current) setUrbanEnabled(false);
     hapticChannel.current?.reset();
     resumeAfterNotice.current = false;
     if (startupTimer.current) clearTimeout(startupTimer.current);
@@ -167,6 +173,7 @@ function CameraScreen() {
       resetAnnouncement();
       silence();
     }
+    setUrbanEnabled(analysisBudget.current.observe(next, Date.now()));
     const assessment = hazardTracker.current.update(next, Date.now());
     // Dispatch touch feedback immediately, independently of speech availability.
     hapticChannel.current?.offer("base", assessment.observedAt, hasPriorityObstacle(assessment.hazards));
@@ -216,6 +223,8 @@ function CameraScreen() {
 
   const analysisFailed = useCallback((text: string) => {
     if (!mounted.current || !wanted.current) return;
+    analysisBudget.current.suspend(Date.now());
+    setUrbanEnabled(false);
     latest.current = null;
     setResult(null);
     setAnalysisMessage(text);
@@ -308,6 +317,7 @@ function CameraScreen() {
     // Latest result only. If the camera stalls, remove stale observations.
     const timer = setInterval(() => {
       hapticChannel.current?.tick();
+      setUrbanEnabled(analysisBudget.current.tick(Date.now()));
       if (latest.current && !isFreshResult(latest.current, Date.now())) {
         latest.current = null;
         setResult(null);
@@ -465,7 +475,7 @@ function CameraScreen() {
           }}>
           <Text style={styles.secondaryText}>가까운 위험 진동 {haptics ? "켜짐" : "꺼짐"}</Text>
         </Pressable>
-        <Text style={styles.note}>화면 중앙에 크게 보이거나 중앙으로 다가오는 징후가 반복되면 두 번 진동합니다. 실제 거리는 측정하지 않습니다.</Text>
+        <Text style={styles.note}>중앙의 큰 물체·화면 하단 장애물을 빠르게 반복 확인하면 두 번 진동합니다. 위험이 계속 보이면 최소 1.2초 간격으로 알리며 실제 거리는 측정하지 않습니다.</Text>
         <Pressable style={styles.secondary} accessibilityRole="switch"
           accessibilityLabel="자동 음성 안내"
           accessibilityHint="사람을 제외한 주의 대상을 먼저 알려드립니다. 사람 인식과 가까운 위험 진동은 유지합니다."
@@ -515,7 +525,7 @@ function CameraScreen() {
           <Text style={styles.linkText}>설정에서 카메라 권한 허용</Text>
         </Pressable>
       )}
-      <UrbanVisionPanel live={live} voice={voice} onResult={receiveUrban} say={say} canAnnounce={canAnnounceUrban} cancel={silence} />
+      <UrbanVisionPanel live={live} enabled={urbanEnabled} voice={voice} onResult={receiveUrban} say={say} canAnnounce={canAnnounceUrban} cancel={silence} />
       <View style={styles.coveragePanel}>
         <Text style={styles.sectionLabel}>기본 감지 범위</Text>
         <Text style={styles.note}>확장 후보는 위 시설물·신호 분석에서 별도로 표시합니다. 미감지는 주변에 없다는 뜻이 아닙니다.</Text>

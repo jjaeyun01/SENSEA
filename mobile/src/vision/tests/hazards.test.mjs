@@ -51,7 +51,10 @@ test("a large central vehicle requires two strong observations before priority",
   assert.equal(answer.status, "priority");
   assert.ok(answer.hazards[0].reasons.includes("strong_vehicle_evidence"));
   assert.match(answer.summary, /크게 보이는/);
-  assert.equal(stable(new HazardTracker(), [detection("truck", vehicle[0].box, 0.78)]).status, "caution");
+  const near = stable(new HazardTracker(), [detection("truck", vehicle[0].box, 0.78)]);
+  assert.equal(near.status, "priority");
+  assert.ok(near.hazards[0].reasons.includes("confirmed_near_obstruction"));
+  assert.ok(!near.hazards[0].reasons.includes("strong_vehicle_evidence"));
 });
 
 test("low confidence, small distant and unsupported semantic classes do not become warnings", () => {

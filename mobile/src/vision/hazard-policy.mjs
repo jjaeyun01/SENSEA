@@ -1,3 +1,5 @@
+import { confirmedNearField } from "./near-field.mjs";
+
 /** Image-space priorities. No depth, road segmentation or world trajectory is inferred. */
 const targets = [
   ["person", "사람", "dynamic"], ["bicycle", "자전거", "dynamic"],
@@ -49,7 +51,8 @@ export function screenPathRelation(box) {
   if (box.bottom < 0.45) return "unknown";
   const half = 0.12 + 0.20 * clamp((box.bottom - 0.45) / 0.55, 0, 1);
   const overlap = Math.max(0, Math.min(box.right, 0.5 + half) - Math.max(box.left, 0.5 - half));
-  if (box.bottom >= 0.62 && overlap / (box.right - box.left) >= 0.60) return "direct";
+  const coversCentre = box.left <= .5 && box.right >= .5 && overlap / Math.min(box.right - box.left, 2 * half) >= .65;
+  if (box.bottom >= 0.62 && (overlap / (box.right - box.left) >= 0.60 || coversCentre)) return "direct";
   if (overlap > 0 || Math.abs(centerX(box) - 0.5) <= half + 0.10) return "offset";
   return "side";
 }
@@ -85,10 +88,9 @@ export function evaluateHazardPolicy(track, cues) {
   const movingSide = dynamic && (cues.lateralMotion || cues.inwardMotion) && box.bottom >= 0.55;
   const broadSideVehicle = cues.vehicle && box.bottom >= 0.5 && size >= 0.08;
   let level = inView || adjacent || movingSide || broadSideVehicle ? "caution" : "notice";
-  const span = last.at - history[0].at;
   const strong = history.every(s => s.score >= 0.82 && !s.sceneMotion);
-  const closeObstacle = relation === "direct" && history.length >= 3 && span >= 400 && strong &&
-    history.slice(-2).every(s => screenPathRelation(s.box) === "direct" && s.box.bottom >= 0.88 && area(s.box) >= 0.18);
+  const nearEvidence = confirmedNearField(history);
+  const closeObstacle = relation === "direct" && !!nearEvidence;
   const staticBlocker = !dynamic && closeObstacle;
   const centralMotion = dynamic && relation === "direct" && size >= 0.10 && strong &&
     (cues.growth || cues.inwardMotion);
@@ -100,6 +102,8 @@ export function evaluateHazardPolicy(track, cues) {
   if (cues.inwardMotion) reasons.push("toward_screen_center");
   if (cues.lateralMotion) reasons.push("peripheral_motion");
   if (cues.strongLargeVehicle) reasons.push("strong_vehicle_evidence");
+  if (closeObstacle) reasons.push("confirmed_near_obstruction");
+  if (closeObstacle && nearEvidence === "repeated") reasons.push("repeated_near_candidate");
   if (staticBlocker) reasons.push("strong_static_obstruction");
   if (dynamic && closeObstacle) reasons.push("strong_near_image_obstruction");
   if (level === "notice") reasons.push("side_observation");

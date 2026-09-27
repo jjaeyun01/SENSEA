@@ -20,21 +20,21 @@ const baseFrame = (at, label = "person", b = box, score = .9) => ({
 
 test("a stationary close-looking person triggers two pulses after repeated strong observations", () => {
   const { channel, pulses } = harness(), tracker = new HazardTracker();
-  for (const at of [0, 200]) {
+  for (const at of [0]) {
     const value = tracker.update(baseFrame(at), at);
     assert.equal(channel.offer("base", at, hasPriorityObstacle(value.hazards), at), false);
   }
-  const value = tracker.update(baseFrame(400), 400);
+  const value = tracker.update(baseFrame(200), 200);
   assert.equal(value.status, "priority");
   assert.equal(value.hazards[0].distanceMeters, null);
-  assert.equal(channel.offer("base", 400, hasPriorityObstacle(value.hazards), 400), true);
+  assert.equal(channel.offer("base", 200, hasPriorityObstacle(value.hazards), 200), true);
   assert.deepEqual(pulses, [{ pattern: [...COLLISION_PATTERN], repeat: false }]);
 });
 
 test("smaller, peripheral and low-confidence people do not generate close-obstacle vibration", () => {
   for (const [b, score] of [
     [{ left: .42, top: .6, right: .58, bottom: .8 }, .9],
-    [{ left: .02, top: .45, right: .18, bottom: .95 }, .9], [box, .75],
+    [{ left: .02, top: .45, right: .18, bottom: .95 }, .9], [box, .54],
   ]) {
     const tracker = new HazardTracker();
     for (const at of [0, 200, 400, 600]) {
@@ -46,8 +46,8 @@ test("smaller, peripheral and low-confidence people do not generate close-obstac
 
 test("a recent size jump needs two large observations before close-obstacle urgency", () => {
   const tracker = new HazardTracker();
-  tracker.update(baseFrame(0, "person", { left: .32, right: .68, top: .50, bottom: .92 }), 0);
-  tracker.update(baseFrame(200, "person", { left: .32, right: .68, top: .50, bottom: .92 }), 200);
+  tracker.update(baseFrame(0, "person", { left: .39, right: .61, top: .52, bottom: .87 }), 0);
+  tracker.update(baseFrame(200, "person", { left: .39, right: .61, top: .52, bottom: .87 }), 200);
   const value = tracker.update(baseFrame(400), 400);
   assert.ok(!value.hazards.some(h => h.reasons.includes("strong_near_image_obstruction")));
 });
@@ -64,11 +64,11 @@ test("confirmed facility priority uses the same actuator without any speech call
 test("one global cooldown prevents both detectors and changing object IDs from flooding vibration", () => {
   const { channel, pulses } = harness();
   assert.equal(channel.offer("base", 100, true, 100), true);
-  for (let at = 200; at < 1900; at += 100) {
+  for (let at = 200; at < 1300; at += 100) {
     assert.equal(channel.offer("urban", at, true, at), false);
     assert.equal(channel.offer("base", at, true, at), false);
   }
-  assert.equal(channel.offer("urban", 1900, true, 1900), true);
+  assert.equal(channel.offer("urban", 1300, true, 1300), true);
   assert.equal(pulses.length, 2);
 });
 
@@ -160,13 +160,13 @@ test("ordinary boxes, side observations, invalid coordinates and non-priority re
 });
 
 
-test("a confirmed large vehicle filling the frame retains vibration even when the overlap fraction is offset", () => {
+test("a confirmed large vehicle filling the frame is treated as direct and retains vibration", () => {
   const tracker = new HazardTracker(), { channel, pulses } = harness();
   const wide = { left: 0, right: 1, top: .1, bottom: .9 };
   tracker.update(baseFrame(0, "car", wide), 0);
   const value = tracker.update(baseFrame(200, "car", wide), 200);
   assert.equal(value.status, "priority");
-  assert.equal(value.hazards[0].screenRelation, "offset");
+  assert.equal(value.hazards[0].screenRelation, "direct");
   assert.equal(channel.offer("base", 200, hasPriorityObstacle(value.hazards), 200), true);
   assert.equal(pulses.length, 1);
 });

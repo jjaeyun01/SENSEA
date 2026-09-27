@@ -1,6 +1,8 @@
 import type { CameraPreviewOutput } from "react-native-vision-camera";
 export interface Detection {
   classId: number; label: string; score: number;
+  /** Weaker close-looking candidate, excluded from ordinary automatic descriptions. */
+  nearCandidate?: boolean;
   box: { top: number; left: number; bottom: number; right: number };
 }
 export interface LiveResult {

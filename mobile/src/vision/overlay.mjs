@@ -18,6 +18,6 @@ export function buildObjectOverlays(result,hazard,urban,previewSize,now=Date.now
   if(urban&&fresh(urban.receivedAt,now)&&urban.quality==="usable")
     for(const [i,d] of urban.detections.slice(0,24).entries())add(d,urban.imageSize,`u-${i}`,d.level??"candidate");
   if(result&&fresh(result.receivedAt,now)&&result.quality?.status==="usable")
-    for(const [i,d] of result.detections.slice(0,25).entries())add(d,result.imageSize,`d-${i}`);
+    for(const [i,d] of result.detections.slice(0,25).entries())add(d,result.imageSize,`d-${i}`,d.nearCandidate?"candidate":"detected");
   return selected;
 }
