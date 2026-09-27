@@ -5,8 +5,14 @@ import { screenPathRelation } from "./hazard-policy.mjs";
 export const HAPTIC_LIMITS = Object.freeze({ freshnessMs: 1000, cooldownMs: 1800 });
 export const COLLISION_PATTERN = Object.freeze([0, 180, 100, 180]);
 export function hasPriorityObstacle(items) {
-  return Array.isArray(items) && items.slice(0, 25).some(item =>
-    item?.level === "priority" && validBox(item.box) && screenPathRelation(item.box) === "direct");
+  return Array.isArray(items) && items.slice(0, 25).some(item => {
+    if (item?.level !== "priority" || !validBox(item.box)) return false;
+    const b = item.box, x = (b.left + b.right) / 2;
+    // A very wide confirmed vehicle can cover the centre while its overlap
+    // fraction is labelled offset. Do not drop its existing priority cue.
+    const fillsCentre = x >= .35 && x <= .65 && b.left <= .35 && b.right >= .65 && b.bottom >= .84;
+    return screenPathRelation(b) === "direct" || fillsCentre;
+  });
 }
 
 /** One shared actuator for both detectors; no queued or automatically looping vibration. */

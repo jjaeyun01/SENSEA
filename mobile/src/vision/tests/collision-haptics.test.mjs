@@ -158,3 +158,15 @@ test("ordinary boxes, side observations, invalid coordinates and non-priority re
     assert.equal(hasPriorityObstacle(items), false);
   }
 });
+
+
+test("a confirmed large vehicle filling the frame retains vibration even when the overlap fraction is offset", () => {
+  const tracker = new HazardTracker(), { channel, pulses } = harness();
+  const wide = { left: 0, right: 1, top: .1, bottom: .9 };
+  tracker.update(baseFrame(0, "car", wide), 0);
+  const value = tracker.update(baseFrame(200, "car", wide), 200);
+  assert.equal(value.status, "priority");
+  assert.equal(value.hazards[0].screenRelation, "offset");
+  assert.equal(channel.offer("base", 200, hasPriorityObstacle(value.hazards), 200), true);
+  assert.equal(pulses.length, 1);
+});

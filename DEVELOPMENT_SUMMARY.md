@@ -220,6 +220,6 @@ Windows 빌드에서는 변경 없는 C++ 산출물을 재사용하고 기존 52
 - `가까운 위험 진동`을 기본 켜짐으로 추가하고 음성을 꺼도 동작하게 했습니다.
 - Android에서 180ms 두 번 진동하고, 두 모델·여러 객체의 재진동 간격을 최소 1.8초로 제한했습니다.
 - 위험 소실·결과 만료·카메라 종료·백그라운드·설정 끄기에서 진동을 취소하며 대기 진동은 저장하지 않습니다.
-- 관련 14개를 포함한 모바일 211개 테스트와 TypeScript 검사를 통과했습니다. 실제 거리·충돌 확률을 측정하는 기능은 아닙니다.
+- 관련 15개를 포함한 모바일 212개 테스트와 TypeScript 검사를 통과했습니다. 실제 거리·충돌 확률을 측정하는 기능은 아닙니다.
 
 구현: [collision-haptics.mjs](mobile/src/vision/collision-haptics.mjs), [진동 동작 검사](mobile/src/vision/tests/collision-haptics.test.mjs).
