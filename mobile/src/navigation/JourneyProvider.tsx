@@ -8,10 +8,12 @@ import { Guidance } from './guidance.mjs';
 import { baseUrl, request, type Place, type Point, type Route } from './campusApi';
 import { demoRoutes, searchDemo } from './demo';
 import { useCamera } from '../camera/CameraProvider';
+import { useAuth } from '../auth/AuthProvider';
 type Stage = 'search' | 'confirm' | 'routes' | 'setup' | 'navigating' | 'paused' | 'arrived';
 function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
   cameraReady: boolean; requestCamera: () => void; stopCamera: () => void;
 }) {
+  const auth = useAuth();
   const [searchVersion, setSearchVersion] = useState(0);
   const [recentPlaces, setRecentPlaces] = useState<Place[]>([]);
   const [demoMode, setDemoMode] = useState(false);
@@ -37,8 +39,19 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
   const lastFixAt = useRef(0);
   const uncertain = useRef(false);
   const lastMessage = useRef("");
+  const routeRecorded = useRef(false);
   const stageRef = useRef(stage);
   stageRef.current = stage;
+
+  useEffect(() => {
+    if (!auth.user) return;
+    const cloudRecent: Place[] = auth.places.filter(place => place.last_visited_at).slice(0, 3).map(place => ({
+      id: place.external_place_id, name: place.name, address: place.address,
+      ...(place.latitude == null ? {} : { latitude: place.latitude }),
+      ...(place.longitude == null ? {} : { longitude: place.longitude }),
+    }));
+    setRecentPlaces(cloudRecent);
+  }, [auth.places, auth.user]);
 
   const say = useCallback((text: string, priority = 3, done?: () => void) => {
     setMessage(text); lastMessage.current = text;
@@ -143,6 +156,7 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
       const details = place.source === 'demo' ? place : await request(`/campus/places/${place.id}`, signal);
       if (signal.aborted || !mounted.current) return;
       setDestination(details); setRecentPlaces(previous => [details, ...previous.filter(place => place.id !== details.id)].slice(0, 3)); setStage("confirm");
+      void auth.saveRecentPlace(details).catch(() => {});
       say(`${details.name}. ${details.address ? `The street address is ${details.address}.` : "The street address is not available."} Is this your destination? Say yes or tap Confirm.`, 3, () => void listen());
     });
   }
@@ -171,13 +185,20 @@ function useJourneyController({ cameraReady, requestCamera, stopCamera }: {
   }
   function choose(route: Route) {
     recordEvent("route_selected", route.id);
-    setSelected(route); setStepIndex(0); guidance.current = new Guidance(route); setStage("setup");
+    routeRecorded.current = false; setSelected(route); setStepIndex(0); guidance.current = new Guidance(route); setStage("setup");
     say("Hold your phone upright at chest level, facing forward. Turn on the camera below, then start guidance when it is ready.");
   }
   async function start() {
     if (!selected || busy) return;
-    if (selected.source === 'demo') { setStage('navigating'); say(selected.steps[stepIndex]?.instruction ?? 'Simulation complete.', 2); return; }
+    const recordRoute = () => {
+      if (destination && !routeRecorded.current) {
+        routeRecorded.current = true;
+        void auth.recordRouteStart(destination, selected).catch(() => { routeRecorded.current = false; });
+      }
+    };
+    if (selected.source === 'demo') { recordRoute(); setStage('navigating'); say(selected.steps[stepIndex]?.instruction ?? 'Simulation complete.', 2); return; }
     if (!cameraReady) { say("Prepare the camera first using the button below."); return; }
+    recordRoute();
     recordEvent("navigation_start");
     const current = ++watchGeneration.current;
     watcher.current?.remove(); watcher.current = null;

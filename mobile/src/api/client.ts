@@ -37,7 +37,7 @@ export async function searchPlaces(query: string, demoMode = false): Promise<Pla
   return ((await response.json()) as { places: Place[] }).places;
 }
 
-export async function getRoutes(request: { start_waypoint: string; end_waypoint: string; noise_preference: 'shortest' | 'quiet' }): Promise<RouteOption[]> {
+export async function getRoutes(request: { start_waypoint: string; end_waypoint: string; noise_preference: 'shortest' | 'quiet' | 'active' | 'automatic'; local_hour?: number }): Promise<RouteOption[]> {
   const response = await apiFetch('/routes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
   return ((await response.json()) as { routes: RouteOption[] }).routes;
 }

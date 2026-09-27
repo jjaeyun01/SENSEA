@@ -7,6 +7,7 @@ import { useJourney } from '@/src/navigation/JourneyProvider';
 import { BrandMark } from '@/src/components/BrandMark';
 import { LargeActionButton } from '@/src/components/LargeActionButton';
 import { colors, radii, spacing, typography } from '@/src/theme';
+import { useAuth } from '@/src/auth/AuthProvider';
 const SUGGESTIONS = [
   { name: 'Memorial Library', meta: 'Search UW building directory', icon: '▦' },
   { name: 'Memorial Union', meta: 'Search UW building directory', icon: '◎' },
@@ -14,6 +15,7 @@ const SUGGESTIONS = [
 export default function HomeScreen() {
   const router = useRouter(); const pathname = usePathname(); const insets = useSafeAreaInsets();
   const journey = useJourney();
+  const auth = useAuth();
   const [query, setQuery] = useState('');
   const { places: matches, busy, message } = journey;
   const state = { destination: journey.destination, status: journey.stage === 'confirm' ? 'CONFIRM_DESTINATION' : journey.stage, demoMode: journey.demoMode };
@@ -28,7 +30,10 @@ export default function HomeScreen() {
       <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 110 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.topbar}>
           <BrandMark compact />
-          <Pressable accessibilityRole="button" accessibilityLabel="Open settings" onPress={() => { journey.pause(); router.push('/settings'); }} style={styles.settingsButton}><Text style={styles.settingsIcon}>⚙</Text></Pressable>
+          <View style={styles.topActions}>
+            <Pressable accessibilityRole="button" accessibilityLabel={auth.user ? 'Open account' : 'Sign in'} onPress={() => { journey.pause(); router.push(auth.user ? '/account' : '/auth'); }} style={styles.accountButton}><Text style={styles.accountIcon}>{auth.user ? (auth.profile?.name || auth.user.email || 'U').slice(0, 1).toUpperCase() : '♙'}</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Open settings" onPress={() => { journey.pause(); router.push('/settings'); }} style={styles.settingsButton}><Text style={styles.settingsIcon}>⚙</Text></Pressable>
+          </View>
         </View>
 
         <View style={styles.hero}>
@@ -83,7 +88,7 @@ function DestinationCard({ title, meta, icon, onPress }: { title: string; meta: 
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background }, container: { paddingHorizontal: spacing.lg, gap: spacing.md },
-  topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, settingsButton: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }, settingsIcon: { color: colors.muted, fontSize: 23 },
+  topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, topActions: { flexDirection: 'row', gap: 9 }, accountButton: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, accountIcon: { color: colors.primary, fontSize: 19, fontWeight: '900' }, settingsButton: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }, settingsIcon: { color: colors.muted, fontSize: 23 },
   hero: { paddingTop: spacing.md, gap: 7 }, kicker: { color: colors.primary, fontFamily: typography.family, fontSize: 12, fontWeight: '800', letterSpacing: 1.4 }, prompt: { color: colors.text, fontFamily: typography.family, fontSize: 36, lineHeight: 43, fontWeight: '900', letterSpacing: -1.1 }, subtitle: { color: colors.muted, fontFamily: typography.family, fontSize: 16, lineHeight: 24 },
   voiceOrb: { width: 220, height: 220, borderRadius: 110, alignSelf: 'center', marginVertical: 12, backgroundColor: colors.primarySoft, borderWidth: 3, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center', overflow: 'visible' }, voiceOrbPressed: { transform: [{ scale: 0.98 }], backgroundColor: '#005249' }, orbGlow: { position: 'absolute', width: 232, height: 232, borderRadius: 116, borderWidth: 1, borderColor: '#0A756B', opacity: 0.7 }, micHandle: { width: 44, height: 58, borderWidth: 3, borderColor: colors.primary, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 13 }, mic: { color: colors.primary, fontSize: 22 }, orbTitle: { color: colors.text, fontFamily: typography.family, fontSize: 21, fontWeight: '800' }, orbHint: { color: colors.primary, fontFamily: typography.family, fontSize: 13, marginTop: 4 },
   searchBox: { minHeight: 62, borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingLeft: 16, paddingRight: 7, flexDirection: 'row', alignItems: 'center', gap: 10 }, searchIcon: { color: colors.muted, fontSize: 28 }, input: { flex: 1, color: colors.text, fontFamily: typography.family, fontSize: 17, minHeight: 58 }, searchSubmit: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, searchArrow: { color: colors.primaryText, fontSize: 25, fontWeight: '800' }, message: { color: colors.muted, fontFamily: typography.family, fontSize: 14, lineHeight: 20, minHeight: 20 },

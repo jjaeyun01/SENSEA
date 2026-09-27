@@ -37,7 +37,7 @@ def load_graph(path: Path) -> dict:
     return graph
 
 
-def shortest_path(graph, start, goal, noise, weight=0.0, simulation=True):
+def shortest_path(graph, start, goal, noise, weight=0.0, simulation=True, noise_strategy="quiet"):
     adjacency = {node: [] for node in graph["waypoints"]}
     for edge in graph["edges"]:
         if not simulation and edge.get("pedestrian_verified") is not True:
@@ -70,8 +70,12 @@ def shortest_path(graph, start, goal, noise, weight=0.0, simulation=True):
             return list(reversed(path))
         for target, edge, reverse in adjacency[node]:
             summary = noise[edge["id"]]
-            # Unknown/stale data is penalized, never interpreted as silence.
-            score = summary["relative_noise"] if summary["status"] == "measured" else 1.0
+            # Unknown/stale data is penalized, never interpreted as quiet or active.
+            if summary["status"] == "measured":
+                measured = summary["relative_noise"]
+                score = measured if noise_strategy == "quiet" else 1 - measured
+            else:
+                score = 1.0
             candidate = cost + edge["distance_m"] * (1 + weight * score)
             if candidate < best.get(target, math.inf):
                 best[target] = candidate
