@@ -14,7 +14,7 @@
     "android": {
       "package": "com.sensea.navigation",
       "adaptiveIcon": {
-        "backgroundColor": "#101827"
+        "backgroundColor": "#070C12"
       }
     },
     "web": {

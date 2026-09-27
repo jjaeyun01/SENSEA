@@ -8,7 +8,7 @@ import {
   type AccessibilityRole,
 } from 'react-native';
 
-import { colors } from '@/src/theme';
+import { colors, radii, typography } from '@/src/theme';
 
 type Props = {
   label: string;
@@ -16,7 +16,7 @@ type Props = {
   accessibilityHint?: string;
   disabled?: boolean;
   loading?: boolean;
-  variant?: 'primary' | 'secondary' | 'danger';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
   icon?: ReactNode;
   accessibilityRole?: AccessibilityRole;
 };
@@ -50,7 +50,7 @@ export function LargeActionButton({
     >
       <View style={styles.content} accessible={false}>
         {loading ? <ActivityIndicator color={variant === 'primary' ? colors.primaryText : colors.text} /> : icon}
-        <Text style={[styles.label, variant === 'primary' ? styles.primaryLabel : styles.lightLabel]}>
+        <Text style={[styles.label, variant === 'primary' ? styles.primaryLabel : styles.lightLabel]} numberOfLines={2}>
           {label}
         </Text>
       </View>
@@ -60,24 +60,28 @@ export function LargeActionButton({
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 64,
-    borderRadius: 14,
+    minHeight: 60,
+    borderRadius: radii.pill,
     paddingHorizontal: 20,
     paddingVertical: 16,
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 1.5,
   },
   primary: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
   secondary: {
-    backgroundColor: colors.surfaceRaised,
+    backgroundColor: colors.surface,
     borderColor: colors.border,
   },
   danger: {
-    backgroundColor: '#7F1D1D',
+    backgroundColor: colors.danger,
     borderColor: colors.danger,
+  },
+  ghost: {
+    backgroundColor: 'transparent',
+    borderColor: colors.primary,
   },
   content: {
     flexDirection: 'row',
@@ -86,8 +90,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   label: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontFamily: typography.family,
+    fontSize: 18,
+    fontWeight: '800',
     textAlign: 'center',
   },
   primaryLabel: {
