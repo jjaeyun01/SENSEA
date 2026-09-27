@@ -2,6 +2,7 @@
   "expo": {
     "name": "SENSEA",
     "slug": "sensea",
+    "icon": "./assets/app-icon.png",
     "version": "0.4.6",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
