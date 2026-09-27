@@ -1,6 +1,6 @@
 # SENSEA
 
-실제 작업 정리: [DEVELOPMENT_SUMMARY — v0.4.7까지 구현·수정·빌드·검증한 내용](DEVELOPMENT_SUMMARY.md)
+실제 작업 정리: [DEVELOPMENT_SUMMARY — 지금까지 구현·수정·빌드·검증한 내용](DEVELOPMENT_SUMMARY.md)
 
 개발 진행 내역: [README1 — 구현 내용·검증 결과·설치 파일·남은 작업](README1.md)
 

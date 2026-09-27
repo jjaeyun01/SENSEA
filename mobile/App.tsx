@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AccessibilityInfo, AppState, Linking, Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, View,
+  AccessibilityInfo, AppState, Linking, Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, View, Vibration,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { NativePreviewView, useCameraPermission } from "react-native-vision-camera";
@@ -8,6 +8,7 @@ import * as Speech from "expo-speech";
 import { callback } from "react-native-nitro-modules";
 import { createNativeSession } from "./src/vision/createNativeSession";
 import { AnnouncementGate, describeResult, isFreshResult, labelInKorean } from "./src/vision/detection.mjs";
+import { CollisionHaptics, hasPriorityObstacle } from "./src/vision/collision-haptics.mjs";
 import { HazardTracker, HazardAnnouncementGate } from "./src/vision/hazards.mjs";
 import { HAZARD_COVERAGE, hazardLabel, describeScreenRelation, describeHazardKind } from "./src/vision/hazard-policy.mjs";
 import { buildObjectOverlays } from "./src/vision/overlay.mjs";
@@ -29,6 +30,8 @@ function CameraScreen() {
   const [previewSize, setPreviewSize] = useState({ width: 0, height: 0 });
   const [message, setMessage] = useState("카메라를 켜면 실시간 화면을 먼저 표시합니다.");
   const [voice, setVoice] = useState(true);
+  const [haptics, setHaptics] = useState(true);
+  const hapticsEnabled = useRef(true);
   const [analysisMessage, setAnalysisMessage] = useState("");
   const resumeAfterNotice = useRef(false);
   const startupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -57,6 +60,21 @@ function CameraScreen() {
   const latestHazard = useRef<HazardAssessment | null>(null);
   const hazardSpeechRevision = useRef(0);
   const unavailableSpeech = useRef(false);
+  const hapticChannel = useRef<CollisionHaptics | null>(null);
+  if (!hapticChannel.current) {
+    hapticChannel.current = new CollisionHaptics({
+      vibrate: (pattern: number[], repeat: boolean) => Vibration.vibrate(pattern, repeat),
+      cancel: () => Vibration.cancel(),
+      isAllowed: () => mounted.current && wanted.current && hapticsEnabled.current && AppState.currentState === "active",
+    });
+  }
+  const receiveUrban = useCallback((next: UrbanResult | null) => {
+    if (!mounted.current || !wanted.current) { hapticChannel.current?.clear("urban"); return; }
+    setUrban(next);
+    if (!next) { hapticChannel.current?.clear("urban"); return; }
+    hapticChannel.current?.offer("urban", next.receivedAt,
+      next.quality === "usable" && hasPriorityObstacle(next.detections));
+  }, []);
   const speech = useRef<LatestSpeechChannel | null>(null);
   if (!speech.current) {
     speech.current = new LatestSpeechChannel({
@@ -80,6 +98,7 @@ function CameraScreen() {
     hazardTracker.current.reset();
     hazardAnnouncement.current.reset();
     latestHazard.current = null;
+    hapticChannel.current?.clear("base");
     if (mounted.current) setHazard(null);
   }, []);
 
@@ -111,6 +130,7 @@ function CameraScreen() {
 
   const close = useCallback(() => {
     wanted.current = false;
+    hapticChannel.current?.reset();
     resumeAfterNotice.current = false;
     if (startupTimer.current) clearTimeout(startupTimer.current);
     startupTimer.current = null;
@@ -147,6 +167,8 @@ function CameraScreen() {
       silence();
     }
     const assessment = hazardTracker.current.update(next, Date.now());
+    // Dispatch touch feedback immediately, independently of speech availability.
+    hapticChannel.current?.offer("base", assessment.observedAt, hasPriorityObstacle(assessment.hazards));
     const previousWarning = latestHazard.current?.hazards.find(item => item.level !== "notice");
     const nextWarning = assessment.hazards.find(item => item.level !== "notice");
     if (previousWarning && (!nextWarning || previousWarning.trackId !== nextWarning.trackId ||
@@ -227,6 +249,7 @@ function CameraScreen() {
     if (opening.current || closing.current || current.current) return;
     opening.current = true;
     wanted.current = true;
+    hapticChannel.current?.reset();
     setPhase("opening");
     setMessage("카메라 권한을 확인하고 있습니다.");
     setAnalysisMessage("");
@@ -283,6 +306,7 @@ function CameraScreen() {
     });
     // Latest result only. If the camera stalls, remove stale observations.
     const timer = setInterval(() => {
+      hapticChannel.current?.tick();
       if (latest.current && !isFreshResult(latest.current, Date.now())) {
         latest.current = null;
         setResult(null);
@@ -386,7 +410,7 @@ function CameraScreen() {
         accessibilityRole="button"
         accessibilityLabel={live || phase === "opening" ? "카메라 끄기" : "카메라 켜고 분석 시작"}
         accessibilityState={{ disabled: phase === "closing", busy }}
-        accessibilityHint="카메라를 끄면 분석과 음성을 중지하고 현재 결과를 지웁니다."
+        accessibilityHint="카메라를 끄면 분석·음성·진동을 중지하고 현재 결과를 지웁니다."
         disabled={phase === "closing"}
         onPress={() => {
           if (live || phase === "opening") {
@@ -427,6 +451,19 @@ function CameraScreen() {
       </View>
       <Text style={styles.note} accessibilityLiveRegion="polite">{!live ? message : ""}</Text>
       <View style={styles.controls}>
+        <Pressable testID="collision-haptics-toggle" style={styles.secondary} accessibilityRole="switch"
+          accessibilityLabel="가까운 위험 진동"
+          accessibilityHint="가까운 장애물 징후가 반복되면 두 번 진동합니다. 자동 음성을 꺼도 작동합니다."
+          accessibilityState={{ checked: haptics }}
+          onPress={() => {
+            const next = !hapticsEnabled.current;
+            hapticsEnabled.current = next;
+            setHaptics(next);
+            hapticChannel.current?.reset();
+          }}>
+          <Text style={styles.secondaryText}>가까운 위험 진동 {haptics ? "켜짐" : "꺼짐"}</Text>
+        </Pressable>
+        <Text style={styles.note}>화면 중앙에 크게 보이거나 중앙으로 다가오는 징후가 반복되면 두 번 진동합니다. 실제 거리는 측정하지 않습니다.</Text>
         <Pressable style={styles.secondary} accessibilityRole="switch"
           accessibilityLabel="자동 음성 안내"
           accessibilityHint="주의 알림을 먼저 전달합니다. 화면 읽기 기능 사용 시 해당 기능으로 주의 알림을 전달합니다."
@@ -466,7 +503,7 @@ function CameraScreen() {
         accessibilityLabel="분석 종료하고 현재 결과 지우기"
         onPress={() => {
           close();
-          setMessage("분석과 음성을 중지하고 현재 결과를 지웠습니다. 저장된 사진이나 영상은 없습니다.");
+          setMessage("분석·음성·진동을 중지하고 현재 결과를 지웠습니다. 저장된 사진이나 영상은 없습니다.");
         }}>
         <Text style={styles.linkText}>분석 종료·현재 결과 지우기</Text>
       </Pressable>
@@ -475,7 +512,7 @@ function CameraScreen() {
           <Text style={styles.linkText}>설정에서 카메라 권한 허용</Text>
         </Pressable>
       )}
-      <UrbanVisionPanel live={live} voice={voice} onResult={setUrban} say={say} canAnnounce={canAnnounceUrban} cancel={silence} />
+      <UrbanVisionPanel live={live} voice={voice} onResult={receiveUrban} say={say} canAnnounce={canAnnounceUrban} cancel={silence} />
       <View style={styles.coveragePanel}>
         <Text style={styles.sectionLabel}>기본 감지 범위</Text>
         <Text style={styles.note}>확장 후보는 위 시설물·신호 분석에서 별도로 표시합니다. 미감지는 주변에 없다는 뜻이 아닙니다.</Text>
@@ -504,7 +541,7 @@ function CameraScreen() {
               <Text style={styles.privacyText}>카메라 영상은 이 휴대폰에서 분석합니다. 사진·영상·분석 기록을 파일로 저장하거나 서버로 보내지 않습니다. 추가 공개 모델 파일만 기기에 보관합니다.</Text>
               <Text style={styles.privacyText}>숫자·문자 판독에 Google ML Kit를 사용합니다. 영상과 판독 결과는 기기에서 처리하며, SDK 성능·사용 통계는 Google에 전송될 수 있습니다. 자세한 내용은 오픈소스 안내의 ML Kit 약관·개인정보 링크를 확인해 주세요.</Text>
               <Text style={styles.privacyText}>현재 앱은 마이크와 GPS 위치를 수집하지 않습니다. STOP 스캔은 휴대폰 방향 센서를 사용하며 방향 이력을 저장하지 않습니다. 카메라 권한은 카메라를 켤 때 요청하며 휴대폰 설정에서 언제든 취소할 수 있습니다.</Text>
-              <Text style={styles.privacyText}>카메라 끄기, 결과 지우기, 다른 앱으로 전환하기, 이 안내 열기로 분석과 자동 음성을 중지합니다. 돌아와도 카메라는 자동으로 켜지지 않습니다.</Text>
+              <Text style={styles.privacyText}>카메라 끄기, 결과 지우기, 다른 앱으로 전환하기, 이 안내 열기로 분석·자동 음성·진동을 중지합니다. 돌아와도 카메라는 자동으로 켜지지 않습니다.</Text>
               <Text style={styles.privacyText}>연속된 객체 위치와 화면상 크기로 주의 대상을 고릅니다. 휴대폰 움직임이나 오인식으로 잘못 알리거나 위험을 놓칠 수 있습니다. 실제 거리·충돌 확률·횡단 가능 여부는 계산하지 않습니다. 확장 모델은 시설물·계단·연석·나뭇가지 등의 후보를 찾지만 높이·깊이·실제 통행 경로를 확인하지 못합니다. 보행 신호와 숫자도 오인식할 수 있어 횡단 허가를 제공하지 않습니다.</Text>
               <Text style={styles.privacyText}>현재는 카메라 시험판입니다. 실제 GPS 길안내와 마이크 소음 측정은 연결하지 않았습니다.</Text>
               <Text style={styles.privacyText}>아래 시작 버튼을 누르면 권한을 확인한 뒤 실시간 카메라 화면을 표시합니다. 외부 AI 사진 전송은 현재 앱에 연결되어 있지 않습니다.</Text>

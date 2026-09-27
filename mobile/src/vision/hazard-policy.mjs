@@ -87,11 +87,12 @@ export function evaluateHazardPolicy(track, cues) {
   let level = inView || adjacent || movingSide || broadSideVehicle ? "caution" : "notice";
   const span = last.at - history[0].at;
   const strong = history.every(s => s.score >= 0.82 && !s.sceneMotion);
-  const staticBlocker = !dynamic && relation === "direct" && history.length >= 3 && span >= 400 && strong &&
-    history.slice(-2).every(s => s.box.bottom >= 0.88 && area(s.box) >= 0.18);
+  const closeObstacle = relation === "direct" && history.length >= 3 && span >= 400 && strong &&
+    history.slice(-2).every(s => screenPathRelation(s.box) === "direct" && s.box.bottom >= 0.88 && area(s.box) >= 0.18);
+  const staticBlocker = !dynamic && closeObstacle;
   const centralMotion = dynamic && relation === "direct" && size >= 0.10 && strong &&
     (cues.growth || cues.inwardMotion);
-  if (cues.strongLargeVehicle || staticBlocker || centralMotion) level = "priority";
+  if (cues.strongLargeVehicle || closeObstacle || centralMotion) level = "priority";
   const reasons = ["stable_presence"];
   if (relation === "direct" && box.bottom >= 0.67) reasons.push("central_lower");
   if (size >= 0.16) reasons.push("large_image_footprint");
@@ -100,6 +101,7 @@ export function evaluateHazardPolicy(track, cues) {
   if (cues.lateralMotion) reasons.push("peripheral_motion");
   if (cues.strongLargeVehicle) reasons.push("strong_vehicle_evidence");
   if (staticBlocker) reasons.push("strong_static_obstruction");
+  if (dynamic && closeObstacle) reasons.push("strong_near_image_obstruction");
   if (level === "notice") reasons.push("side_observation");
   const base = level === "priority" ? 8 : level === "caution" ? 5 : 1;
   const priorityScore = Math.min(level === "priority" ? 10 : level === "caution" ? 7 : 3,

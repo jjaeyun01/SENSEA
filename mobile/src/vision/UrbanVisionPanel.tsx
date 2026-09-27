@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View, Vibration } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { startUrbanAnalysis } from "./urban-native";
 import { CrossingTracker, CrossingAnnouncementGate, StopScan, boxOverlap } from "./crossing.mjs";
 import { FacilityAttention } from "./facility-attention.mjs";
@@ -13,7 +13,6 @@ type Props={live:boolean;voice:boolean;onResult:(value:UrbanResult|null)=>void;
  canAnnounce:()=>boolean;cancel:()=>void};
 export function UrbanVisionPanel({live,voice,onResult,say,canAnnounce,cancel}:Props){
  const [mode,setMode]=useState<Mode>("unknown"),modeRef=useRef<Mode>("unknown");
- const [haptics,setHaptics]=useState(false),hapticsRef=useRef(false);
  const [status,setStatus]=useState("카메라를 켜면 확장 분석을 준비합니다.");
  const [frame,setFrame]=useState<UrbanResult|null>(null),latest=useRef<UrbanResult|null>(null);
  const [signal,setSignal]=useState<Observation>({status:"unknown",text:"보행 신호를 확인하지 못했습니다."});
@@ -44,7 +43,7 @@ export function UrbanVisionPanel({live,voice,onResult,say,canAnnounce,cancel}:Pr
     const match=attention.find(a=>a.label===d.label && boxOverlap(a.box,d.box)>.45);
     return match?{...d,level:match.level}:d;
    })});
-   if(!(voiceRef.current||hapticsRef.current)||!callbacks.current.canAnnounce())return;
+   if(!voiceRef.current||!callbacks.current.canAnnounce())return;
    let text:string|null=null,important=false,scanStep:number|null=null;
    if(target){
     const key=`${target.id}/${target.level}`;
@@ -58,10 +57,9 @@ export function UrbanVisionPanel({live,voice,onResult,say,canAnnounce,cancel}:Pr
     text=observed+" "+scanValue.text;scanStep=scanValue.step;
    }
    if(!text)text=gate.current.offer(observation,Date.now());
-   if(text&&(voiceRef.current||hapticsRef.current)&&callbacks.current.canAnnounce()){
-    const spoken=!voiceRef.current || callbacks.current.say(text,next.receivedAt,false,important,()=>{if(active){gate.current.reset();lastFacility.current={key:"",at:-Infinity};lastScanStep.current=-1;}});
+   if(text&&voiceRef.current&&callbacks.current.canAnnounce()){
+    const spoken=callbacks.current.say(text,next.receivedAt,false,important,()=>{if(active){gate.current.reset();lastFacility.current={key:"",at:-Infinity};lastScanStep.current=-1;}});
     if(spoken&&scanStep!==null)lastScanStep.current=scanStep;
-    if(spoken&&hapticsRef.current)Vibration.vibrate(important?[0,90,70,90]:70);
    }
   },state=>{
    if(!active)return;
@@ -81,10 +79,10 @@ export function UrbanVisionPanel({live,voice,onResult,say,canAnnounce,cancel}:Pr
     if(scanner.current.active){scanner.current.reset();setScan({status:"unavailable",text:"관찰이 끊겨 스캔을 중지했습니다."});}
    }
   },200);
-  return()=>{active=false;clearInterval(timer);stop();Vibration.cancel();};
+  return()=>{active=false;clearInterval(timer);stop();};
  },[live]);
- useEffect(()=>{gate.current.reset();lastFacility.current={key:"",at:-Infinity};if(!voice)Vibration.cancel();},[voice]);
- const changeMode=(next:Mode)=>{callbacks.current.cancel();Vibration.cancel();modeRef.current=next;setMode(next);crossing.current.reset();gate.current.reset();scanner.current.reset();setScan(scanner.current.describe());setSignal({status:"unknown",text:"새 상태에서 보행 신호를 다시 확인합니다."});};
+ useEffect(()=>{gate.current.reset();lastFacility.current={key:"",at:-Infinity};},[voice]);
+ const changeMode=(next:Mode)=>{callbacks.current.cancel();modeRef.current=next;setMode(next);crossing.current.reset();gate.current.reset();scanner.current.reset();setScan(scanner.current.describe());setSignal({status:"unknown",text:"새 상태에서 보행 신호를 다시 확인합니다."});};
  return <View style={styles.panel} testID="urban-panel">
   <Text accessibilityRole="header" style={styles.title}>시설물·미국 보행 신호 · 시험 기능</Text>
   <Text testID="urban-state" style={styles.note}>{status}</Text>
@@ -103,7 +101,6 @@ export function UrbanVisionPanel({live,voice,onResult,say,canAnnounce,cancel}:Pr
   }}><Text style={styles.buttonText}>STOP 주변 스캔 시작</Text></Pressable>
   <Text testID="stop-scan-guidance" style={styles.text}>{scan.text}</Text>
   <Pressable accessibilityRole="button" style={styles.button} onPress={()=>{if(live){const current=latest.current;const valid=current&&Date.now()-current.receivedAt<=1000&&current.quality==="usable";callbacks.current.say(valid?`${signal.text} ${scan.text}`:"최신 신호·주변 관찰 결과가 없습니다.",Date.now(),true,false);}}}><Text style={styles.buttonText}>신호·스캔 안내 다시 듣기</Text></Pressable>
-  <Pressable accessibilityRole="switch" accessibilityState={{checked:haptics}} style={styles.button} onPress={()=>{const next=!haptics;gate.current.reset();lastFacility.current={key:"",at:-Infinity};hapticsRef.current=next;setHaptics(next);if(!next)Vibration.cancel();}}><Text style={styles.buttonText}>주의 진동 {haptics?"켜짐":"꺼짐"}</Text></Pressable>
  </View>;
 }
 const styles=StyleSheet.create({panel:{marginVertical:16,padding:16,borderWidth:1,borderColor:"#35556B",borderRadius:18,backgroundColor:"#162433"},title:{color:"#F3F6FA",fontSize:19,fontWeight:"700",marginBottom:8},note:{color:"#B6C5D4",fontSize:14,lineHeight:21,marginVertical:5},text:{color:"#F3F6FA",fontSize:17,lineHeight:25,marginVertical:8},label:{color:"#F3F6FA",fontSize:16,fontWeight:"700",marginTop:10},row:{flexDirection:"row",flexWrap:"wrap",gap:6},button:{minHeight:48,justifyContent:"center",padding:10,borderWidth:1,borderColor:"#7894AA",borderRadius:10,marginVertical:5},selected:{backgroundColor:"#204B48",borderColor:"#64D9C1"},buttonText:{color:"#D5F7EF",fontSize:16}});
