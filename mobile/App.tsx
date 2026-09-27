@@ -9,6 +9,8 @@ import { callback } from "react-native-nitro-modules";
 import { createNativeSession } from "./src/vision/createNativeSession";
 import { AnnouncementGate, describeResult, isFreshResult, labelInKorean } from "./src/vision/detection.mjs";
 import { HazardTracker, HazardAnnouncementGate } from "./src/vision/hazards.mjs";
+import { HAZARD_COVERAGE, hazardLabel, describeScreenRelation, describeHazardKind } from "./src/vision/hazard-policy.mjs";
+import { projectBoxToPreview } from "./src/vision/preview-geometry.mjs";
 import { LatestSpeechChannel } from "./src/vision/speech-channel.mjs";
 import type { HazardAssessment, LiveResult, NativeSession } from "./src/vision/types";
 import notices from "./assets/third-party-notices.json";
@@ -21,6 +23,7 @@ function CameraScreen() {
   const [session, setSession] = useState<NativeSession | null>(null);
   const [result, setResult] = useState<LiveResult | null>(null);
   const [hazard, setHazard] = useState<HazardAssessment | null>(null);
+  const [previewSize, setPreviewSize] = useState({ width: 0, height: 0 });
   const [message, setMessage] = useState("카메라를 켜면 실시간 화면을 먼저 표시합니다.");
   const [voice, setVoice] = useState(true);
   const [analysisMessage, setAnalysisMessage] = useState("");
@@ -141,8 +144,8 @@ function CameraScreen() {
       silence();
     }
     const assessment = hazardTracker.current.update(next, Date.now());
-    const previousWarning = latestHazard.current?.hazards[0];
-    const nextWarning = assessment.hazards[0];
+    const previousWarning = latestHazard.current?.hazards.find(item => item.level !== "notice");
+    const nextWarning = assessment.hazards.find(item => item.level !== "notice");
     if (previousWarning && (!nextWarning || previousWarning.trackId !== nextWarning.trackId ||
         previousWarning.direction !== nextWarning.direction ||
         (previousWarning.level === "priority" && nextWarning.level !== "priority"))) silence();
@@ -323,6 +326,16 @@ function CameraScreen() {
   const busy = phase === "opening" || phase === "closing";
   const live = phase === "live";
   const hasWarning = hazard?.status === "caution" || hazard?.status === "priority";
+  const overlayBoxes = useMemo(() => {
+    const boxes: Array<{ trackId: number; label: string; level: string; left: number; top: number; width: number; height: number }> = [];
+    if (!result?.imageSize || !hazard) return boxes;
+    for (const item of hazard.hazards) {
+      const projected = projectBoxToPreview(item.box, result.imageSize, previewSize);
+      if (projected) boxes.push({ ...projected, trackId: item.trackId, label: hazardLabel(item.label), level: item.level });
+    }
+    return boxes;
+  }, [hazard, result, previewSize]);
+
 
   return (
     <SafeAreaView style={styles.root}>
@@ -332,7 +345,9 @@ function CameraScreen() {
         <Text style={styles.brand} accessibilityRole="header">SENSEA</Text>
         <Text style={styles.subtitle}>주변 위험 요소 살펴보기</Text>
       </View>
-      <View style={styles.preview} testID="camera-preview-area" collapsable={false}>
+      <View style={styles.preview} testID="camera-preview-area" collapsable={false}
+        onLayout={({ nativeEvent: { layout } }) => setPreviewSize(previous =>
+          previous.width === layout.width && previous.height === layout.height ? previous : { width: layout.width, height: layout.height })}>
         {session ? (
           <View style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <NativePreviewView
@@ -349,11 +364,20 @@ function CameraScreen() {
             <Text style={styles.placeholderText}>사람·차량·장애물 후보를 살펴보고 주의 대상을 먼저 알려드립니다.</Text>
           </View>
         )}
+        <View pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {overlayBoxes.map(item => <View key={item.trackId} testID={`hazard-box-${item.trackId}`}
+            style={[styles.objectBox, { left: item.left, top: item.top, width: item.width, height: item.height,
+              borderColor: item.level === "priority" ? "#FF8D94" : item.level === "caution" ? "#FFCA80" : "#90C7FF" }]}>
+            <Text numberOfLines={1} style={styles.objectBoxLabel}>
+              {item.level === "priority" ? "우선 주의" : item.level === "caution" ? "주의" : "참고"} · {item.label}
+            </Text>
+          </View>)}
+        </View>
         <View style={styles.badge}>
           <Text testID="camera-state" style={styles.badgeText} accessibilityLiveRegion="polite">{live ? "● 실시간 카메라 켜짐" : busy ? "카메라 준비·정리 중" : "카메라 꺼짐"}</Text>
         </View>
         <View style={styles.caption}>
-          <Text style={styles.captionText}>{hasWarning ? hazard.summary : result ? describeResult(result) : message}</Text>
+          <Text style={styles.captionText}>{hazard?.hazards.length ? hazard.summary : result ? describeResult(result) : message}</Text>
         </View>
       </View>
       <View style={{ height: 16 }} />
@@ -376,16 +400,23 @@ function CameraScreen() {
         <Text style={styles.primaryText}>{live || phase === "opening" ? "카메라 끄기" : phase === "closing" ? "카메라 정리 중" : "카메라 켜기"}</Text>
       </Pressable>
       {!!analysisMessage && <Text testID="analysis-state" style={styles.note}>{analysisMessage}</Text>}
-      <View testID="hazard-panel" style={[styles.hazardPanel, hasWarning && styles.hazardWarning]}>
+      <View testID="hazard-panel" style={[styles.hazardPanel, hasWarning && styles.hazardWarning, hazard?.status === "priority" && styles.hazardPriority]}>
         <Text style={styles.sectionLabel}>주의 대상 · 시험 기능</Text>
         <Text testID="hazard-level" style={styles.hazardLevel}>
-          {hazard?.status === "priority" ? "우선 확인" : hazard?.status === "caution" ? "주의 대상 감지" :
+          {hazard?.status === "priority" ? "우선 주의" : hazard?.status === "caution" ? "주의 대상 감지" : hazard?.status === "notice" ? "주변 참고" :
             hazard?.status === "observing" ? "연속 관찰 중" : "확인할 수 없음"}
         </Text>
         <Text testID="hazard-summary" style={styles.hazardText}>
           {hazard?.summary ?? (live ? "최신 분석이 없어 주의 대상을 확인할 수 없습니다." : "카메라를 켜면 최신 영상에서 주의 대상을 살펴봅니다.")}
         </Text>
-        <Text style={styles.note}>위치는 카메라 화면 기준입니다. 거리나 충돌 시간을 측정하지 않습니다.</Text>
+        {!!hazard && <Text testID="hazard-guidance" style={styles.note}>{hazard.guidance}</Text>}
+        {!!hazard?.hazards.length && <Text style={styles.note}>반복 관찰 {hazard.confirmedCount}개 · 주의 대상 {hazard.warningCount}개 · 주요 {hazard.hazards.length}개 표시</Text>}
+        {hazard?.hazards.map(item => <View key={item.trackId} style={styles.hazardDetail}>
+          <Text style={styles.hazardDetailTitle}>{hazardLabel(item.label)} · {item.level === "priority" ? "우선 주의" : item.level === "caution" ? "주의" : "참고"}</Text>
+          <Text style={styles.note}>{describeHazardKind(item.kind)} · {describeScreenRelation(item.screenRelation)}</Text>
+          <Text style={styles.note}>실제 거리 미확인 · 실제 진행 경로 미확인</Text>
+        </View>)}
+        <Text style={styles.note}>위치와 움직임은 카메라 화면 기준입니다. 거리·충돌 시간·통행 가능 여부를 판단하지 않습니다.</Text>
       </View>
       <View style={styles.summary}>
         <Text style={styles.sectionLabel}>함께 보이는 사물</Text>
@@ -446,6 +477,15 @@ function CameraScreen() {
           <Text style={styles.linkText}>설정에서 카메라 권한 허용</Text>
         </Pressable>
       )}
+      <View style={styles.coveragePanel}>
+        <Text style={styles.sectionLabel}>감지 범위</Text>
+        <Text style={styles.note}>아래의 ‘구분 못함’은 주변에 없다는 뜻이 아닙니다.</Text>
+        {HAZARD_COVERAGE.map(group => <View key={group.kind} style={styles.hazardDetail}>
+          <Text style={styles.hazardDetailTitle}>{group.title}</Text>
+          {!!group.supported && <Text style={styles.note}>감지 대상: {group.supported}</Text>}
+          {!!group.unavailable && <Text style={styles.note}>아직 구분 못함: {group.unavailable}</Text>}
+        </View>)}
+      </View>
       <Text style={styles.footer}>주의 알림은 실험 기능입니다. 이동·횡단의 안전을 판단하지 않습니다.</Text>
       <Pressable ref={privacyButton} style={styles.linkButton} accessibilityRole="button" onPress={() => showSheet("privacy")}>
         <Text style={styles.linkText}>개인정보와 이용 안내</Text>
@@ -506,6 +546,12 @@ const styles = StyleSheet.create({
   caption: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#06101CDB", padding: 20 },
   captionText: { color: "#FFFFFF", fontSize: 19, lineHeight: 28 },
   hazardPanel: { marginTop: 16, padding: 18, borderRadius: 16, backgroundColor: "#182638", borderWidth: 1, borderColor: "#456079" },
+  hazardPriority: { backgroundColor: "#38202A", borderColor: "#FF8D94" },
+  hazardDetail: { paddingTop: 10, marginTop: 10, borderTopWidth: 1, borderTopColor: "#456079" },
+  hazardDetailTitle: { color: "#F4F7FA", fontSize: 16, fontWeight: "700" },
+  coveragePanel: { marginBottom: 18 },
+  objectBox: { position: "absolute", borderWidth: 2, borderRadius: 4 },
+  objectBoxLabel: { color: "#FFFFFF", backgroundColor: "#0A1220DD", fontSize: 12, padding: 3, alignSelf: "flex-start", maxWidth: "100%" },
   hazardWarning: { backgroundColor: "#342713", borderColor: "#FFCA80" },
   hazardLevel: { color: "#FFDAA2", fontSize: 22, fontWeight: "800", marginTop: 8 },
   hazardText: { color: "#FFFFFF", fontSize: 20, lineHeight: 30, marginTop: 8 },

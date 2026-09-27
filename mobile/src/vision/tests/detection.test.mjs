@@ -294,6 +294,7 @@ for (const orientation of ["left", "right"]) {
     r.detector.runSync = () => { r.events.push("infer"); return outputs([2], [0.9], [0.25, 0.25, 0.75, 0.75]); };
     const result = analyzeOwnedFrame(r.frame, r.converter, r.detector, labels, true);
     assertBoxClose(result.detections[0].box, { top: 0.25, left: 1 / 6, bottom: 0.75, right: 5 / 6 });
+    assert.deepEqual(result.imageSize, { width: 480, height: 640 });
     assert.deepEqual(r.events, ["resize", "infer", "gpu-free", "frame-free"]);
   });
 }
@@ -308,6 +309,7 @@ test("owned-frame hazard pipeline retains lower-confidence objects after removin
   };
   const result = analyzeOwnedFrame(r.frame, r.converter, r.detector, labels, true);
   assert.equal(result.detections.length, 24);
+  assert.deepEqual(result.imageSize, { width: 640, height: 480 });
   assert.equal(result.detections.at(-1).label, "car");
   assertBoxClose(result.detections.at(-1).box, { top: 0.5, left: 0.4, bottom: 1, right: 0.6 });
   assert.deepEqual(r.events, ["resize", "infer", "gpu-free", "frame-free"]);

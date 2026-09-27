@@ -105,6 +105,8 @@ const KOREAN = {
   bus: "버스", truck: "트럭", train: "기차", "traffic light": "신호등",
   "stop sign": "정지 표지판", bench: "벤치", chair: "의자", dog: "개", cat: "고양이",
   backpack: "가방", umbrella: "우산", suitcase: "여행 가방",
+  "potted plant": "화분", "fire hydrant": "소화전", "parking meter": "주차 요금기",
+  couch: "소파", "dining table": "식탁", bed: "침대", handbag: "손가방",
 };
 export function labelInKorean(label) { return KOREAN[label] ?? label; }
 
@@ -170,7 +172,7 @@ export function analyzeOwnedFrame(frame, converter, detector, labels, shouldAnal
     const detections = quality.status === "usable"
       ? mapDetectionsToImageContent(decodeDetections(detector.runSync([input]), labels, 0.55, 25),
         uprightWidth, uprightHeight) : [];
-    return { quality, detections, preprocessingMs: inferenceStarted - preprocessingStarted,
+    return { quality, detections, imageSize: { width: uprightWidth, height: uprightHeight }, preprocessingMs: inferenceStarted - preprocessingStarted,
       inferenceMs: performance.now() - inferenceStarted };
   } finally {
     try { converted?.dispose(); } finally { frame.dispose(); }

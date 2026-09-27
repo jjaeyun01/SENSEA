@@ -1,3 +1,5 @@
+import { getHazardProfile, hazardLabel, evaluateHazardPolicy, movesTowardScreenCenter, guidanceFor, LEVEL_RANK } from "./hazard-policy.mjs";
+
 /**
  * Image-only attention cues, not a collision predictor or a navigable-path model.
  * All thresholds below are provisional, uncalibrated heuristics. They need
@@ -12,12 +14,6 @@ export const HAZARD_LIMITS = Object.freeze({
 });
 
 const VEHICLES = new Set(["bicycle", "car", "motorcycle", "bus", "truck", "train"]);
-const LABELS = {
-  person: "사람", bicycle: "자전거", car: "자동차", motorcycle: "오토바이",
-  bus: "버스", truck: "트럭", train: "기차", dog: "개", cat: "고양이",
-  bench: "벤치", chair: "의자", suitcase: "여행 가방", backpack: "가방",
-  umbrella: "우산", "potted plant": "화분", "fire hydrant": "소화전",
-};
 const DIRECTIONS = { left: "화면 왼쪽", center: "화면 중앙", right: "화면 오른쪽" };
 const NONE = "위험 요소를 관찰 중입니다. 감지되지 않은 위험이 있을 수 있습니다.";
 const UNAVAILABLE = "현재 영상으로 위험 요소를 판단할 수 없습니다.";
@@ -54,10 +50,14 @@ function centralLargeVehicle(sample) {
 }
 function describeHazard(hazard) {
   const position = DIRECTIONS[hazard.direction];
-  const label = LABELS[hazard.label] ?? "물체";
-  const lead = hazard.level === "priority" ? "우선 주의. " : "주의. ";
+  const label = hazardLabel(hazard.label);
+  const lead = hazard.level === "priority" ? "우선 주의. " : hazard.level === "notice" ? "참고. " : "주의. ";
   const ending = label.charCodeAt(label.length - 1) - 0xac00;
   const subject = label + (ending >= 0 && ending <= 11171 && ending % 28 ? "이" : "가");
+  if (hazard.reasons.includes("toward_screen_center")) {
+    return `${lead}${position}의 ${label} 영상이 화면 중앙 쪽으로 이동하고 있습니다.`;
+  }
+  if (hazard.level === "notice") return `${lead}${position}에 ${subject} 반복해서 보입니다. 이동 가능 여부는 판단하지 않습니다.`;
   if (hazard.reasons.includes("apparent_growth")) {
     return `${lead}${position}에서 ${label}의 영상 크기가 커지고 있습니다. 실제 거리는 알 수 없습니다.`;
   }
@@ -71,21 +71,22 @@ function describeHazard(hazard) {
 }
 // Keep automatic speech brief; full evidence/limitations remain in the screen summary.
 function describeHazardForSpeech(hazard) {
-  const lead = hazard.level === "priority" ? "우선 주의. " : "주의. ";
-  const target = `${DIRECTIONS[hazard.direction]} ${LABELS[hazard.label] ?? "물체"}. `;
-  const cue = hazard.reasons.includes("apparent_growth") ? "화면에서 커져 보입니다." :
+  const lead = hazard.level === "priority" ? "우선 주의. " : hazard.level === "notice" ? "참고. " : "주의. ";
+  const target = `${DIRECTIONS[hazard.direction]} ${hazardLabel(hazard.label)}. `;
+  const cue = hazard.reasons.includes("toward_screen_center") ? "화면 중앙 쪽으로 움직입니다." :
+    hazard.reasons.includes("apparent_growth") ? "화면에서 커져 보입니다." :
     hazard.reasons.includes("peripheral_motion") ? "화면에서 위치가 바뀝니다." :
     hazard.reasons.includes("large_image_footprint") ? "화면에 크게 보입니다." : "아래쪽에 보입니다.";
   return lead + target + cue;
 }
 function cloneAssessment(value) {
-  return { ...value, hazards: value.hazards.map(h => ({ ...h, reasons: [...h.reasons] })) };
+  return { ...value, hazards: value.hazards.map(h => ({ ...h, box: { ...h.box }, reasons: [...h.reasons] })) };
 }
 function sanitizeDetections(input) {
   const result = [];
   // Slice BEFORE validation/sorting; detector output cannot cause an unbounded scan.
   for (const raw of input.slice(0, HAZARD_LIMITS.maxInputDetections)) {
-    if (!raw || !Object.prototype.hasOwnProperty.call(LABELS, raw.label) || !Number.isFinite(raw.score) ||
+    if (!raw || !getHazardProfile(raw.label) || !Number.isFinite(raw.score) ||
         raw.score < HAZARD_LIMITS.minScore || raw.score > 1 || !raw.box) continue;
     const b = raw.box;
     if (![b.top, b.left, b.bottom, b.right].every(Number.isFinite) ||
@@ -183,24 +184,14 @@ function assessTrack(track) {
   if (history.length < 2 || latest.at - history[0].at < HAZARD_LIMITS.minConfirmationMs ||
       history.some(s => s.score < 0.65) ||
       history.reduce((sum, s) => sum + s.score, 0) / history.length < 0.72) return null;
-  const vehicle = VEHICLES.has(track.label), zone = inAttentionZone(box);
-  const growth = apparentGrowth(history);
-  const sideMotion = vehicle && track.direction !== "center" && peripheralMotion(history);
-  const large = area(box) >= 0.16;
-  const ordinaryObstacle = zone && area(box) >= (vehicle || track.label === "person" ? 0.045 : 0.07);
-  const sideVehicle = vehicle && box.bottom >= 0.5 && (area(box) >= 0.08 || (sideMotion && area(box) >= 0.035));
-  if (!ordinaryObstacle && !sideVehicle && !(growth && zone && area(box) >= 0.025)) return null;
-  const strongLargeVehicle = vehicle && history.slice(-2).every(centralLargeVehicle);
-  const growingCentralVehicle = vehicle && growth && track.direction === "center" && zone &&
-    area(box) >= 0.12 && history.every(s => s.score >= 0.8);
-  const level = strongLargeVehicle || growingCentralVehicle ? "priority" : "caution";
-  const reasons = ["stable_presence"];
-  if (zone) reasons.push("central_lower");
-  if (large) reasons.push("large_image_footprint");
-  if (growth) reasons.push("apparent_growth");
-  if (sideMotion) reasons.push("peripheral_motion");
-  if (strongLargeVehicle) reasons.push("strong_vehicle_evidence");
-  return { trackId: track.id, label: track.label, direction: track.direction, level, reasons };
+  const vehicle = VEHICLES.has(track.label);
+  const dynamic = getHazardProfile(track.label)?.kind === "dynamic";
+  return evaluateHazardPolicy(track, {
+    vehicle, growth: apparentGrowth(history),
+    lateralMotion: dynamic && peripheralMotion(history),
+    inwardMotion: dynamic && movesTowardScreenCenter(history),
+    strongLargeVehicle: vehicle && history.slice(-2).every(centralLargeVehicle),
+  });
 }
 
 export class HazardTracker {
@@ -211,7 +202,7 @@ export class HazardTracker {
     this.lastFrameAt = -Infinity;
     this.lastNow = -Infinity;
     this.lastAssessment = { status: "unavailable", summary: UNAVAILABLE, hazards: [],
-      observedAt: 0, navigation_safe: false };
+      observedAt: 0, navigation_safe: false, confirmedCount: 0, warningCount: 0, ...guidanceFor("unavailable") };
   }
   getDiagnostics() {
     return { trackCount: this.tracks.length,
@@ -293,15 +284,17 @@ export class HazardTracker {
     if (commonSceneMotion(transitions)) {
       for (const track of this.tracks) if (!track.missed) fromEnd(track.history).sceneMotion = true;
     }
-    const hazards = this.tracks.filter(t => !t.missed && t.lastSeen === at)
+    const confirmed = this.tracks.filter(t => !t.missed && t.lastSeen === at)
       .map(track => ({ hazard: assessTrack(track), rank: visualRank({ label: track.label, box: fromEnd(track.history).box }) }))
       .filter(item => item.hazard)
-      .sort((a, b) => Number(b.hazard.level === "priority") - Number(a.hazard.level === "priority") ||
-        b.rank - a.rank || a.hazard.trackId - b.hazard.trackId)
-      .slice(0, HAZARD_LIMITS.maxHazards).map(item => item.hazard);
-    this.lastAssessment = { status: hazards[0]?.level ?? "observing",
+      .sort((a, b) => LEVEL_RANK[b.hazard.level] - LEVEL_RANK[a.hazard.level] ||
+        b.hazard.priorityScore - a.hazard.priorityScore || b.rank - a.rank || a.hazard.trackId - b.hazard.trackId)
+      .map(item => item.hazard);
+    const hazards = confirmed.slice(0, HAZARD_LIMITS.maxHazards), status = hazards[0]?.level ?? "observing";
+    this.lastAssessment = { status,
       summary: hazards.length ? hazards.slice(0, 2).map(describeHazard).join(" ") : NONE,
-      hazards, observedAt: at, navigation_safe: false };
+      hazards, observedAt: at, navigation_safe: false, confirmedCount: confirmed.length,
+      warningCount: confirmed.filter(h => h.level !== "notice").length, ...guidanceFor(status) };
     return cloneAssessment(this.lastAssessment);
   }
 }
@@ -328,7 +321,8 @@ export class HazardAnnouncementGate {
     this.lastNow = now;
     if (assessment.observedAt <= this.lastFrameAt) return null;
     this.lastFrameAt = assessment.observedAt;
-    const hazards = assessment.hazards.slice(0, HAZARD_LIMITS.maxHazards);
+    // Informational side objects remain on screen/manual replay and never interrupt warnings.
+    const hazards = assessment.hazards.slice(0, HAZARD_LIMITS.maxHazards).filter(h => h.level !== "notice");
     const activeIds = new Set(hazards.map(h => h.trackId));
     this.entries = this.entries.filter(entry => now - entry.seenAt <= 12000);
     for (const entry of this.entries) {
