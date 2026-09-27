@@ -327,3 +327,16 @@ test('late delivery of a cancelled warning cannot commit a newer reservation', (
  old.onDelivered(); assert.ok(gate.pending);
  next.onDropped(); assert.equal(gate.pending,null);
 });
+
+
+test("a large central foreground object above the lower strip gets caution after confirmation", () => {
+  const tracker = new HazardTracker();
+  const objects = [detection("chair", box(0.5, 0.32, 0.6, 0.6))];
+  assert.equal(update(tracker, 0, objects).status, "observing");
+  const confirmed = update(tracker, 200, objects);
+  assert.equal(confirmed.status, "caution");
+  assert.ok(confirmed.hazards[0].reasons.includes("large_image_footprint"));
+  assert.equal(confirmed.hazards[0].distanceMeters, null);
+  assert.equal(confirmed.navigation_safe, false);
+  assert.equal(stable(new HazardTracker(), [detection("chair", box(0.5, 0.32, 0.2))]).status, "observing");
+});

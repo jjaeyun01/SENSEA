@@ -17,11 +17,18 @@ function fixture({ platform = "android", supported = true, failModel = false, pe
   let resolveModel, frameOutputs = 0, gpuChecks = 0, frameCallback, clock = 0;
   const frameCalls = [];
   class FakeDate extends Date { static now() { return clock; } }
-  const disposable = name => ({ dispose() { events.push(`dispose:${name}`); } });
-  const model = {
+  const disposable = name => {
+    let disposed = false;
+    return { dispose() {
+      if (disposed) throw new Error(`Already disposed: ${name}`);
+      disposed = true;
+      events.push(`dispose:${name}`);
+    } };
+  };
+  const newModel = () => ({
     ...disposable("model"), inputs: [{ dataType: "uint8", shape: [1, 320, 320, 3] }],
     outputs: Array.from({ length: 4 }, () => ({ dataType: "float32" })),
-  };
+  });
   const camera = {
     addOnErrorListener: () => ({ remove() {} }),
     addOnInterruptionStartedListener: () => ({ remove() {} }),
@@ -39,6 +46,7 @@ function fixture({ platform = "android", supported = true, failModel = false, pe
     "react-native-fast-tflite": { loadTensorflowModel(source) {
       assert.match(source.url, /^file:\/\//, "native loader must receive a file URL, never Android raw resource name");
       events.push("load:model");
+      const model = newModel();
       if (failModel) return Promise.reject(new Error("model unavailable"));
       return pendingModel ? new Promise(resolve => { resolveModel = () => resolve(model); }) : Promise.resolve(model);
     } },
@@ -166,10 +174,10 @@ for (const platform of ["android", "ios"]) {
     assert.equal(f.events.filter(x => x === "start").length, 3);
     assert.equal(f.events.filter(x => x === "load:model").length, 3);
     assert.equal(f.events.filter(x => x === "dispose:preview").length, 3);
-    // Native model and GPU converter have one wrapper in each runtime.
-    assert.equal(f.events.filter(x => x === "dispose:model").length, 6);
+    // Native disposal runs once, after detaching the worklet callback.
+    assert.equal(f.events.filter(x => x === "dispose:model").length, 3);
     assert.equal(f.events.filter(x => x === "create:resizer").length, platform === "ios" ? 3 : 0);
-    assert.equal(f.events.filter(x => x === "dispose:resizer").length, platform === "ios" ? 6 : 0);
+    assert.equal(f.events.filter(x => x === "dispose:resizer").length, platform === "ios" ? 3 : 0);
     if (platform === "android") assert.equal(new Set(cpuBuffers).size, 3, "reopening gets a new session buffer");
   });
 }

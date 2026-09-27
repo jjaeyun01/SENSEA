@@ -97,8 +97,8 @@ export function NoiseMonitorProvider({ children }: { children: ReactNode }) {
       allowsBackgroundRecording: false,
       shouldPlayInBackground: false,
       shouldRouteThroughEarpiece: false,
-    }).then(() => stream.start()).then(() => {
-      if (cancelled) stream.stop();
+    }).then(() => { if (!cancelled) return stream.start(); }).then(() => {
+      if (cancelled) return;
       else setError(null);
     }).catch(() => {
       if (!cancelled) setError('Live sound measurement could not start on this device.');
@@ -106,7 +106,8 @@ export function NoiseMonitorProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, [shouldStream, stream.id, suspensionVersion]);
 
-  useEffect(() => () => stream.stop(), [stream.id]);
+  // useAudioStream owns native disposal; its deinit already stops capture.
+  // Calling stop in a later unmount cleanup can target a released shared object.
 
   const suspend = useCallback((reason: string) => {
     if (!suspended.current.has(reason)) {

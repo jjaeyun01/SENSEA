@@ -5,7 +5,7 @@ import { callback } from 'react-native-nitro-modules';
 import { HazardTracker, HazardAnnouncementGate } from '../vision/hazards.mjs';
 import { projectBoxToPreview } from '../vision/preview-geometry.mjs';
 import { createNativeSession } from '../vision/createNativeSession';
-import { AnnouncementGate, describeResult, isFreshResult } from '../vision/detection.mjs';
+import { AnnouncementGate, describeResult, isFreshResult, labelInKorean } from '../vision/detection.mjs';
 import type { HazardAssessment, LiveResult, NativeSession } from '../vision/types';
 import { announce, stopFeedback } from '../navigation/feedback';
 import { recordEvent } from '../navigation/audit';
@@ -114,10 +114,10 @@ function useCameraController() {
   }, [visualAlignment]);
   const repeat = () => {
     const current = latest.current;
-    if (current && isFreshResult(current, Date.now())) announce(hazard?.summary ?? describeResult(current), 1, 'ko-KR');
+    if (current && isFreshResult(current, Date.now())) announce(hazard?.hazards.length ? hazard.summary : describeResult(current), 1, 'ko-KR');
     else announce('No fresh camera observation is available.', 1);
   };
-  return { device, session, result, hazard, previewStarted, phase, message: hazard?.summary ?? (result ? describeResult(result) : message), open, close, repeat,
+  return { device, session, result, hazard, previewStarted, phase, message: hazard?.hazards.length ? hazard.summary : result ? describeResult(result) : message, open, close, repeat,
     ready: phase === 'live' && result?.quality.status === 'usable',
     // Object detection is not VPS. Only a registered provider tied to a
     // surveyed spatial map may populate this value.
@@ -136,9 +136,20 @@ export function CameraPreview() {
   const [size, setSize] = useState({ width: 0, height: 0 });
   return camera.session && camera.device ? <View onLayout={event => setSize(event.nativeEvent.layout)} style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
     <NativePreviewView style={StyleSheet.absoluteFill} onPreviewStarted={camera.previewStarted} previewOutput={camera.session.preview} implementationMode="compatible" resizeMode="cover" />
+    {camera.result?.imageSize && camera.result.detections.slice(0, 6).map((item, index) => {
+      const box = projectBoxToPreview(item.box, camera.result!.imageSize!, size);
+      return box ? <View key={`detection-${index}`} pointerEvents="none" style={{ position: 'absolute', left: box.left, top: box.top, width: box.width, height: box.height, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.white }}>
+        <Text style={{ alignSelf: 'flex-start', backgroundColor: '#101820DD', color: colors.white, fontSize: 12, paddingHorizontal: 4 }}>{labelInKorean(item.label)}</Text>
+      </View> : null;
+    })}
+    <View pointerEvents="none" style={{ position: 'absolute', top: 8, left: 8, right: 8 }}><Text style={{ alignSelf: 'flex-start', backgroundColor: '#101820DD', color: colors.white, fontSize: 12, padding: 6 }}>{camera.result ? `분석 중 · 사물 ${camera.result.detections.length}개 · 주의 요소 ${camera.hazard?.hazards.length ?? 0}개` : camera.message}</Text></View>
     {camera.result?.imageSize && camera.hazard?.hazards.map(item => {
       const box = projectBoxToPreview(item.box, camera.result!.imageSize!, size);
-      return box ? <View key={item.trackId} pointerEvents="none" style={{ position: 'absolute', left: box.left, top: box.top, width: box.width, height: box.height, borderWidth: 2, borderColor: item.level === 'priority' ? '#E65100' : colors.primary }} /> : null;
+      const warningColor = item.level === 'priority' ? '#D72638' : item.level === 'caution' ? '#E65100' : colors.primary;
+      const label = item.level === 'priority' ? '우선 주의' : item.level === 'caution' ? '주의' : '참고';
+      return box ? <View key={item.trackId} pointerEvents="none" style={{ position: 'absolute', left: box.left, top: box.top, width: box.width, height: box.height, borderWidth: 3, borderColor: warningColor }}>
+        <Text style={{ alignSelf: 'flex-start', backgroundColor: warningColor, color: colors.white, fontSize: 14, fontWeight: '800', paddingHorizontal: 5 }}>{label} · {labelInKorean(item.label)}</Text>
+      </View> : null;
     })}
   </View> : <View style={{ flex: 1, justifyContent: 'center', padding: 24 }}><Text style={{ color: colors.muted, textAlign: 'center' }}>{Platform.OS === 'web' ? 'Camera analysis is available in the native app.' : camera.message}</Text></View>;
 }

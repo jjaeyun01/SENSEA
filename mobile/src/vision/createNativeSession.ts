@@ -48,25 +48,33 @@ export async function createNativeSession(
 
     const releaseAnalysis = async () => {
       active?.setBlocking(false);
+      // Detach the worklet first, then dispose each Nitro object exactly once
+      // from its creating runtime. Nitro dispose clears wrapper caches across
+      // runtimes; disposing again through another wrapper can target invalid state.
       const detector = model, resizer = converter;
+      model = undefined;
+      converter = undefined;
+      let failure: unknown;
       if (pipeline) {
         const { frameOutput, runtime } = pipeline;
-        await new Promise<void>((resolve, reject) => {
-          const complete = (failed: boolean) => failed ? reject(new Error("analysis cleanup failed")) : resolve();
-          scheduleOnRuntime(runtime, () => {
-            "worklet";
-            let failed = false;
-            try { frameOutput.setOnFrameCallback(undefined); } catch { failed = true; }
-            try { resizer?.dispose(); } catch { failed = true; }
-            try { detector?.dispose(); } catch { failed = true; }
-            scheduleOnRN(complete, failed);
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const complete = (reason: string | undefined) => reason ? reject(new Error(reason)) : resolve();
+            scheduleOnRuntime(runtime, () => {
+              "worklet";
+              let reason: string | undefined;
+              try { frameOutput.setOnFrameCallback(undefined); }
+              catch (error) { reason = error instanceof Error ? error.message : "Frame callback cleanup failed"; }
+              scheduleOnRN(complete, reason);
+            });
           });
-        });
+        } catch (error) { failure = error; }
       }
-      // Nitro creates one JS wrapper per runtime; release the RN wrappers too.
-      for (const resource of [converter, model]) resource?.dispose();
-      converter = undefined;
-      model = undefined;
+      for (const resource of [resizer, detector]) {
+        try { resource?.dispose(); }
+        catch (error) { failure ??= error; }
+      }
+      if (failure) throw failure;
     };
 
     const prepareAnalysis = async () => {
@@ -118,7 +126,7 @@ export async function createNativeSession(
             if (!stopped && enabled.getBlocking() && isFreshResult(result, Date.now())) {
               if (result.quality.status === "usable" && !inferenceReported) {
                 inferenceReported = true;
-                console.info("[SENSEA] First frame inference ready");
+                console.info("[SENSEA] First frame inference ready", { detections: result.detections.length, labels: result.detections.slice(0, 3).map(item => item.label) });
               }
               onResult(result);
             }
@@ -187,7 +195,7 @@ export async function createNativeSession(
         }]);
       } catch (error) {
         console.warn(`[SENSEA] Analysis initialization failed at ${stage}`, error instanceof Error ? error.message : "native error");
-        try { await releaseAnalysis(); } catch { cleanupFailed = true; }
+        try { await releaseAnalysis(); } catch (error) { cleanupFailed = true; console.warn("[SENSEA] Analysis cleanup failed", error instanceof Error ? error.message : "native error"); }
         if (!stopped) {
           // If attaching an analysis output failed, restore the plain preview.
           try { await configurePreview(); }
@@ -227,7 +235,7 @@ export async function createNativeSession(
           try { await camera.configure([]); } catch { cleanupFailed = true; }
           errors.remove();
           interruptions.remove();
-          try { await releaseAnalysis(); } catch { cleanupFailed = true; }
+          try { await releaseAnalysis(); } catch (error) { cleanupFailed = true; console.warn("[SENSEA] Analysis cleanup failed", error instanceof Error ? error.message : "native error"); }
           try { previewOutput.dispose(); } catch { cleanupFailed = true; }
           occupied = cleanupFailed;
           if (cleanupFailed) throw new Error("카메라 정리를 완료하지 못했습니다. 앱을 다시 실행해 주세요.");

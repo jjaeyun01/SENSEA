@@ -79,12 +79,17 @@ export function evaluateHazardPolicy(track, cues) {
   const minimum = dynamic ? 0.025 : 0.012;
   if (relation === "unknown" || size < minimum) return null;
   // Side observations are informational. A low level does not certify clearance.
+  // A foreground-sized central object can occupy the upper/middle image
+  // when the phone is tilted. Requiring the lower strip misses this cue.
+  // This is apparent image size, not a measured near-distance or collision.
+  const largeCentral = centerX(box) >= 0.30 && centerX(box) <= 0.70 &&
+    box.bottom >= 0.45 && size >= 0.18;
   const inView = relation === "direct" && box.bottom >= 0.67 && size >= minimum;
   const adjacent = relation === "offset" && box.bottom >= 0.55 &&
     (size >= (dynamic ? 0.045 : 0.04) || (dynamic && cues.inwardMotion));
   const movingSide = dynamic && (cues.lateralMotion || cues.inwardMotion) && box.bottom >= 0.55;
   const broadSideVehicle = cues.vehicle && box.bottom >= 0.5 && size >= 0.08;
-  let level = inView || adjacent || movingSide || broadSideVehicle ? "caution" : "notice";
+  let level = largeCentral || inView || adjacent || movingSide || broadSideVehicle ? "caution" : "notice";
   const span = last.at - history[0].at;
   const strong = history.every(s => s.score >= 0.82 && !s.sceneMotion);
   const staticBlocker = !dynamic && relation === "direct" && history.length >= 3 && span >= 400 && strong &&

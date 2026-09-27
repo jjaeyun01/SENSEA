@@ -1,0 +1,220 @@
+id,uw_map_object_id,waypoint_id,name,latitude,longitude,street_address,building_number,object_type,source_url
+5572d878-4239-57e6-803b-a30d00b34c09,334,uw-building-334,Adams Residence Hall,43.07788036306996,-89.4119889394122,1520 Tripp Cir.,0564,building,https://map.wisc.edu/api/v1/map_objects.geojson
+5955ac8c-079a-5e48-8091-a15262913dbc,335,uw-building-335,Agricultural Bulletin Building,43.076331650538286,-89.411607,1535 Observatory Dr.,0078,building,https://map.wisc.edu/api/v1/map_objects.geojson
+b2e85d2b-215f-5dda-9600-31b1215bde66,336,uw-building-336,Agricultural Dean’s Residence,43.077048742440766,-89.41315052226192,620 Babcock Dr.,0072,building,https://map.wisc.edu/api/v1/map_objects.geojson
+2a3f660a-dba8-5ec3-9860-9ac482c6562d,337,uw-building-337,Agricultural Engineering Building,43.074779735519655,-89.41066797297222,460 Henry Mall,0080,building,https://map.wisc.edu/api/v1/map_objects.geojson
+e8a02c29-4eae-570e-98c7-c9a9e8188c8f,338,uw-building-338,Agricultural Engineering Laboratory,43.076134762450344,-89.41660925380751,540 Elm Dr.,0099,building,https://map.wisc.edu/api/v1/map_objects.geojson
+7916c346-a586-5f64-8f7b-c7a681438d1d,339,uw-building-339,Agricultural Hall,43.07570879386304,-89.41028421715275,1450 Linden Dr.,0070,building,https://map.wisc.edu/api/v1/map_objects.geojson
+d0b83832-648f-5d9f-a1da-890836c7426b,341,uw-building-341,Hanson Biomedical Sciences Building,43.07573166496254,-89.41496867691592,1656 Linden Dr.,0094,building,https://map.wisc.edu/api/v1/map_objects.geojson
+c4ce2500-13bf-5768-80f4-73a2fa64246c,342,uw-building-342,Animal Science Building,43.076098504071,-89.41529900110932,1675 Observatory Dr.,0118,building,https://map.wisc.edu/api/v1/map_objects.geojson
+3db634e3-d813-5914-985d-57f014fd3d54,343,uw-building-343,Armory and Gymnasium (Red Gym),43.07631796199038,-89.39845049122404,716 Langdon St.,0020,building,https://map.wisc.edu/api/v1/map_objects.geojson
+af0c4a4c-9965-5afe-b3c5-267a66e8e9ad,344,uw-building-344,"Atmospheric, Oceanic and Space Sciences Building",43.070735865297706,-89.40693445771427,1225 W. Dayton St.,0156,building,https://map.wisc.edu/api/v1/map_objects.geojson
+ae80240c-a9b5-5bca-8e64-7b9bbe059767,345,uw-building-345,Babcock Hall,43.07480278681978,-89.41373073371999,1605 Linden Dr.,0106,building,https://map.wisc.edu/api/v1/map_objects.geojson
+02f5619c-ec73-54a1-8740-cf1c444ecd18,347,uw-building-347,Barnard Residence Hall,43.07367782597888,-89.40222699941677,970 University Ave.,0560,building,https://map.wisc.edu/api/v1/map_objects.geojson
+3a416ff8-124e-57d8-bf1e-90a81a94091b,348,uw-building-348,Bascom Hall,43.07534639770641,-89.40433580443906,500 Lincoln Dr.,0050,building,https://map.wisc.edu/api/v1/map_objects.geojson
+8dacb2c1-3c9d-5795-bb8f-0d9437c3add5,350,uw-building-350,Below Alumni Center,43.076740562437884,-89.39785654280483,650 N. Lake St.,0489,building,https://map.wisc.edu/api/v1/map_objects.geojson
+4c7126fe-a01c-58fa-b514-77d3bc2d2bbc,351,uw-building-351,DeLuca Biochemistry Laboratories,43.07416460638911,-89.4119811677512,433 Babcock Dr.,0205,building,https://map.wisc.edu/api/v1/map_objects.geojson
+2e077a23-1aa1-5beb-9eef-5c1403e1a6cf,352,uw-building-352,DeLuca Biochemistry Building,43.07383365962344,-89.41089430017848,420 Henry Mall,0084,building,https://map.wisc.edu/api/v1/map_objects.geojson
+c99284a6-c017-5aa1-a46d-da7cbd8734e5,353,uw-building-353,Biotron Laboratory,43.075984480745525,-89.42249816853011,2115 Observatory Dr.,0045,building,https://map.wisc.edu/api/v1/map_objects.geojson
+37cb5616-a7d0-5312-8790-8476d69bb81c,354,uw-building-354,Birge Hall,43.07443071706577,-89.40382960029869,430 Lincoln Dr.,0054,building,https://map.wisc.edu/api/v1/map_objects.geojson
+bbe7687a-26b8-5340-a569-5ede88ac2942,355,uw-building-355,Bock Laboratories,43.074856122803986,-89.41110358870756,1525 Linden Dr.,0033,building,https://map.wisc.edu/api/v1/map_objects.geojson
+70dc7832-0d7d-5576-8e4b-c66d005edf74,356,uw-building-356,Bradley Residence Hall,43.07790973063353,-89.41643740567213,650 Elm Dr.,0506,building,https://map.wisc.edu/api/v1/map_objects.geojson
+af0d902e-8701-598a-9522-89aa6d208cf8,357,uw-building-357,Bradley Memorial Building,43.074601893192906,-89.40755864224323,1225 Linden Dr.,0452,building,https://map.wisc.edu/api/v1/map_objects.geojson
+6b1bc1a0-7da1-527d-96e9-df0809d69e60,358,uw-building-358,Carillon Tower,43.07611642794259,-89.4050511844085,1160 Observatory Dr.,0487,building,https://map.wisc.edu/api/v1/map_objects.geojson
+c6cf741b-72a6-523d-a5e2-f266c5dd2c6f,359,uw-building-359,Carson Gulley Center,43.07715570280584,-89.41134061885892,1515 Tripp Cir.,0565,building,https://map.wisc.edu/api/v1/map_objects.geojson
+60476d8d-43da-5dd8-aaab-33de96d09d0d,360,uw-building-360,Chadbourne Residence Hall,43.07380625427833,-89.40121067983512,420 N. Park St.,0557,building,https://map.wisc.edu/api/v1/map_objects.geojson
+4c9fe0f8-0f3e-5ffd-a208-9a76b913e49c,361,uw-building-361,Chamberlin Hall,43.073874885388314,-89.40544068768608,1150 University Ave.,0055,building,https://map.wisc.edu/api/v1/map_objects.geojson
+4284216f-c43f-58ad-a980-6a8adc8aa930,362,uw-building-362,Chamberlin House (Kronshage),43.07825895053832,-89.41536785,665 Elm Dr.,0571,building,https://map.wisc.edu/api/v1/map_objects.geojson
+9cfa471c-a180-57c0-8c33-75475faa45b1,363,uw-building-363,Chemistry Building,43.07268086795938,-89.40476253837683,1101 University Ave.,0047,building,https://map.wisc.edu/api/v1/map_objects.geojson
+11f07bc0-edac-588f-8eed-fb27deda0b8a,364,uw-building-364,University Hospital,43.07637511189563,-89.43196200970364,600 Highland Ave.,1400,building,https://map.wisc.edu/api/v1/map_objects.geojson
+a9c46274-cf81-5209-8b04-73f1592e79ca,365,uw-building-365,Cole Residence Hall,43.07736434754442,-89.41497582918734,625 Elm Dr.,0555,building,https://map.wisc.edu/api/v1/map_objects.geojson
+b81a5426-00bc-5bbb-98f1-20450392b689,366,uw-building-366,Computer Sciences,43.07147417619353,-89.40672926189517,1210 W. Dayton St.,0155,building,https://map.wisc.edu/api/v1/map_objects.geojson
+d84a9ce7-bc6b-5316-87e6-d28bf4616a8f,367,uw-building-367,Porter Boathouse,43.078307025426994,-89.41248671661033,680 Babcock Dr.,0172,building,https://map.wisc.edu/api/v1/map_objects.geojson
+9099bf8f-1477-552e-ac4c-505315b22307,368,uw-building-368,Dairy Barn,43.074636421065236,-89.41844749308625,1915 Linden Dr. ,0105,building,https://map.wisc.edu/api/v1/map_objects.geojson
+e355ec5c-374f-5130-bd86-5e92faf81bd8,369,uw-building-369,Dairy Cattle Center,43.07485441640031,-89.41712487490445,1815 Linden Dr. ,0092,building,https://map.wisc.edu/api/v1/map_objects.geojson
+ca20431e-4d9f-50f7-bb00-187d95a26e9d,370,uw-building-370,U.S. Dairy Forage Research Center,43.075285267876716,-89.41806685310046,1925 Linden Dr. ,0096,building,https://map.wisc.edu/api/v1/map_objects.geojson
+eeaf7e7b-050b-5724-81ca-500eaf927b4d,372,uw-building-372,Education Building,43.075747811368835,-89.40228182049746,1000 Bascom Mall,0400,building,https://map.wisc.edu/api/v1/map_objects.geojson
+7f48e667-d8ae-5523-8757-e2eccb1692b4,373,uw-building-373,Educational Sciences,43.07183249640019,-89.40328789229113,1025 W. Johnson St.,0154,building,https://map.wisc.edu/api/v1/map_objects.geojson
+4198ed20-824f-5462-b302-b80cc12146c0,374,uw-building-374,Waters Residence Hall,43.07694917047651,-89.40694288799442,1200 Observatory Dr.,0559,building,https://map.wisc.edu/api/v1/map_objects.geojson
+c3002994-3c94-557f-94ea-c3392d15c798,375,uw-building-375,Conrad A. Elvehjem Building,43.07390494123385,-89.39942313794744,800 University Ave.,0544,building,https://map.wisc.edu/api/v1/map_objects.geojson
+7b56b5a3-54c8-5ece-a0b1-58c5c595d125,376,uw-building-376,Engineering Centers Building,43.072728717607276,-89.41341764133341,1550 Engineering Dr.,0481,building,https://map.wisc.edu/api/v1/map_objects.geojson
+8613239b-8a8d-58e3-83b9-d32ab29fedfd,378,uw-building-378,Engineering Hall,43.0717750222946,-89.41032548902132,1415 Engineering Dr.,0408,building,https://map.wisc.edu/api/v1/map_objects.geojson
+6a262de4-126d-580d-b638-48b155464ad2,379,uw-building-379,Engineering Research Building,43.072608761834815,-89.41162469216303,1500 Engineering Dr.,0762,building,https://map.wisc.edu/api/v1/map_objects.geojson
+35a6af4d-399b-5d65-8d4e-8f9da4d65df2,380,uw-building-380,Environmental Health and Safety Building,43.06885266728973,-89.39967194451924,30 East Campus Mall,0549,building,https://map.wisc.edu/api/v1/map_objects.geojson
+90d9a967-ae1f-584b-8cd4-e115d92bdf68,381,uw-building-381,Enzyme Institute,43.07376203112649,-89.41539527386477,1710 University Ave.,0479,building,https://map.wisc.edu/api/v1/map_objects.geojson
+51480059-bfe6-52ff-9224-ce0a6565ea24,382,uw-building-382,Extension Building,43.07422286554876,-89.39789677222102,432 N. Lake St.,0500,building,https://map.wisc.edu/api/v1/map_objects.geojson
+50f86387-728e-5910-916f-56dc30047ad4,383,uw-building-383,Field House,43.068635067625884,-89.41268064539531,1450 Monroe St.,0029,building,https://map.wisc.edu/api/v1/map_objects.geojson
+ae8918a9-9e60-5763-b92e-3ec6cfec0706,384,uw-building-384,Fleet and Service Garage,43.068873266378745,-89.40531835673217,27 N. Charter St.,1077,building,https://map.wisc.edu/api/v1/map_objects.geojson
+34b9ebe2-5a8e-50df-a1c1-4f42310b3ded,385,uw-building-385,Fluno Center For Executive Education,43.07287969496379,-89.39655032711285,601 University Ave.,0139,building,https://map.wisc.edu/api/v1/map_objects.geojson
+e185beab-a273-5abe-8dd8-37c98067addf,386,uw-building-386,Phillips Residence Hall,43.07855215848702,-89.4179873011807,1950 Willow Dr.,0507,building,https://map.wisc.edu/api/v1/map_objects.geojson
+867f8420-2c2f-50b0-8b3a-edd59d6a20d7,387,uw-building-387,445 Henry Mall,43.074261857271395,-89.40989588159957,445 Henry Mall,0102,building,https://map.wisc.edu/api/v1/map_objects.geojson
+2e71ca33-1521-5942-ae1b-5332eebe1678,388,uw-building-388,Genetics-Biotechnology Center Building,43.07382219127579,-89.40937813352107,425 Henry Mall,0082,building,https://map.wisc.edu/api/v1/map_objects.geojson
+6e4c0b25-897b-50a0-922f-547af4f18b1f,389,uw-building-389,Weeks Hall for Geological Sciences,43.070549370157636,-89.4062114935635,1215 W. Dayton St.,0521,building,https://map.wisc.edu/api/v1/map_objects.geojson
+b803cf61-ddcf-5c92-946e-a6e93a89fa85,390,uw-building-390,Gilman House (Kronshage),43.07806380053831,-89.41296249999999,1610 Kronshage Dr.,0569,building,https://map.wisc.edu/api/v1/map_objects.geojson
+9db05441-8f71-57df-8c27-86a290e52ff2,391,uw-building-391,Goodman Softball Complex,43.08117282227961,-89.42945360238929,2415 University Bay Dr.,0175,building,https://map.wisc.edu/api/v1/map_objects.geojson
+fa9627e1-7888-5e84-b041-d49e4e6bc76b,392,uw-building-392,Goodnight Hall,43.07884163047381,-89.41868933155772,1975 Willow Dr.,0508,building,https://map.wisc.edu/api/v1/map_objects.geojson
+c56294b8-cc43-5b78-bf75-f27fb2177e71,394,uw-building-394,Grainger Hall,43.07271207889702,-89.40156601661423,975 University Ave.,0140,building,https://map.wisc.edu/api/v1/map_objects.geojson
+53fad153-c385-5aba-8c0b-6577816a8126,395,uw-building-395,Walnut Street Greenhouse,43.07605649450285,-89.42397230069986,525 Walnut St.,0122,building,https://map.wisc.edu/api/v1/map_objects.geojson
+78889c03-e78a-5081-a15f-33e1d57237bc,397,uw-building-397,Health Sciences Learning Center,43.077531159841286,-89.43025562106574,750 Highland Ave.,1480,building,https://map.wisc.edu/api/v1/map_objects.geojson
+041de3a8-8c5c-57bb-95f5-779dd3523752,398,uw-building-398,Charter Street Heating and Cooling Plant,43.07029629018369,-89.40501983366424,117 N. Charter St.,0529,building,https://map.wisc.edu/api/v1/map_objects.geojson
+3a83b8f9-dfb0-519f-b4c5-e78fab4f5cc7,400,uw-building-400,502 Herrick Dr.,43.074782223766995,-89.42273644503474,502 Herrick Dr.,0111,building,https://map.wisc.edu/api/v1/map_objects.geojson
+5321ed76-b1a0-5983-9c16-c4bad84005b2,401,uw-building-401,Wisconsin Historical Society,43.07540914917626,-89.40004969827092,816 State St.,0016,building,https://map.wisc.edu/api/v1/map_objects.geojson
+559698e8-f52c-5dc9-ae27-493d9e660548,402,uw-building-402,Horse Barn,43.075395405116616,-89.41612284428105,520 Elm Dr.,0095,building,https://map.wisc.edu/api/v1/map_objects.geojson
+35363fb2-becd-5fe4-84e6-c5240d67cf2f,403,uw-building-403,Horticulture,43.07474717265682,-89.41200491462968,1575 Linden Dr.,0087B,building,https://map.wisc.edu/api/v1/map_objects.geojson
+74733c2c-cc37-5cfe-8c44-a01a1cf1aad2,404,uw-building-404,Nancy Nicholas Hall,43.07571591385996,-89.40876992940423,1300 Linden Dr.,0085,building,https://map.wisc.edu/api/v1/map_objects.geojson
+f4c0b981-d5bd-5e47-ad63-5e68377311b5,405,uw-building-405,Mosse Humanities Building,43.074172265595365,-89.4000552245385,455 N. Park St.,0469,building,https://map.wisc.edu/api/v1/map_objects.geojson
+7bc117de-9926-5016-a2bc-a2831cf57337,406,uw-building-406,Humphrey House (Kronshage),43.07750375053831,-89.4129639,640 Babcock Dr.,0136,building,https://map.wisc.edu/api/v1/map_objects.geojson
+377402d4-a119-5b9d-bdfe-32c996ad8ef3,407,uw-building-407,Ingraham Hall,43.07548942359363,-89.40536604421118,1155 Observatory Dr.,0056,building,https://map.wisc.edu/api/v1/map_objects.geojson
+31992637-dd83-5d5b-9825-b43d2dbeb316,408,uw-building-408,Jones House (Kronshage),43.078015500538314,-89.41570030000001,655 Elm Dr.,0572,building,https://map.wisc.edu/api/v1/map_objects.geojson
+d2dff8b1-2452-5c47-a9d2-a8724cd8c66d,409,uw-building-409,Jorns House (Kronshage),43.077726000538306,-89.41332559999996,650 Babcock Dr.,0137,building,https://map.wisc.edu/api/v1/map_objects.geojson
+0b50cb43-3212-5947-9832-c240488c8ca5,410,uw-building-410,Soils Building,43.076517275447486,-89.41129383474136,1525 Observatory Dr.,0074B,building,https://map.wisc.edu/api/v1/map_objects.geojson
+6e81a0b8-2abd-54cc-a994-74f915867958,411,uw-building-411,The Kohl Center,43.069414741327655,-89.39679870361853,601 W. Dayton St.,0225,building,https://map.wisc.edu/api/v1/map_objects.geojson
+36cd24dc-0d1c-5e49-95d9-636eb1a91a3f,412,uw-building-412,Showerman House (Kronshage),43.07812065705215,-89.41414108773509,1650 Kronshage Dr.,0574S,building,https://map.wisc.edu/api/v1/map_objects.geojson
+2b75f22c-523d-5ad7-8618-fb4ddd7eab60,413,uw-building-413,Holt Center (Kronshage),43.07780565355987,-89.41442379330158,1650 Kronshage Dr.,0574H,building,https://map.wisc.edu/api/v1/map_objects.geojson
+8748f74d-7e3b-5cba-8a1d-69a9409cb2a2,414,uw-building-414,Conover House (Kronshage),43.078117797546874,-89.41468332707188,1650 Kronshage Dr.,0574C,building,https://map.wisc.edu/api/v1/map_objects.geojson
+7fef95c9-6437-56a9-970a-3d7c39dc4b8e,416,uw-building-416,Lathrop Hall,43.07369127109724,-89.40301673496198,1050 University Ave.,0032,building,https://map.wisc.edu/api/v1/map_objects.geojson
+410562cd-eba4-507e-870b-00576d93525b,417,uw-building-417,Law Building,43.07455253245244,-89.40227888466082,975 Bascom Mall,0430,building,https://map.wisc.edu/api/v1/map_objects.geojson
+9b132fa8-8b52-52dd-91bc-7fba59e120c9,418,uw-building-418,Hasler Laboratory of Limnology,43.077246316013834,-89.40296702882381,680 N. Park St.,0483,building,https://map.wisc.edu/api/v1/map_objects.geojson
+e16289dc-e6f5-59a3-9333-422c914517e6,419,uw-building-419,Livestock Laboratory,43.0757527556579,-89.41687817674551,1810 Linden Dr.,0115,building,https://map.wisc.edu/api/v1/map_objects.geojson
+ea6c1d5a-997c-5dac-b248-c2cf370626b9,420,uw-building-420,Lowell Center,43.07626741285504,-89.3958111338856,610 Langdon St.,0502,building,https://map.wisc.edu/api/v1/map_objects.geojson
+bc4f83d9-28f0-5902-8858-6751ca7f3147,421,uw-building-421,Mack House (Kronshage),43.077992048578324,-89.41345422499901,1630 Kronshage Dr.,0570,building,https://map.wisc.edu/api/v1/map_objects.geojson
+14ca9da6-0dd1-51fa-bb38-f789ca206082,422,uw-building-422,Materials Science and Engineering Building,43.073001015305316,-89.41128478463715,1509 University Ave.,0520,building,https://map.wisc.edu/api/v1/map_objects.geojson
+439b310f-21fb-596b-b8c6-85ddddb4a686,423,uw-building-423,McArdle Building,43.07443293674064,-89.40893869614477,447 Lorch St.,0468,building,https://map.wisc.edu/api/v1/map_objects.geojson
+40a9094f-7b8e-5259-9b0c-9e726858365f,426,uw-building-426,Meat Science and Muscle Biology Lab,43.07452169136612,-89.41642978530966,1805 Linden Dr.,0123,building,https://map.wisc.edu/api/v1/map_objects.geojson
+21a63a5d-2ef1-5e73-95d1-3f15f85ccfd5,427,uw-building-427,Mechanical Engineering Building,43.07277068567592,-89.41244870446849,1513 University Ave.,0407,building,https://map.wisc.edu/api/v1/map_objects.geojson
+a16f366f-52f0-5fcf-b7fe-91822b85f0d7,428,uw-building-428,Service Memorial Institute,43.074434936680696,-89.40691337438955,470 N. Charter St.,0451A,building,https://map.wisc.edu/api/v1/map_objects.geojson
+d5f91b8e-0ef2-52cc-83c0-87d16c19f2b7,429,uw-building-429,Medical Sciences Center,43.07394862601924,-89.407275161282,1300 University Ave.,0450,building,https://map.wisc.edu/api/v1/map_objects.geojson
+86ea361c-8fa2-5375-a4be-cd3779c05632,430,uw-building-430,Meiklejohn House,43.071997299595274,-89.40595273721996,228 N. Charter St.,0035,building,https://map.wisc.edu/api/v1/map_objects.geojson
+3c505ad5-9e16-53bb-a6cc-0abce26274b2,431,uw-building-431,Memorial Library,43.075361560608634,-89.3979786545855,728 State St.,0015,building,https://map.wisc.edu/api/v1/map_objects.geojson
+e35acf5e-d57c-5ced-9629-50e6864e02a1,432,uw-building-432,Memorial Union,43.076421006278224,-89.39991444943722,800 Langdon St.,0008,building,https://map.wisc.edu/api/v1/map_objects.geojson
+6fcd48e3-b486-5663-a2b5-ba6b0d5b59bf,433,uw-building-433,Merit Residence Hall,43.07075343657847,-89.40142974354197,919 W. Dayton St.,0575,building,https://map.wisc.edu/api/v1/map_objects.geojson
+8f793120-9e22-538d-9caf-3262dd23413b,434,uw-building-434,Middleton Building,43.07478605053824,-89.408199,1305 Linden Dr.,0455,building,https://map.wisc.edu/api/v1/map_objects.geojson
+ba4b6dcd-b659-5c6a-ac57-85fe00add521,435,uw-building-435,University Club,43.074579237256465,-89.39929942924297,803 State St.,0515B,building,https://map.wisc.edu/api/v1/map_objects.geojson
+142309b9-1e64-54e1-be67-5825e476999c,436,uw-building-436,Music Hall,43.07462310866844,-89.40138038145126,925 Bascom Mall,0485,building,https://map.wisc.edu/api/v1/map_objects.geojson
+58625698-41b8-58fa-b1c8-f4ec52c5881a,437,uw-building-437,Nicholas-Johnson Pavilion and Plaza,43.06936914752775,-89.39793238954405,601 W. Dayton St.,0226,building,https://map.wisc.edu/api/v1/map_objects.geojson
+04beae4c-9b5d-5303-9b18-6ef0d6fe1bff,438,uw-building-438,Nielsen Tennis Stadium,43.07962774985195,-89.43027681853992,1000 Highland Ave.,0038,building,https://map.wisc.edu/api/v1/map_objects.geojson
+2608084d-4f80-5fc7-934e-73bb42caf51a,439,uw-building-439,Noland Hall,43.07153122673736,-89.40453632517186,250 N. Mills St.,0402,building,https://map.wisc.edu/api/v1/map_objects.geojson
+591ac637-fa73-5ee6-b71b-388855486c05,440,uw-building-440,North Hall,43.075693344290265,-89.4029412368243,1050 Bascom Mall,0052,building,https://map.wisc.edu/api/v1/map_objects.geojson
+0a6b4e5f-982e-5bc2-ae41-646b7dca1e6a,441,uw-building-441,Nutritional Sciences,43.07481936455,-89.40892800625295,1415 Linden Dr.,0449,building,https://map.wisc.edu/api/v1/map_objects.geojson
+0e4d881d-af03-5e3a-a514-887f4e8ea07d,442,uw-building-442,Observatory Hill Office Building,43.076219510952704,-89.40763069487423,1225 Observatory Dr.,0512,building,https://map.wisc.edu/api/v1/map_objects.geojson
+7fb322b2-2434-55f1-93a6-3cd958cfdb98,443,uw-building-443,Washburn Observatory,43.076173954603185,-89.40892667848186,1401 Observatory Dr.,0510,building,https://map.wisc.edu/api/v1/map_objects.geojson
+e5d0e835-713c-5fda-8b44-cec64125e1eb,444,uw-building-444,Police and Security Facility,43.069150297506404,-89.40995672242492,1429 Monroe St.,0550,building,https://map.wisc.edu/api/v1/map_objects.geojson
+e9695e3e-6731-5534-86bc-a79cb9621d56,445,uw-building-445,Poultry Research Laboratory,43.076116220022,-89.41791911193357,1925 Observatory Dr.,0110,building,https://map.wisc.edu/api/v1/map_objects.geojson
+6fc743a5-f829-57f0-9eff-24848bf6ad53,447,uw-building-447,Wisconsin Primate Center,43.06857381189258,-89.40694228360188,1223 Capitol Ct.,0526,building,https://map.wisc.edu/api/v1/map_objects.geojson
+00fa28d7-ecc5-585a-82d6-b96edc993c25,448,uw-building-448,Harlow Primate Lab,43.06857149111629,-89.4061710136316,22 N. Charter St.,0527,building,https://map.wisc.edu/api/v1/map_objects.geojson
+b1173d4c-1253-5d4e-bf67-a426caf0b5e3,449,uw-building-449,Brogden Psychology Building,43.07258389626221,-89.40621825054812,1202 W. Johnson St.,0470,building,https://map.wisc.edu/api/v1/map_objects.geojson
+9cf35c62-46f5-55ab-a982-7ece999e0b31,450,uw-building-450,Pyle Center,43.076272112872935,-89.39778056817491,702 Langdon St.,0006,building,https://map.wisc.edu/api/v1/map_objects.geojson
+2a106e10-6988-5cdd-8fd3-9abe7fee4368,451,uw-building-451,Radio Hall,43.07598113614737,-89.40161234838739,975 Observatory Dr.,0405,building,https://map.wisc.edu/api/v1/map_objects.geojson
+0c78aad0-0cc3-58e2-a183-5a0ad1abb204,452,uw-building-452,Rennebohm Hall,43.07848475884766,-89.42818033412811,777 Highland Ave.,0034,building,https://map.wisc.edu/api/v1/map_objects.geojson
+b45df196-46f2-5f16-999d-76326fb943f3,453,uw-building-453,Russell Laboratories,43.075485580515924,-89.4135833554534,1630 Linden Dr.,0114,building,https://map.wisc.edu/api/v1/map_objects.geojson
+712779db-d86b-5b51-813c-2d83c99c03d3,454,uw-building-454,Rust-Schreiner Hall,43.07032844945721,-89.40697507060902,115 N. Orchard St.,0158,building,https://map.wisc.edu/api/v1/map_objects.geojson
+d61b1b85-2f69-5306-b226-c8c5ca64a600,455,uw-building-455,School of Social Work Building,43.074312628453825,-89.40820534127505,1350 University Ave.,0453,building,https://map.wisc.edu/api/v1/map_objects.geojson
+f8fe3423-2c4c-5567-830e-cad9ab985ced,456,uw-building-456,Carl Schuman Shelter,43.07845545053833,-89.41887585,2025 Willow Dr.,0116,building,https://map.wisc.edu/api/v1/map_objects.geojson
+0cd5f265-94fd-589b-98a4-28ed58eef97c,457,uw-building-457,Science Hall,43.07587034344111,-89.40112082943268,550 N. Park St.,0053,building,https://map.wisc.edu/api/v1/map_objects.geojson
+41f2112a-9acf-5301-bafb-03f7939524fe,459,uw-building-459,Sellery Residence Hall,43.07164463190376,-89.40000895469616,821 W. Johnson St.,1245,building,https://map.wisc.edu/api/v1/map_objects.geojson
+1ab76c28-d96f-5390-b22c-d1631f14da27,462,uw-building-462,Slichter Residence Hall,43.07712886046986,-89.41220813731039,625 Babcock Dr.,0558,building,https://map.wisc.edu/api/v1/map_objects.geojson
+447ccc34-45d2-5f9a-af9f-aebde47f44d8,463,uw-building-463,Hiram Smith Annex,43.075991956175805,-89.4112926811093,1555 Observatory Dr.,0077,building,https://map.wisc.edu/api/v1/map_objects.geojson
+386104a4-d2ae-536d-8090-f46f6f81e4a8,464,uw-building-464,D.C. Smith Greenhouse,43.07480622551721,-89.41250065429777,465 Babcock Dr.,0206,building,https://map.wisc.edu/api/v1/map_objects.geojson
+6f074cc6-6868-5bbb-bb5e-70cbb908fd96,465,uw-building-465,Hiram Smith Hall,43.07599365408496,-89.4115708298298,1545 Observatory Dr.,0076,building,https://map.wisc.edu/api/v1/map_objects.geojson
+a71e606c-00ba-519f-8601-58505431fab2,466,uw-building-466,Sewell Social Sciences,43.076528947135394,-89.40525869993579,1180 Observatory Dr.,0046,building,https://map.wisc.edu/api/v1/map_objects.geojson
+3baf88be-d1d3-513f-a548-5ce6a793adce,467,uw-building-467,South Hall,43.07479565246634,-89.4031239977674,1055 Bascom Mall,0051,building,https://map.wisc.edu/api/v1/map_objects.geojson
+680a7bfd-73eb-53d6-8092-4fc02eef4456,469,uw-building-469,Kellner Family Athletic Center,43.06985375894025,-89.41099373969375,1430 Monroe St.,2302,building,https://map.wisc.edu/api/v1/map_objects.geojson
+c56f6802-2e85-568c-8425-2995a2533b7e,470,uw-building-470,Camp Randall Stadium,43.07003608175076,-89.41266993421341,1440 Monroe St.,0022,building,https://map.wisc.edu/api/v1/map_objects.geojson
+b5f436ce-199c-5af9-90b9-ec11f9a9c06f,471,uw-building-471,Steenbock Library,43.07611022967858,-89.41336793404993,550 Babcock Dr.,0079,building,https://map.wisc.edu/api/v1/map_objects.geojson
+503fecc4-6d21-5d96-855b-d0fe59f8852a,472,uw-building-472,Sterling Hall,43.07454356672807,-89.40557233311937,475 N. Charter St.,0057,building,https://map.wisc.edu/api/v1/map_objects.geojson
+15d388ac-85a7-58a7-a952-391403060eaa,473,uw-building-473,Stock Pavilion,43.074836549122026,-89.4151502420585,1675 Linden Dr.,0090,building,https://map.wisc.edu/api/v1/map_objects.geojson
+3d26fc02-fcc6-53ef-b786-dbe10ce840dd,474,uw-building-474,Stovall Building (Wisconsin State Laboratory of Hygiene),43.074777710062236,-89.40983902923368,465 Henry Mall,0476,building,https://map.wisc.edu/api/v1/map_objects.geojson
+ac9c8fdb-f7c8-5676-b88a-34033c8971f9,475,uw-building-475,Sullivan Residence Hall,43.07760382061325,-89.415510654597,635 Elm Dr.,0556,building,https://map.wisc.edu/api/v1/map_objects.geojson
+17941bf1-273f-5e4b-af4b-b93227fd0d1f,476,uw-building-476,Swenson House (Kronshage),43.07793545053831,-89.41525474999999,645 Elm Dr.,0573,building,https://map.wisc.edu/api/v1/map_objects.geojson
+fbcf24cd-5305-5c07-8dbb-eb462dc64326,477,uw-building-477,Taylor Hall,43.07426192330238,-89.40938359241315,427 Lorch St.,0464,building,https://map.wisc.edu/api/v1/map_objects.geojson
+40086009-df1b-5759-85ed-6a5cc556390d,478,uw-building-478,Teacher Education,43.0713080547704,-89.4035993074876,225 N. Mills St.,0153,building,https://map.wisc.edu/api/v1/map_objects.geojson
+4d9396df-7d51-58f0-951c-80d429cb4451,479,uw-building-479,Tripp Residence Hall,43.077994145559124,-89.41096614975703,1510 Tripp Cir.,0563,building,https://map.wisc.edu/api/v1/map_objects.geojson
+cd9a7108-4b92-5db6-9b95-26d47e1f98ff,480,uw-building-480,Turner House (Kronshage),43.07843160053832,-89.41315159999998,1620 Kronshage Dr.,0568,building,https://map.wisc.edu/api/v1/map_objects.geojson
+ff6448f5-41c7-56e3-a882-8011755f7573,481,uw-building-481,Van Hise Hall,43.075577164154005,-89.4067986416194,1220 Linden Dr.,0482,building,https://map.wisc.edu/api/v1/map_objects.geojson
+ebadaa53-6f35-597d-8504-96ee3cc03734,482,uw-building-482,Van Vleck Hall,43.07480652279825,-89.40493702344519,480 Lincoln Dr.,0048,building,https://map.wisc.edu/api/v1/map_objects.geojson
+4ac5ea4f-68b8-57bd-9c68-ca16493b9f4e,483,uw-building-483,Veterans Administration Hospital,43.07459533894985,-89.43111604122933,2500 Overlook Terrace,1055,building,https://map.wisc.edu/api/v1/map_objects.geojson
+2285dab5-f8ec-5c19-9db9-55ca09a5a7fe,484,uw-building-484,Veterinary Medicine South,43.07513833653663,-89.42024585961936,2015 Linden Dr. ,0093,building,https://map.wisc.edu/api/v1/map_objects.geojson
+91de609b-26bd-549b-8107-57429080318f,485,uw-building-485,Vilas Hall,43.07264502572392,-89.39986377177232,821 University Ave.,0545,building,https://map.wisc.edu/api/v1/map_objects.geojson
+9e431304-19e9-5ccd-a2d2-b1cc399f6b3f,486,uw-building-486,Waisman Center,43.07846060064663,-89.43412445383274,1500 Highland Ave.,0459,building,https://map.wisc.edu/api/v1/map_objects.geojson
+005d961d-1781-51e5-9160-8ab28cd103c7,487,uw-building-487,WARF Office Building,43.076243174666224,-89.42604763396352,610 Walnut St.,0039,building,https://map.wisc.edu/api/v1/map_objects.geojson
+bcf20135-c43e-57e9-a4f6-a2a61f434100,488,uw-building-488,Water Science and Engineering Laboratory,43.077101457245796,-89.40186860397564,660 N. Park St.,0403,building,https://map.wisc.edu/api/v1/map_objects.geojson
+18afc310-41b9-5fdc-a944-388ee70d4bfe,489,uw-building-489,Wendt Commons,43.071467152055256,-89.40865348630953,215 N. Randall Ave.,0404,building,https://map.wisc.edu/api/v1/map_objects.geojson
+515e4240-d0d3-5986-924f-7d6741cf8fd7,490,uw-building-490,Helen C. White Hall,43.076696908922145,-89.40134662074041,600 N. Park St.,0018,building,https://map.wisc.edu/api/v1/map_objects.geojson
+15cb2aad-858c-58e9-8c89-4a4c80799145,491,uw-building-491,Witte Residence Hall,43.07159091764505,-89.3969440656365,615 W. Johnson St.,1246,building,https://map.wisc.edu/api/v1/map_objects.geojson
+0e9dd876-9371-50ef-9013-0ff55fc8f88a,492,uw-building-492,Integrative Biology Research Building,43.07182750053819,-89.4050251,1117 W. Johnson St.,0401,building,https://map.wisc.edu/api/v1/map_objects.geojson
+26a0110c-bd09-5d04-b48c-402075ccdd6a,504,uw-building-504,University Houses,43.083542747135205,-89.44097567694688,1-41 Haight Road,1201,building,https://map.wisc.edu/api/v1/map_objects.geojson
+0a60fab5-be6f-55f1-b140-4bcf5a75bb7f,505,uw-building-505,Eagle Heights Buildings 101-108,43.084102848343406,-89.4352967367024,,,building,https://map.wisc.edu/api/v1/map_objects.geojson
+93fc095d-1bfc-53bb-b719-b23cfcc13832,506,uw-building-506,Eagle Heights Buildings 201-209,43.085614409676324,-89.43768637592419,,,building,https://map.wisc.edu/api/v1/map_objects.geojson
+78b99334-9385-5489-9b00-7a606ec04f58,507,uw-building-507,Eagle Heights Buildings 301-309,43.08722466965323,-89.43527888610669,,,building,https://map.wisc.edu/api/v1/map_objects.geojson
+d1e5c6bf-ed27-5060-91d6-d20d5d8a454a,508,uw-building-508,Eagle Heights Buildings 401-408,43.087052543121715,-89.43731249603007,,,building,https://map.wisc.edu/api/v1/map_objects.geojson
+09f49b75-524b-5440-8ff2-73c2f1202550,509,uw-building-509,Eagle Heights Buildings 501-509,43.08689962864343,-89.4406613098836,,,building,https://map.wisc.edu/api/v1/map_objects.geojson
+3df70c42-efff-58d6-b4d1-547b69404a04,510,uw-building-510,Eagle Heights Buildings 601-610,43.08843104717756,-89.43795884193206,,,building,https://map.wisc.edu/api/v1/map_objects.geojson
+fb3f36be-7c85-5bf4-acd4-51cbe4fe41e8,511,uw-building-511,Eagle Heights Buildings 701-819,43.089323732948266,-89.43507273532946,,,building,https://map.wisc.edu/api/v1/map_objects.geojson
+08280711-64bf-57d0-b0ab-4dbd46cf17ea,512,uw-building-512,Eagle Heights Buildings 901-946,43.085160456106756,-89.44098562510551,,,building,https://map.wisc.edu/api/v1/map_objects.geojson
+b5fbaf7f-c70c-5ff1-87ae-e1c973ae491c,513,uw-building-513,901 University Bay Dr.,43.07545183370446,-89.4336099255249,901 University Bay Dr.,0547,building,https://map.wisc.edu/api/v1/map_objects.geojson
+ed9fc8dc-f058-5909-849d-5624adeec971,514,uw-building-514,Medical Sciences,43.074800013152554,-89.40660655216718,1215 Linden Dr.,0451C,building,https://map.wisc.edu/api/v1/map_objects.geojson
+435afd15-ce27-58fa-92a6-2bdd9ad12458,515,uw-building-515,Bardeen Medical Laboratories,43.07484799905695,-89.40701767224208,1215 Linden Dr.,0451B,building,https://map.wisc.edu/api/v1/map_objects.geojson
+8c558c5d-16f4-525b-825e-10ed2ba27ab9,516,uw-building-516,Cereal Crops Research Unit,43.07407811208255,-89.42569166825218,502 Walnut St,0121,building,https://map.wisc.edu/api/v1/map_objects.geojson
+505cbbd4-d889-547e-830e-efd01e28db52,517,uw-building-517,King Hall,43.07629928937729,-89.41086054664571,1475 Observatory Dr.,0074A,building,https://map.wisc.edu/api/v1/map_objects.geojson
+5a9a0435-c341-5336-9556-97db00a3c0a0,519,uw-building-519,711 State St.,43.074643471129114,-89.39784488583827,711 State St.,8122,building,https://map.wisc.edu/api/v1/map_objects.geojson
+dc3b62cc-116c-5bba-bbd2-06dd61a36dfb,520,uw-building-520,432 East Campus Mall,43.074410931661596,-89.3992914044117,432 East Campus Mall,0515A,building,https://map.wisc.edu/api/v1/map_objects.geojson
+696a384b-a5e9-527f-ab54-2e96b9f4c6c4,521,uw-building-521,Art Lofts,43.069054868097254,-89.39535377230082,111 N. Frances St.,0220,building,https://map.wisc.edu/api/v1/map_objects.geojson
+c99981f6-192e-5e22-9ec9-215729abc948,522,uw-building-522,206 Bernard Ct.,43.07133233542349,-89.40176932709872,206 Bernard Ct.,1082,building,https://map.wisc.edu/api/v1/map_objects.geojson
+0e7f4fce-4f71-5b1d-abc0-b7ea5af6e8ac,523,uw-building-523,209 N. Brooks St.,43.0714877262729,-89.40219811777231,209 N. Brooks St.,0788,building,https://map.wisc.edu/api/v1/map_objects.geojson
+5a4286ca-ac29-564e-812e-6c9f1f987a36,524,uw-building-524,215-217 N. Brooks St.,43.07175044763443,-89.40222402561643,215 N. Brooks St.,1060,building,https://map.wisc.edu/api/v1/map_objects.geojson
+56aebfa2-fd24-5eb1-8f0d-4cc8c42dc97a,525,uw-building-525,333 East Campus Mall,43.07238842928146,-89.39873499064846,333 East Campus Mall,0467,building_partial,https://map.wisc.edu/api/v1/map_objects.geojson
+83741708-4106-59cf-8831-0495f2d432d8,528,uw-building-528,1220 Capitol Court (Primate Annex),43.06900789442706,-89.40654551171554,1220 Capitol Ct.,0782,building,https://map.wisc.edu/api/v1/map_objects.geojson
+239ef071-8da4-5223-9400-cfbaff842f80,530,uw-building-530,Kellner Hall,43.06897907644213,-89.41201827064222,1440 Monroe St.,0460,building,https://map.wisc.edu/api/v1/map_objects.geojson
+a0ec6026-1b92-5ea9-810a-062afbf364c8,531,uw-building-531,Moore Hall - Agronomy,43.07473492455007,-89.41160982479146,1575 Linden Dr.,0087A,building,https://map.wisc.edu/api/v1/map_objects.geojson
+e30e64f8-03aa-57e5-9b2a-74e8f50e3f96,532,uw-building-532,Plant Sciences,43.07457058491305,-89.41222681176704,1575 Linden Dr.,0087C,building,https://map.wisc.edu/api/v1/map_objects.geojson
+a0de5bb3-e106-5362-b3b4-7b64881e6236,534,uw-building-534,Dejope Residence Hall,43.07775001972469,-89.41776736230737,640 Elm Drive,0567,building,https://map.wisc.edu/api/v1/map_objects.geojson
+2597467f-bf40-5b4d-92c4-5be359f12c33,535,uw-building-535,1610 University Ave.,43.07370496781386,-89.41467723396953,1610 University Ave.,0129,building,https://map.wisc.edu/api/v1/map_objects.geojson
+23d6e4a7-67d5-5f85-9cbc-b1d3a42695c1,536,uw-building-536,1800 University Ave.,43.07367445053822,-89.416168,1800 University Ave.,0113,building,https://map.wisc.edu/api/v1/map_objects.geojson
+afa07012-4bbd-5a16-b6bf-4576e9c8150c,537,uw-building-537,UW Foundation,43.07364311394871,-89.41743072240978,1848 University Ave.,0493,building,https://map.wisc.edu/api/v1/map_objects.geojson
+d8b11474-5c20-5148-9112-76b59a3986bc,538,uw-building-538,1910 Linden Dr.,43.07571845053826,-89.4179169,1910 Linden Dr.,0103,building,https://map.wisc.edu/api/v1/map_objects.geojson
+d903ebcf-2b26-52ed-bfbc-453b224947bb,539,uw-building-539,Forest Products Laboratory,43.07499979394272,-89.42745369516626,One Gifford Pinchot Dr.,0036,building,https://map.wisc.edu/api/v1/map_objects.geojson
+b1828471-877e-5b09-9d06-e556237c3cd1,540,uw-building-540,West Campus Cogeneration Facility,43.07506599878243,-89.42402936726627,515 Walnut St.,0120,building,https://map.wisc.edu/api/v1/map_objects.geojson
+cf4a8472-ad89-5903-85af-949d6c7f9d09,545,uw-building-545,45 N. Charter St.,43.06937025053813,-89.4053127,45 N. Charter St.,0504,building,https://map.wisc.edu/api/v1/map_objects.geojson
+b893fdc6-bf7e-5b76-9fc3-ace59c2b6a9e,546,uw-building-546,Smith Residence Hall,43.06903738975022,-89.40039268946671,35 N. Park St.,1079,building,https://map.wisc.edu/api/v1/map_objects.geojson
+761d38d8-43c2-5a66-b284-bf9bd82f3919,547,uw-building-547,Wisconsin Veterinary Diagnostic Laboratory,43.074451005744685,-89.42145593392064,445 Easterday Ln,0126,building,https://map.wisc.edu/api/v1/map_objects.geojson
+98c98f8d-c74e-5dca-a105-408c764e6164,548,uw-building-548,21 N. Park St.,43.06819743717501,-89.40001835655292,21 N. Park St.,1078,building,https://map.wisc.edu/api/v1/map_objects.geojson
+a507e642-526f-5d32-9577-6dd9cb541741,549,uw-building-549,1433 Monroe St.,43.06896837992531,-89.41030417161893,1433 Monroe St.,1095,building,https://map.wisc.edu/api/v1/map_objects.geojson
+162e2bee-68a3-53ff-a4a0-9d246d5a73a1,550,uw-building-550,Ogg Residence Hall,43.070536335080945,-89.40002924881604,835 W. Dayton St.,1243,building,https://map.wisc.edu/api/v1/map_objects.geojson
+f0c64f90-9102-5016-8114-487dd6ca3a42,551,uw-building-551,Microbial Sciences,43.075747824829655,-89.41198389684384,1550 Linden Dr.,0060,building,https://map.wisc.edu/api/v1/map_objects.geojson
+44b3dc62-5281-53e2-bfb0-38a662513791,618,uw-building-618,Wisconsin Institutes for Medical Research,43.07804183708091,-89.43177772800334,1111 Highland Ave.,1485,building,https://map.wisc.edu/api/v1/map_objects.geojson
+9a2e694d-5606-5643-9d98-39eb2537b3ba,641,uw-building-641,Southeast Residence Halls,43.07152120860967,-89.39905643463135,,,building,https://map.wisc.edu/api/v1/map_objects.geojson
+d0fcb01a-9108-5d0d-96c5-f2d1c69d8b55,642,uw-building-642,Eagle Heights,43.08744480560929,-89.43695068359378,,,building,https://map.wisc.edu/api/v1/map_objects.geojson
+44a8ffe3-cd52-507f-9bba-b2d566e456dc,644,uw-building-644,American Family Children's Hospital,43.07682076260816,-89.43336893889301,1675 Highland Ave.,1426,building,https://map.wisc.edu/api/v1/map_objects.geojson
+53a813d7-bced-5e30-9169-43f1d4fbe8ee,647,uw-building-647,Union South,43.07185606563247,-89.40807376056726,1308 W Dayton St,0088,building,https://map.wisc.edu/api/v1/map_objects.geojson
+6def41b9-0db8-5de5-889f-09e875228c2e,648,uw-building-648,Discovery Building,43.072904799859515,-89.40805701855004,330 N. Orchard,0212,building,https://map.wisc.edu/api/v1/map_objects.geojson
+35850812-ce0c-5315-b787-a1580f6a9bdc,649,uw-building-649,702 W. Johnson St.,43.07235393005751,-89.39791917800903,702 West Johnson Street,1072,building_partial,https://map.wisc.edu/api/v1/map_objects.geojson
+29f07d02-cf96-57f2-b09b-432ca3629ca9,650,uw-building-650,Chazen Museum of Art,43.073880287326794,-89.39869345930676,750 University Ave,0524,building,https://map.wisc.edu/api/v1/map_objects.geojson
+5e11f8de-0817-50ce-bd0f-0bcf0d36a555,651,uw-building-651,LaBahn Arena,43.069797988496326,-89.39863170044868,105 East Campus Mall ,0227,building,https://map.wisc.edu/api/v1/map_objects.geojson
+fbfb68c9-abef-572c-8eaf-256cfe8d2af5,652,uw-building-652,Wisconsin Energy Institute,43.073746675296206,-89.41403025588802,1552 University Ave ,0752,building,https://map.wisc.edu/api/v1/map_objects.geojson
+fb1d780c-178d-515d-9d71-cc5f872b0fad,654,uw-building-654,UW Medical Foundation Centennial Building,43.07540916393189,-89.43311773560353,1685 Highland Ave ,1435,building,https://map.wisc.edu/api/v1/map_objects.geojson
+54dd941f-058f-517b-be72-952c4179eb7a,660,uw-building-660,DeLuca Biochemical Sciences Building,43.07431504243989,-89.4110337868432,440 Henry Mall,0204,building,https://map.wisc.edu/api/v1/map_objects.geojson
+7ade72de-5643-5a15-969c-3c063d6283a5,662,uw-building-662,Athletics Operations Building,43.06886547330793,-89.41346871539712,25 N Breese Terrace,0584,building,https://map.wisc.edu/api/v1/map_objects.geojson
+1d4b0acd-6de8-5eee-b60a-331f873c4642,669,uw-building-669,Gordon Dining and Event Center,43.07121066456369,-89.39836323641278,770 W. Dayton St.,1249,building,https://map.wisc.edu/api/v1/map_objects.geojson
+3b5e6a29-631c-528d-8198-57d00fac3bc7,672,uw-building-672,Leopold Residence Hall,43.07752024504238,-89.41404986450995,1635 Kronshage Dr.,0576,building,https://map.wisc.edu/api/v1/map_objects.geojson
+016b04c9-7bed-5455-a749-e282b897a7ec,689,uw-building-689,Signe Skott Cooper Hall,43.07752145214933,-89.42805964352885,701 Highland Ave,0044,building,https://map.wisc.edu/api/v1/map_objects.geojson
+58f81bfc-d343-57e4-97bb-afd9eccc5eb4,690,uw-building-690,Eagle Heights Community Center,43.08833495134627,-89.4364788396689,611 Eagle Heights,1299,building,https://map.wisc.edu/api/v1/map_objects.geojson
+92289828-7a24-5901-8adf-e576f9293b3f,691,uw-building-691,Harvey Street Apartments,43.0744206156288,-89.4403692516316,2900 Harvey St,,building,https://map.wisc.edu/api/v1/map_objects.geojson
+9702684a-fdf3-524b-8157-f46ef81320f9,692,uw-building-692,Bernie’s Place Childcare,43.08280622705524,-89.4418814388995,39 University Houses,1239,building,https://map.wisc.edu/api/v1/map_objects.geojson
+0b54ee48-5429-5414-b777-576f4c4c6483,694,uw-building-694,Kronshage Residence Hall,43.07805728011479,-89.41451668739317,,,building,https://map.wisc.edu/api/v1/map_objects.geojson
+45a5c690-cfdf-5984-ad03-e010ba5d90f8,697,uw-building-697,30 N. Mills St.,43.068539090148676,-89.40454551786085,30 N. Mills St.,0124,building,https://map.wisc.edu/api/v1/map_objects.geojson
+79cd2608-0159-5fc7-b265-82503cb58e4a,700,uw-building-700,Apartment Facilities Office,43.082871551338755,-89.43942068085623,,,building,https://map.wisc.edu/api/v1/map_objects.geojson
+b629ed7f-1c1d-5353-bdb5-b068503c641b,701,uw-building-701,Hamel Music Center,43.073664625559154,-89.39797933784381,740 University Ave,0585,building,https://map.wisc.edu/api/v1/map_objects.geojson
+f814d0ac-bb11-5b68-83f0-9460bb80789c,703,uw-building-703,Meat Science & Animal Biologics Discovery,43.076049539170754,-89.41867733928353,1933 Observatory Dr,0149,building,https://map.wisc.edu/api/v1/map_objects.geojson
+0b030b42-5de8-5a3d-8e58-a4bab16f23e2,704,uw-building-704,"Alumni Hall, 1100 Delaplaine Ct.",43.05811773095831,-89.40320312976839,"1100 Delaplaine Ct. Madison, WI 53715-1896",1000001,building,https://map.wisc.edu/api/v1/map_objects.geojson
+7782b312-f92a-5315-aca2-fc4a6554f744,713,uw-building-713,Nicholas Recreation Center,43.07053495954789,-89.39826565824161,797 W Dayton St,0026,building,https://map.wisc.edu/api/v1/map_objects.geojson
+7b54d796-0c70-573c-9198-d8cbd3004588,714,uw-building-714,Walnut Street Heating and Cooling Plant,43.07434638874077,-89.42429206703436,505 Walnut St,0049,building,https://map.wisc.edu/api/v1/map_objects.geojson
+9d7bec07-49c2-5ed4-a768-4096eb6034a9,719,uw-building-719,Meat Microbiology Lab,43.075854055112224,-89.41891949492599,1932 Linden Dr.,0249,building,https://map.wisc.edu/api/v1/map_objects.geojson
+104092b0-2bda-5379-aabb-d48a4483d72e,721,uw-building-721,Veterinary Medicine North,43.07590543787955,-89.42071135717248,515 Easterday Ln,0793,building,https://map.wisc.edu/api/v1/map_objects.geojson
+1b0de0b7-fe6f-5f02-8353-54e184209b9a,722,uw-building-722,Bakke Recreation & Wellbeing Center,43.077036057825275,-89.4199771844343,1976 Observatory Dr.,0081,building,https://map.wisc.edu/api/v1/map_objects.geojson
+9c2b1ed7-41cb-5a5c-b0a2-30a36e26f8f2,729,uw-building-729,Morgridge Hall,43.07283433199304,-89.4067958598904,1205 University Avenue,0215,building,https://map.wisc.edu/api/v1/map_objects.geojson
+576e5e5b-bc7c-5e04-8df6-a3c5c756dc56,731,uw-building-731,Tooman Arena,43.074501309965775,-89.42012250835991,425 Easterdayy Ln,0993,building,https://map.wisc.edu/api/v1/map_objects.geojson
+db4fb9dc-7ac5-54e6-8e1f-4b6a755ae9e5,734,uw-building-734,Rheta’s Market,43.073942431825145,-89.40189342733849,970 University Ave.,0562,building,https://map.wisc.edu/api/v1/map_objects.geojson
+2fe4d342-ee41-536c-b58f-cbf699be8839,738,uw-building-738,UW–Madison Extension,43.07610377071468,-89.4478257302805,3500 University Ave,0743,building,https://map.wisc.edu/api/v1/map_objects.geojson
+2270144e-d93e-5816-a1e6-1363f81ad509,739,uw-building-739,724 W. Johnson St.,43.07235301827461,-89.39832322005121,724 W. Johnson St.,1094,building_partial,https://map.wisc.edu/api/v1/map_objects.geojson
+332d08ba-0e7e-5ac0-942f-c59815a91ed5,740,uw-building-740,"Levy Hall, Irving & Dorothy",43.07179261568193,-89.40157140397665,232 N Park St,1069,building,https://map.wisc.edu/api/v1/map_objects.geojson
+5b9f3fae-7559-5573-bd1f-16ac19e68083,742,uw-building-742,1403 University Ave,43.07312335082948,-89.40932009065118,1403 University Ave,8044,building,https://map.wisc.edu/api/v1/map_objects.geojson
