@@ -89,6 +89,8 @@ def test_details_address_no_external_redirect(client, monkeypatch):
     result = client.get("/campus/places/432").json()
     assert result["address"] == "800 Langdon St."
     assert result["latitude"] == 43.076
+    assert result["entrance"] is None
+    assert result["entrance_verified"] is False
     assert "directions_url" not in result
     assert client.get("/campus/places/432/directions").status_code == 404
 
@@ -123,6 +125,8 @@ def test_routes_request_stays_server_side(client, monkeypatch):
     assert result.status_code == 200
     assert result.json()["routes"][0]["steps"][0]["instruction"] == "Walk north"
     assert result.json()["routes"][0]["accessibility"] == "unknown"
+    assert result.json()["arrival_target"]["kind"] == "building_representative_point"
+    assert result.json()["arrival_target"]["verified_entrance"] is False
     assert "test-key" not in result.text
 
 

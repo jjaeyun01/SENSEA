@@ -53,9 +53,15 @@
         }
       ],
       [
+        "expo-sensors",
+        {
+          "motionPermission": "SENSEA uses device motion only while foreground navigation is active to reject implausible GPS jumps. Motion samples are not stored or uploaded."
+        }
+      ],
+      [
         "expo-speech-recognition",
         {
-          "microphonePermission": "SENSEA uses your microphone for voice commands and optional foreground noise-map contribution. Noise audio is processed on-device and immediately deleted.",
+          "microphonePermission": "SENSEA uses your microphone for voice commands, live sound measurement, and optional foreground noise-map contribution. Audio is processed in memory on-device and is not stored or uploaded.",
           "speechRecognitionPermission": "SENSEA converts speech into destination and navigation commands."
         }
       ],

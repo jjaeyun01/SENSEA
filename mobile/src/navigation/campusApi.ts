@@ -1,8 +1,10 @@
 export type Point = { latitude: number; longitude: number };
-export type Place = { id: string; name: string; address?: string | null; source?: 'uw' | 'demo' } & Partial<Point>;
+export type ArrivalTarget = Point & { verifiedEntrance: boolean; kind: 'verified_entrance' | 'building_representative_point' };
+export type Place = { id: string; name: string; address?: string | null; source?: 'uw' | 'demo'; entrance?: Point | null; entranceVerified?: boolean } & Partial<Point>;
 export type Route = { id: string; label?: string; distance_m: number; duration_seconds: number; encoded_polyline: string;
   source?: 'google' | 'demo'; hasStairs?: boolean; noiseStatus?: 'fresh' | 'stale' | 'unknown';
   relativeNoise?: number; noiseCellCount?: number; noiseMeasurementCount?: number;
+  arrivalTarget?: ArrivalTarget;
   warnings: string[]; steps: { instruction: string; start: Point; end: Point; distance_m?: number }[] };
 export const baseUrl = (process.env.EXPO_PUBLIC_API_BASE_URL ?? process.env.EXPO_PUBLIC_API_URL)?.replace(/\/$/, '');
 
@@ -44,12 +46,19 @@ export function parseCampusPlaceResponse(value: unknown): Place {
   if (value.address !== null && value.address !== undefined && typeof value.address !== 'string') {
     throw new Error('The server returned an invalid building address.');
   }
+  let entrance: Point | null = null;
+  if (value.entrance !== null && value.entrance !== undefined) {
+    if (!isObject(value.entrance)) throw new Error('The server returned an invalid entrance coordinate.');
+    entrance = { latitude: coordinate(value.entrance.latitude, 'latitude'), longitude: coordinate(value.entrance.longitude, 'longitude') };
+  }
   return {
     id: buildingId(value.id),
     name: requiredString(value.name, 'name'),
     address: typeof value.address === 'string' && value.address.trim() ? value.address.trim() : null,
     latitude: coordinate(value.latitude, 'latitude'),
     longitude: coordinate(value.longitude, 'longitude'),
+    entrance,
+    entranceVerified: value.entrance_verified === true && entrance !== null,
     source: 'uw',
   };
 }

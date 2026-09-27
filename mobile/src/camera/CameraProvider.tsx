@@ -76,7 +76,11 @@ function useCameraController() {
     else announce('No fresh camera observation is available.', 1);
   };
   return { device, session, result, phase, message: result ? describeResult(result) : message, open, close, repeat,
-    ready: phase === 'live' && result?.quality.status === 'usable' };
+    ready: phase === 'live' && result?.quality.status === 'usable',
+    // Object detection is not VPS. Only a provider tied to surveyed world
+    // coordinates may populate a verified visual alignment.
+    visualAlignment: null as null | { latitude: number; longitude: number; accuracy: number; confidence: number; timestamp: number; verified: true },
+    alignmentStatus: 'unavailable' as const };
 }
 type CameraState = ReturnType<typeof useCameraController>;
 const Context = createContext<CameraState | null>(null);

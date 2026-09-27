@@ -24,6 +24,21 @@ test('last point announces proximity rather than verified arrival', () => {
  assert.equal(guide.update(fix(1), 10000), null);
 });
 
+test('three reliable off-route fixes trigger rerouting once', () => {
+ const localRoute = { steps: [{ start: endpoint, end: { latitude: 43.001, longitude: -89 }, instruction: 'Continue.' }] };
+ const guide = new Guidance(localRoute);
+ const away = { latitude: 43, longitude: -88.999, accuracy: 2, timestamp: 10000 };
+ assert.equal(guide.update(away, 10000), null);
+ assert.equal(guide.update(away, 10000), null);
+ assert.equal(guide.update(away, 10000).kind, 'off_route');
+ assert.equal(guide.update(away, 10000), null);
+});
+
+test('verified entrance target gets a distinct arrival event', () => {
+ const guide = new Guidance({ arrivalTarget: { verifiedEntrance: true }, steps: [{ start: endpoint, end: endpoint }] });
+ assert.equal(guide.update(fix(1), 10000).kind, 'entrance_reached');
+});
+
 test('decode route polyline and reject truncation', async () => {
  const { decodePolyline } = await import('../guidance.mjs');
  assert.deepEqual(decodePolyline('_p~iF~ps|U_ulLnnqC_mqNvxq`@'), [

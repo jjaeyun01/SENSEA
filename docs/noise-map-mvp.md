@@ -10,9 +10,9 @@ Editor. It creates:
 - `noise_measurements`: private numeric readings owned by the contributor.
 - `noise_grid_hourly`: automatically refreshed hourly grid aggregates.
 
-Raw audio is never uploaded. The app records a five-second temporary cache file
-only to obtain metering values, immediately deletes the file, converts the exact
-location to a roughly 30–45 metre cell on-device, and uploads numeric data.
+Raw audio is never stored or uploaded. The app aggregates five seconds of the
+already-running in-memory live meter, converts the exact location to a roughly
+30–45 metre cell on-device, and uploads numeric data only.
 
 The aggregate table is readable only for cells with at least three distinct
 contributors. A signed-in user can delete all of their own measurements from

@@ -18,6 +18,7 @@ type NoiseMonitor = {
   permission: PermissionState;
   canAskAgain: boolean;
   dbfs: number | null;
+  measuredAtMs: number | null;
   progress: number;
   band: NoiseBand | null;
   error: string | null;
@@ -36,6 +37,7 @@ export function NoiseMonitorProvider({ children }: { children: ReactNode }) {
   const [appActive, setAppActive] = useState(AppState.currentState === 'active');
   const [suspensionVersion, setSuspensionVersion] = useState(0);
   const [dbfs, setDbfs] = useState<number | null>(null);
+  const [measuredAtMs, setMeasuredAtMs] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const suspended = useRef(new Set<string>());
   const lastUpdateAt = useRef(0);
@@ -49,6 +51,7 @@ export function NoiseMonitorProvider({ children }: { children: ReactNode }) {
     const next = smoothedDbfs.current === null ? current : smoothedDbfs.current * 0.65 + current * 0.35;
     smoothedDbfs.current = next;
     setDbfs(next);
+    setMeasuredAtMs(now);
   }, []);
 
   const { stream, isStreaming } = useAudioStream({
@@ -120,6 +123,7 @@ export function NoiseMonitorProvider({ children }: { children: ReactNode }) {
     setError(null);
     if (!next) {
       setDbfs(null);
+      setMeasuredAtMs(null);
       smoothedDbfs.current = null;
       return;
     }
@@ -132,6 +136,7 @@ export function NoiseMonitorProvider({ children }: { children: ReactNode }) {
     permission,
     canAskAgain,
     dbfs,
+    measuredAtMs,
     progress: dbfs === null ? 0 : dbfsToProgress(dbfs),
     band: dbfs === null ? null : classifyDbfs(dbfs),
     error,
@@ -139,7 +144,7 @@ export function NoiseMonitorProvider({ children }: { children: ReactNode }) {
     requestPermission,
     suspend,
     resume,
-  }), [enabled, isStreaming, shouldStream, permission, canAskAgain, dbfs, error, setEnabled, requestPermission, suspend, resume]);
+  }), [enabled, isStreaming, shouldStream, permission, canAskAgain, dbfs, measuredAtMs, error, setEnabled, requestPermission, suspend, resume]);
 
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
