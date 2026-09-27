@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     noise_cleanup_interval_seconds: float = Field(default=60, gt=0, le=300)
     path_verification_ttl_seconds: int = Field(default=86400, ge=1, le=2592000)
     max_concurrent_uploads: int = Field(default=2, ge=1, le=8)
+    request_body_timeout_seconds: float = Field(default=15, gt=0, le=120)
+    max_request_bytes: int = Field(default=64 * 1024, gt=0, le=1024 * 1024)
     cors_origins: list[str] = []
 
     @model_validator(mode="after")

@@ -6,6 +6,16 @@ from app.errors import APIError
 from app.models import Graph, NoiseRequest, NoiseSummary
 
 
+def discard_expired(samples: deque, cutoff: datetime) -> int:
+    """Handle wall-clock changes without assuming insertion order is time order."""
+    count = len(samples)
+    for _ in range(count):
+        sample = samples.popleft()
+        if sample[0] > cutoff:
+            samples.append(sample)
+    return count - len(samples)
+
+
 class DemoRepository:
     """Single-process simulation store. A Supabase adapter can replace this boundary."""
 
@@ -28,9 +38,7 @@ class DemoRepository:
         cutoff = (now or datetime.now(UTC)) - timedelta(seconds=self.noise_ttl_seconds)
         removed = 0
         for edge_id, samples in list(self.observations.items()):
-            while samples and samples[0][0] <= cutoff:
-                samples.popleft()
-                removed += 1
+            removed += discard_expired(samples, cutoff)
             if not samples:
                 del self.observations[edge_id]
         return removed
@@ -49,21 +57,24 @@ class DemoRepository:
         now = datetime.now(UTC)
         samples = self.observations[observation.edge_id]
         cutoff = now - timedelta(seconds=self.noise_ttl_seconds)
-        while samples and samples[0][0] <= cutoff:
-            samples.popleft()
+        discard_expired(samples, cutoff)
         samples.append((now, observation.relative_noise))
         return self.noise_summary(observation.edge_id, now)
 
     def noise_summary(self, edge_id: str, now: datetime) -> NoiseSummary:
-        samples = self.observations.get(edge_id, ())
+        samples = self.observations.get(edge_id)
+        if samples is None:
+            return NoiseSummary(status="unknown")
         cutoff = now - timedelta(seconds=self.noise_ttl_seconds)
-        while samples and samples[0][0] <= cutoff:
-            samples.popleft()
-        if not samples:
+        discard_expired(samples, cutoff)
+        # A route request captures its clock once. Later observations must neither
+        # affect that snapshot nor be deleted just because they are newer than it.
+        eligible = [(observed_at, value) for observed_at, value in samples if observed_at <= now]
+        if not eligible:
             return NoiseSummary(status="unknown")
         return NoiseSummary(
-            relative_noise=sum(value for _, value in samples) / len(samples),
+            relative_noise=sum(value for _, value in eligible) / len(eligible),
             status="demo",
-            latest_observed_at=samples[-1][0],
-            sample_count=len(samples),
+            latest_observed_at=max(observed_at for observed_at, _ in eligible),
+            sample_count=len(eligible),
         )

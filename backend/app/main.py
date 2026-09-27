@@ -1,5 +1,4 @@
 import asyncio
-import secrets
 import time
 from collections import deque
 from contextlib import asynccontextmanager, suppress
@@ -16,9 +15,11 @@ from app.db import DemoRepository
 from app.errors import APIError, register_error_handlers
 from app.images import prepare_image
 from app.middleware import (
+    APIKeyPreflightMiddleware,
     BodySizeLimitMiddleware,
     PrivacyHeadersMiddleware,
     UploadCapacityMiddleware,
+    api_key_matches,
 )
 from app.models import (
     NoiseRequest,
@@ -74,23 +75,27 @@ def create_app(
                 await owned.close()
 
     app = FastAPI(title="SENSEA API", version="0.3.0", lifespan=lifespan)
-    app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_image_bytes + 64 * 1024)
+    app.add_middleware(
+        BodySizeLimitMiddleware,
+        max_bytes=settings.max_image_bytes + 64 * 1024,
+        max_other_bytes=settings.max_request_bytes,
+        read_timeout_seconds=settings.request_body_timeout_seconds,
+    )
+    # Reject before buffering/parsing; CORS still handles browser preflight first.
+    app.add_middleware(UploadCapacityMiddleware, limit=settings.max_concurrent_uploads)
+    expected_key = settings.sensea_api_key.get_secret_value()
+    app.add_middleware(APIKeyPreflightMiddleware, expected_key=expected_key)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type", "X-API-Key"],
     )
-    # Capacity is checked before buffering or parsing any upload bytes.
-    app.add_middleware(UploadCapacityMiddleware, limit=settings.max_concurrent_uploads)
     app.add_middleware(PrivacyHeadersMiddleware)
     register_error_handlers(app)
 
     async def authenticate(key: Annotated[str | None, Depends(api_key_header)]):
-        expected = settings.sensea_api_key.get_secret_value()
-        if expected and (
-            key is None or not secrets.compare_digest(key.encode(), expected.encode())
-        ):
+        if not api_key_matches(key, expected_key):
             raise APIError(401, "unauthorized", "API 인증이 필요합니다.")
 
     @app.get("/health", tags=["system"])
