@@ -39,10 +39,16 @@ export default function MapScreen() {
     </View>
 
     {noiseVisible && <View style={[styles.legend, { bottom: insets.bottom + 104 }]}>
+      <View style={styles.sourceRow}>
+        <Text style={styles.legendTitle}>MAP DATA</Text>
+        <View style={[styles.sourceBadge, contributions.mapDataSource === 'live' ? styles.liveBadge : styles.demoBadge]} accessibilityLabel={contributions.mapDataSource === 'live' ? 'Live crowdsourced map data' : 'Synthetic demonstration map data'}>
+          <Text style={styles.sourceBadgeText}>{contributions.mapDataSource === 'live' ? 'LIVE' : 'DEMO'}</Text>
+        </View>
+      </View>
       <View style={styles.liveRow}><Text style={styles.legendTitle}>LIVE DEVICE LEVEL</Text><Text style={styles.liveReading}>{!noise.active || noise.dbfs === null ? 'PAUSED' : `${Math.round(noise.dbfs)} dBFS`}</Text></View>
       <View style={styles.meterTrack}><View style={[styles.meterFill, { width: `${noise.active ? Math.round(noise.progress * 100) : 0}%` }, noise.band === 'moderate' && styles.meterModerate, noise.band === 'loud' && styles.meterLoud]} /></View>
       <View style={styles.legendRow}><LegendDot color="#24C875" label="Quiet" /><LegendDot color="#FFAA17" label="Moderate" /><LegendDot color="#FF514B" label="Loud" /></View>
-      <Text style={styles.legendNote}>Microphone reading is device-relative, not calibrated dB SPL. Map zones use crowdsourced relative readings; no zones appear until aggregate data is available.</Text>
+      <Text style={styles.legendNote}>{contributions.mapDataSource === 'demo' ? 'Colored zones are synthetic demo data, not real measurements. They are replaced automatically when recent privacy-protected aggregates become available.' : 'Microphone reading is device-relative, not calibrated dB SPL. Map zones use recent privacy-protected crowdsourced relative readings.'}</Text>
     </View>}
     <BottomNav active="map" />
   </View>;
@@ -57,5 +63,11 @@ const styles = StyleSheet.create({
   noiseButton: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 25, backgroundColor: '#FFFFFFF2', borderWidth: 1, borderColor: colors.border },
   noiseButtonActive: { borderColor: colors.primary, backgroundColor: '#DDF6F1F2' }, wave: { color: colors.muted, fontSize: 23, fontWeight: '900' }, waveActive: { color: colors.primary },
   noiseTitle: { color: colors.textSoft, fontFamily: typography.family, fontSize: 12, fontWeight: '800' }, noiseTitleActive: { color: colors.text }, noiseStatus: { color: colors.muted, fontFamily: typography.family, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
-  legend: { position: 'absolute', left: spacing.md, right: spacing.md, borderRadius: radii.md, padding: 14, backgroundColor: '#FFFFFFF2', borderWidth: 1, borderColor: colors.border, gap: 9 }, liveRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }, legendTitle: { color: colors.muted, fontFamily: typography.family, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 }, liveReading: { color: colors.text, fontFamily: typography.family, fontSize: 22, fontWeight: '900' }, meterTrack: { height: 7, borderRadius: 4, overflow: 'hidden', backgroundColor: colors.surfaceHighlight }, meterFill: { height: '100%', borderRadius: 4, backgroundColor: '#24C875' }, meterModerate: { backgroundColor: '#FFAA17' }, meterLoud: { backgroundColor: '#FF514B' }, legendRow: { flexDirection: 'row', gap: 16, flexWrap: 'wrap' }, legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 }, dot: { width: 9, height: 9, borderRadius: 5 }, legendText: { color: colors.textSoft, fontFamily: typography.family, fontSize: 12, fontWeight: '700' }, legendNote: { color: colors.mutedDark, fontFamily: typography.family, fontSize: 10, lineHeight: 14 },
+  legend: { position: 'absolute', left: spacing.md, right: spacing.md, borderRadius: radii.md, padding: 14, backgroundColor: '#FFFFFFF2', borderWidth: 1, borderColor: colors.border, gap: 9 },
+  sourceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sourceBadge: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
+  liveBadge: { backgroundColor: '#DDF6F1' },
+  demoBadge: { backgroundColor: '#FFF0C7' },
+  sourceBadgeText: { color: colors.text, fontFamily: typography.family, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  liveRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }, legendTitle: { color: colors.muted, fontFamily: typography.family, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 }, liveReading: { color: colors.text, fontFamily: typography.family, fontSize: 22, fontWeight: '900' }, meterTrack: { height: 7, borderRadius: 4, overflow: 'hidden', backgroundColor: colors.surfaceHighlight }, meterFill: { height: '100%', borderRadius: 4, backgroundColor: '#24C875' }, meterModerate: { backgroundColor: '#FFAA17' }, meterLoud: { backgroundColor: '#FF514B' }, legendRow: { flexDirection: 'row', gap: 16, flexWrap: 'wrap' }, legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 }, dot: { width: 9, height: 9, borderRadius: 5 }, legendText: { color: colors.textSoft, fontFamily: typography.family, fontSize: 12, fontWeight: '700' }, legendNote: { color: colors.mutedDark, fontFamily: typography.family, fontSize: 10, lineHeight: 14 },
 });

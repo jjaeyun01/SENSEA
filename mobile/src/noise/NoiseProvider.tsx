@@ -6,6 +6,7 @@ import { AppState, Platform } from 'react-native';
 import { useAuth } from '@/src/auth/AuthProvider';
 import { isFeedbackActive } from '@/src/navigation/feedback';
 import { supabase } from '@/src/auth/supabase';
+import { createDemoNoiseCells } from './demoNoiseCells';
 import { gridForLocation, noiseLabel, summarizeDbfs } from './noiseMath.mjs';
 
 const CONSENT_VERSION = 'noise-map-v1';
@@ -30,7 +31,10 @@ export type NoiseCell = {
   measurement_count: number;
   contributing_users: number;
   hour_bucket: string;
+  is_demo?: boolean;
 };
+
+export type NoiseMapDataSource = 'live' | 'demo';
 
 type Position = { latitude: number; longitude: number; accuracy?: number | null };
 type NoiseContextValue = {
@@ -38,6 +42,7 @@ type NoiseContextValue = {
   collecting: boolean;
   latest: NoiseReading | null;
   cells: NoiseCell[];
+  mapDataSource: NoiseMapDataSource;
   status: string;
   uploadedCount: number;
   setConsent: (enabled: boolean) => Promise<void>;
@@ -63,7 +68,8 @@ export function NoiseProvider({ children }: { children: ReactNode }) {
   const [consentEnabled, setConsentEnabled] = useState(false);
   const [collecting, setCollecting] = useState(false);
   const [latest, setLatest] = useState<NoiseReading | null>(null);
-  const [cells, setCells] = useState<NoiseCell[]>([]);
+  const [cells, setCells] = useState<NoiseCell[]>(() => createDemoNoiseCells());
+  const [mapDataSource, setMapDataSource] = useState<NoiseMapDataSource>('demo');
   const [status, setStatus] = useState('Noise contribution is off.');
   const [uploadedCount, setUploadedCount] = useState(0);
 
@@ -72,19 +78,35 @@ export function NoiseProvider({ children }: { children: ReactNode }) {
   }, [monitor.active, monitor.dbfs, monitor.measuredAtMs]);
 
   const refreshMap = useCallback(async () => {
-    if (!auth.user) { setCells([]); return; }
+    if (!auth.user) {
+      setCells(createDemoNoiseCells());
+      setMapDataSource('demo');
+      return;
+    }
     const since = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase.from('noise_grid_hourly')
       .select('grid_cell_id,grid_latitude,grid_longitude,average_relative_noise,measurement_count,contributing_users,hour_bucket')
       .gte('hour_bucket', since).order('hour_bucket', { ascending: false }).limit(300);
-    if (error) throw error;
+    if (error) {
+      setCells(createDemoNoiseCells());
+      setMapDataSource('demo');
+      throw error;
+    }
     const newest = new Map<string, NoiseCell>();
     for (const row of (data ?? []) as NoiseCell[]) if (!newest.has(row.grid_cell_id)) newest.set(row.grid_cell_id, row);
-    setCells([...newest.values()]);
+    const liveCells = [...newest.values()];
+    setCells(liveCells.length > 0 ? liveCells : createDemoNoiseCells());
+    setMapDataSource(liveCells.length > 0 ? 'live' : 'demo');
   }, [auth.user]);
 
   useEffect(() => {
-    if (!auth.user) { setConsentEnabled(false); setCells([]); setLatest(null); return; }
+    if (!auth.user) {
+      setConsentEnabled(false);
+      setCells(createDemoNoiseCells());
+      setMapDataSource('demo');
+      setLatest(null);
+      return;
+    }
     void (async () => {
       try {
         const { data, error } = await supabase.from('noise_collection_consents').select('revoked_at').eq('user_id', auth.user!.id).maybeSingle();
@@ -206,7 +228,7 @@ export function NoiseProvider({ children }: { children: ReactNode }) {
     await refreshMap();
   }, [auth.user, refreshMap]);
 
-  const value = useMemo<NoiseContextValue>(() => ({ consentEnabled, collecting, latest, cells, status, uploadedCount, setConsent, offerLocation, suspendForSpeech, deleteMyMeasurements, refreshMap }), [cells, collecting, consentEnabled, deleteMyMeasurements, latest, offerLocation, refreshMap, setConsent, status, suspendForSpeech, uploadedCount]);
+  const value = useMemo<NoiseContextValue>(() => ({ consentEnabled, collecting, latest, cells, mapDataSource, status, uploadedCount, setConsent, offerLocation, suspendForSpeech, deleteMyMeasurements, refreshMap }), [cells, collecting, consentEnabled, deleteMyMeasurements, latest, mapDataSource, offerLocation, refreshMap, setConsent, status, suspendForSpeech, uploadedCount]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
