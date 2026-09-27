@@ -6,6 +6,7 @@ import { type Place } from '@/src/navigation/campusApi';
 import { useJourney } from '@/src/navigation/JourneyProvider';
 import { BrandMark } from '@/src/components/BrandMark';
 import { LargeActionButton } from '@/src/components/LargeActionButton';
+import { BottomNav } from '@/src/components/BottomNav';
 import { colors, radii, spacing, typography } from '@/src/theme';
 const SUGGESTIONS = [
   { name: 'Memorial Library', meta: 'Search UW building directory', icon: '▦' },
@@ -28,7 +29,7 @@ export default function HomeScreen() {
       <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 110 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.topbar}>
           <BrandMark compact />
-          <Pressable accessibilityRole="button" accessibilityLabel="Open settings" onPress={() => { journey.pause(); router.push('/settings'); }} style={styles.settingsButton}><Text style={styles.settingsIcon}>⚙</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Open profile and settings" onPress={() => { journey.pause(); router.push('/profile'); }} style={styles.settingsButton}><Text style={styles.settingsIcon}>○</Text></Pressable>
         </View>
 
         <View style={styles.hero}>
@@ -37,12 +38,14 @@ export default function HomeScreen() {
           <Text style={styles.subtitle}>Speak or type a destination. SENSEA will compare campus walking routes for you.</Text>
         </View>
 
-        <Pressable accessibilityRole="button" accessibilityLabel="Start voice destination input" accessibilityHint="Speak an English building name or confirmation" onPress={() => { if (journey.listening) journey.stopListening(); else void journey.listen(); }} style={({ pressed }) => [styles.voiceOrb, pressed && styles.voiceOrbPressed]}>
-          <View style={styles.orbGlow} />
-          <View style={styles.micHandle}><Text style={styles.mic}>●</Text></View>
-          <Text style={styles.orbTitle}>{journey.listening ? 'Listening…' : 'Tap to speak'}</Text>
-          <Text style={styles.orbHint}>“Take me to the library”</Text>
-        </Pressable>
+        <View accessible accessibilityRole="text" accessibilityLabel={`Voice assistant active. ${journey.listening ? 'Listening now.' : 'Ready for voice commands.'}`} style={styles.voiceStatus}>
+          <View style={styles.statusIcon}><View style={[styles.statusDot, journey.listening && styles.statusDotListening]} /><Text style={styles.statusWave}>)))</Text></View>
+          <View style={styles.statusCopy}>
+            <View style={styles.statusTitleRow}><Text style={styles.statusTitle}>Voice assistant active</Text><View style={styles.activeBadge}><Text style={styles.activeBadgeText}>ALWAYS ON</Text></View></View>
+            <Text style={styles.statusText}>{journey.listening ? 'Listening now…' : 'Say a destination or command anytime.'}</Text>
+            <Text style={styles.statusPrivacy}>Available throughout the app · Audio is not stored</Text>
+          </View>
+        </View>
 
         <View style={styles.searchBox}>
           <Text style={styles.searchIcon}>⌕</Text>
@@ -73,6 +76,7 @@ export default function HomeScreen() {
         </View>
         <Text style={styles.safety}>SENSEA is an experimental information aid, not a mobility or obstacle-avoidance system.</Text>
       </ScrollView>
+      <BottomNav active="home" />
     </KeyboardAvoidingView>
   );
 }
@@ -85,7 +89,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background }, container: { paddingHorizontal: spacing.lg, gap: spacing.md },
   topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, settingsButton: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }, settingsIcon: { color: colors.muted, fontSize: 23 },
   hero: { paddingTop: spacing.md, gap: 7 }, kicker: { color: colors.primary, fontFamily: typography.family, fontSize: 12, fontWeight: '800', letterSpacing: 1.4 }, prompt: { color: colors.text, fontFamily: typography.family, fontSize: 36, lineHeight: 43, fontWeight: '900', letterSpacing: -1.1 }, subtitle: { color: colors.muted, fontFamily: typography.family, fontSize: 16, lineHeight: 24 },
-  voiceOrb: { width: 220, height: 220, borderRadius: 110, alignSelf: 'center', marginVertical: 12, backgroundColor: colors.primarySoft, borderWidth: 3, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center', overflow: 'visible' }, voiceOrbPressed: { transform: [{ scale: 0.98 }], backgroundColor: '#005249' }, orbGlow: { position: 'absolute', width: 232, height: 232, borderRadius: 116, borderWidth: 1, borderColor: '#0A756B', opacity: 0.7 }, micHandle: { width: 44, height: 58, borderWidth: 3, borderColor: colors.primary, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 13 }, mic: { color: colors.primary, fontSize: 22 }, orbTitle: { color: colors.text, fontFamily: typography.family, fontSize: 21, fontWeight: '800' }, orbHint: { color: colors.primary, fontFamily: typography.family, fontSize: 13, marginTop: 4 },
+  voiceStatus: { minHeight: 108, marginVertical: 8, padding: 17, flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: radii.lg, backgroundColor: colors.primarySoft, borderWidth: 1.5, borderColor: colors.primary }, statusIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, statusDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.primary }, statusDotListening: { width: 16, height: 16, borderRadius: 8 }, statusWave: { position: 'absolute', color: colors.primary, fontSize: 13, letterSpacing: -2, transform: [{ rotate: '-90deg' }], marginLeft: 23 }, statusCopy: { flex: 1, gap: 4 }, statusTitleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 7 }, statusTitle: { color: colors.text, fontFamily: typography.family, fontSize: 17, fontWeight: '900' }, activeBadge: { paddingHorizontal: 7, paddingVertical: 4, borderRadius: radii.pill, backgroundColor: colors.primary }, activeBadgeText: { color: colors.primaryText, fontFamily: typography.family, fontSize: 8, fontWeight: '900', letterSpacing: 0.7 }, statusText: { color: colors.primary, fontFamily: typography.family, fontSize: 13, fontWeight: '800' }, statusPrivacy: { color: colors.muted, fontFamily: typography.family, fontSize: 10, lineHeight: 14 },
   searchBox: { minHeight: 62, borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingLeft: 16, paddingRight: 7, flexDirection: 'row', alignItems: 'center', gap: 10 }, searchIcon: { color: colors.muted, fontSize: 28 }, input: { flex: 1, color: colors.text, fontFamily: typography.family, fontSize: 17, minHeight: 58 }, searchSubmit: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, searchArrow: { color: colors.primaryText, fontSize: 25, fontWeight: '800' }, message: { color: colors.muted, fontFamily: typography.family, fontSize: 14, lineHeight: 20, minHeight: 20 },
   section: { gap: 11, paddingTop: 5 }, sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, sectionTitle: { color: colors.textSoft, fontFamily: typography.family, fontSize: 16, fontWeight: '800' }, sectionMeta: { color: colors.mutedDark, fontFamily: typography.family, fontSize: 10, fontWeight: '800', letterSpacing: 1 }, results: { gap: 10 },
   destinationCard: { minHeight: 82, borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 13 }, cardPressed: { borderColor: colors.primary, backgroundColor: colors.surfaceRaised }, placeIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }, placeIconText: { color: colors.primary, fontSize: 23, fontWeight: '700' }, placeCopy: { flex: 1, gap: 3 }, placeTitle: { color: colors.text, fontFamily: typography.family, fontSize: 17, fontWeight: '800' }, cardMeta: { color: colors.muted, fontFamily: typography.family, fontSize: 14, lineHeight: 19 }, chevron: { color: colors.mutedDark, fontSize: 30 },
