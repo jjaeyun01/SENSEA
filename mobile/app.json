@@ -59,6 +59,15 @@
           "speechRecognitionPermission": "SENSEA converts speech into destination and navigation commands."
         }
       ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "SENSEA uses your microphone for voice commands, live sound measurement, and optional noise-map contribution. Audio stays on-device; only consented coarse-grid numeric readings are uploaded.",
+          "recordAudioAndroid": true,
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
       "expo-sqlite",
       "expo-router"
     ]

@@ -2,9 +2,9 @@ import hmac
 import os
 import time
 from collections import deque
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
-from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -116,8 +116,14 @@ def create_app(graph_path=None, db_path=None):
                 a["relative_noise"] is not None
                 and b["relative_noise"] is not None
                 and (
-                    (effective_noise_preference == "quiet" and b["relative_noise"] < a["relative_noise"])
-                    or (effective_noise_preference == "active" and b["relative_noise"] > a["relative_noise"])
+                    (
+                        effective_noise_preference == "quiet"
+                        and b["relative_noise"] < a["relative_noise"]
+                    )
+                    or (
+                        effective_noise_preference == "active"
+                        and b["relative_noise"] > a["relative_noise"]
+                    )
                 )
             ):
                 preferred = b["id"]

@@ -1,3 +1,4 @@
+import { useNoiseMonitor } from './NoiseMonitorProvider';
 import Constants from 'expo-constants';
 import { File } from 'expo-file-system';
 import {
@@ -60,6 +61,7 @@ function delay(ms: number) { return new Promise(resolve => setTimeout(resolve, m
 
 export function NoiseProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
+  const { suspend: suspendMonitor, resume: resumeMonitor } = useNoiseMonitor();
   const samples = useRef<number[]>([]);
   const lastAttemptAt = useRef(0);
   const busy = useRef(false);
@@ -139,6 +141,7 @@ export function NoiseProvider({ children }: { children: ReactNode }) {
   const capture = useCallback(async (position: Position) => {
     if (!auth.user || busy.current || !consentEnabled || AppState.currentState !== 'active') return;
     if (position.accuracy == null || position.accuracy > 30 || isFeedbackActive() || Date.now() < suspendedUntil.current) return;
+    suspendMonitor('noise-contribution');
     busy.current = true; contaminated.current = false; samples.current = []; setCollecting(true);
     setStatus('Measuring environmental sound. No audio will be uploaded.');
     let temporaryUri: string | null = null;
@@ -190,8 +193,9 @@ export function NoiseProvider({ children }: { children: ReactNode }) {
       if (temporaryUri) { try { new File(temporaryUri).delete(); } catch {} }
       try { await setAudioModeAsync({ allowsRecording: false }); } catch {}
       samples.current = []; busy.current = false; setCollecting(false);
+      resumeMonitor('noise-contribution');
     }
-  }, [auth.user, consentEnabled, recorder, refreshMap]);
+  }, [auth.user, consentEnabled, recorder, refreshMap, suspendMonitor, resumeMonitor]);
 
   const offerLocation = useCallback((position: Position) => {
     if (!consentEnabled || Date.now() - lastAttemptAt.current < SAMPLE_INTERVAL_MS) return;

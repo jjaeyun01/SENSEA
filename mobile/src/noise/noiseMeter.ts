@@ -11,7 +11,7 @@ export class DemoNoiseMeter implements NoiseMeterAdapter {
   }
 }
 
-/** Permission is requested only from an explicit measurement action. */
+/** Legacy one-shot permission helper retained for the deterministic route demo adapter. */
 export async function requestNoisePermission(): Promise<{ granted: boolean; message: string }> {
   const permission = await AudioModule.requestRecordingPermissionsAsync();
   return permission.granted
@@ -19,7 +19,6 @@ export async function requestNoisePermission(): Promise<{ granted: boolean; mess
     : { granted: false, message: 'Microphone permission denied. No sample was collected; navigation remains available.' };
 }
 
-// A calibrated/device-tested implementation should calculate a normalized RMS
-// summary, discard the recording, and return only 0..1. The MVP selects the
-// labelled DemoNoiseMeter until that adapter is validated on the demo phone.
+// Route fixtures continue to use deterministic values. The live, file-free PCM
+// meter shown in the app is implemented separately by NoiseMonitorProvider.
 export const noiseMeter: NoiseMeterAdapter = new DemoNoiseMeter();

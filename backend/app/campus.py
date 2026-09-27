@@ -4,6 +4,7 @@ import hmac
 import math
 import os
 from html.parser import HTMLParser
+from typing import Literal
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Response
@@ -17,6 +18,23 @@ def no_cache(response: Response):
 
 
 router = APIRouter(prefix="/campus", tags=["campus"], dependencies=[Depends(no_cache)])
+
+
+class CampusPlaceSummary(BaseModel):
+    id: str = Field(pattern=r"^[0-9]+$")
+    name: str = Field(min_length=1)
+
+
+class CampusSearchResponse(BaseModel):
+    places: list[CampusPlaceSummary]
+    source: str
+
+
+class CampusPlaceDetail(CampusPlaceSummary):
+    latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
+    longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
+    address: str | None = None
+    coordinate_kind: Literal["building_representative_point"]
 
 
 class SearchResults(HTMLParser):
@@ -63,7 +81,7 @@ async def fetch(path, params=None):
         raise HTTPException(502, "UW 건물 검색에 연결하지 못했습니다. 다시 시도해 주세요.") from exc
 
 
-@router.get("/places")
+@router.get("/places", response_model=CampusSearchResponse)
 async def search_places(q: str = Query(default="", max_length=100)):
     query = q.strip()
     if len(query) < 2:
@@ -77,7 +95,7 @@ async def search_places(q: str = Query(default="", max_length=100)):
     return {"places": list(parser.places.values())[:30], "source": BASE}
 
 
-@router.get("/places/{place_id}")
+@router.get("/places/{place_id}", response_model=CampusPlaceDetail)
 async def place_details(place_id: int = Path(gt=0)):
     response = await fetch(f"/api/v1/map_objects/{place_id}.geojson")
     try:

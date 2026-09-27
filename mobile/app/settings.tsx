@@ -7,6 +7,7 @@ import { AppHeader } from '@/src/components/AppHeader';
 import { BottomNav } from '@/src/components/BottomNav';
 import { LargeActionButton } from '@/src/components/LargeActionButton';
 import { useJourney } from '@/src/navigation/JourneyProvider';
+import { useNoiseMonitor } from '@/src/noise/NoiseMonitorProvider';
 import { colors, radii, spacing, typography } from '@/src/theme';
 import { useAuth } from '@/src/auth/AuthProvider';
 import { useNoise } from '@/src/noise/NoiseProvider';
@@ -14,6 +15,7 @@ export default function SettingsScreen() {
   const router = useRouter(); const insets = useSafeAreaInsets(); const journey = useJourney();
   const auth = useAuth();
   const noise = useNoise();
+  const monitor = useNoiseMonitor();
   const [licenses, setLicenses] = useState(false);
   const [saved, setSaved] = useState(false);
   const recording = () => { void journey.toggleRecording().then(() => setSaved(true)).catch(() => journey.say('Could not save recording preference.')); };
@@ -37,6 +39,7 @@ export default function SettingsScreen() {
       <Setting title="Haptic feedback" description="Required alongside spoken guidance. Device support varies." value={true} onChange={() => {}} disabled />
       <Setting title="Prefer flat routes" description="Unavailable until slopes and stairs are verified." value={false} onChange={() => {}} disabled />
       <Setting title="Contribute to noise map" description={`${noise.status} Foreground navigation only; no audio is uploaded or retained.`} value={noise.consentEnabled} onChange={changeNoiseConsent} disabled={!auth.user} />
+      <Setting title="Continuous sound meter" description="Measures device-relative dBFS while the app is open. Pauses during voice recognition and in the background; raw audio is not stored." value={monitor.enabled} onChange={value => void monitor.setEnabled(value)} />
       <Setting title="Interaction records" description="Commands and actions stay on this device. Maximum 2,000 events; entries older than 7 days are removed on use. No audio, video or GPS trail." value={journey.recording} onChange={recording} />
     </View>
     {saved && <Text accessibilityLiveRegion="polite" style={styles.saved}>✓ Recording preference saved on this device</Text>}

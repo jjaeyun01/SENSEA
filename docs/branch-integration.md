@@ -24,3 +24,19 @@ The camera page uses the existing on-device model rather than fr2's unconnected 
 Follow `mobile/.env.example` and `backend/.env.example`. Use npm and `mobile/package-lock.json` (the competing pnpm lockfile was removed). Rebuild the native app after adding these modules. Expo Go is not supported. The Routes key stays on the server; platform Maps SDK keys are configured separately. A native build and a device with the required permissions are needed for camera/GPS/STT verification.
 
 Automated checks cover backend contracts, demo aliases/routes, guidance priorities, GPS precision gates, speech commands and existing camera buffer behavior. Native JS bundles are checked for iOS and Android. These checks do not constitute an on-campus mobility safety validation or a successful paid Google API request.
+
+
+## 2026-09-27: user_setting and connect-back-front
+
+Merged both branches after reading implementation-summary.md and change-summary-2026-09-27.md.
+The light four-tab design remains. Profile now opens the real Supabase auth/account screens rather
+than the old session-only login form. The Map tab renders Supabase noise aggregates, not fictional
+zones; its live dBFS meter remains separate from opt-in, authenticated noise contribution.
+The continuous meter is stopped during contribution capture and speech recognition. Only consented
+coarse-grid measurements are uploaded. Duplicate expo-audio plugin configuration was removed.
+Visible route cards and spoken option selection share the same route order.
+
+Supabase migrations are included as source. This merge does not rerun SQL or reset the remote DB.
+Actual login, RLS access, OAuth redirects, microphone handoffs and long-running device performance
+still require a configured project and physical-device validation. Preferences tab options remain
+session controls; synced profile and route settings are available under Manage account.

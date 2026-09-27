@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,15 +19,9 @@ export default function RoutesScreen() {
   const journey = useJourney();
   const preferences = useAppPreferences();
   const state = { routes: journey.routes, destination: journey.destination };
-  const orderedRoutes = useMemo(() => [...state.routes].sort((a, b) => {
-    if (preferences.routePriority === 'fastest') return a.duration_seconds - b.duration_seconds;
-    if (preferences.routePriority === 'quietest') {
-      const rank = { fresh: 0, stale: 1, unknown: 2 } as const;
-      return rank[a.noiseStatus ?? 'unknown'] - rank[b.noiseStatus ?? 'unknown'];
-    }
-    if (preferences.routePriority === 'stepFree') return Number(!!a.hasStairs) - Number(!!b.hasStairs);
-    return 0;
-  }), [state.routes, preferences.routePriority]);
+  // Spoken option numbers and visible cards must use the same shared order.
+  useEffect(() => journey.orderRoutes(preferences.routePriority), [journey.orderRoutes, preferences.routePriority, journey.routes]);
+  const orderedRoutes = state.routes;
   const error = !journey.routes.length && !journey.busy ? journey.message : null;
   const choose = (route: RouteOption) => journey.choose(route);
   const load = () => journey.confirm();
