@@ -11,6 +11,14 @@ text += "Copyright 2019 The TensorFlow Authors. Header used without modification
 text += "Source: https://github.com/google-ai-edge/LiteRT/blob/0348ffbe4232df35ab2651e6383528b3d8bf792f/tflite/delegates/xnnpack/xnnpack_delegate.h\n";
 text += "SENSEA adds an Android CPU delegate integration to react-native-fast-tflite 3.0.1.\n\n";
 text += await readFile(path.join(root, "native/litert-1.4.0/LICENSE"), "utf8");
+text += "\n\n---\nOWL-ViT — Google Research / Apache-2.0\n";
+text += "Source: https://huggingface.co/google/owlvit-base-patch32/tree/cbc355fb364588351c5d51c7f74465e8e7ec6f72\n";
+text += "SENSEA modifications: fixed 29 text queries, 384px input with positional interpolation, ONNX export, INT8 MatMul quantization. No retraining. Apache-2.0 text above applies.\n";
+text += "\nONNX Runtime Android 1.22.0 — Microsoft / MIT\n";
+text += await readFile(path.join(root, "licenses/onnxruntime-LICENSE.txt"), "utf8");
+text += await readFile(path.join(root, "licenses/onnxruntime-ThirdPartyNotices.txt"), "utf8");
+text += "\nGoogle ML Kit Text Recognition (Latin) 16.0.1\nTerms: https://developers.google.com/ml-kit/terms\nInput images and OCR results are processed on device. The SDK may send performance and usage metrics to Google. Privacy: https://policies.google.com/privacy\n";
+text += "\nSENSEA adds a bounded Android frame-observer hook to react-native-vision-camera 5.2.3 (MIT; notice below).\n";
 for (const [name, version] of Object.entries(pkg.dependencies)) {
   const directory = path.join(root, "node_modules", name);
   const names = await readdir(directory);

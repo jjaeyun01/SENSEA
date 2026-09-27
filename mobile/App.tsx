@@ -10,9 +10,11 @@ import { createNativeSession } from "./src/vision/createNativeSession";
 import { AnnouncementGate, describeResult, isFreshResult, labelInKorean } from "./src/vision/detection.mjs";
 import { HazardTracker, HazardAnnouncementGate } from "./src/vision/hazards.mjs";
 import { HAZARD_COVERAGE, hazardLabel, describeScreenRelation, describeHazardKind } from "./src/vision/hazard-policy.mjs";
-import { projectBoxToPreview } from "./src/vision/preview-geometry.mjs";
+import { buildObjectOverlays } from "./src/vision/overlay.mjs";
+import { UrbanVisionPanel } from "./src/vision/UrbanVisionPanel";
+import urbanLabels from "./assets/models/urban-labels.json";
 import { LatestSpeechChannel } from "./src/vision/speech-channel.mjs";
-import type { HazardAssessment, LiveResult, NativeSession } from "./src/vision/types";
+import type { HazardAssessment, LiveResult, NativeSession, UrbanResult } from "./src/vision/types";
 import notices from "./assets/third-party-notices.json";
 
 type Phase = "closed" | "opening" | "live" | "closing";
@@ -23,6 +25,7 @@ function CameraScreen() {
   const [session, setSession] = useState<NativeSession | null>(null);
   const [result, setResult] = useState<LiveResult | null>(null);
   const [hazard, setHazard] = useState<HazardAssessment | null>(null);
+  const [urban, setUrban] = useState<UrbanResult | null>(null);
   const [previewSize, setPreviewSize] = useState({ width: 0, height: 0 });
   const [message, setMessage] = useState("카메라를 켜면 실시간 화면을 먼저 표시합니다.");
   const [voice, setVoice] = useState(true);
@@ -116,7 +119,7 @@ function CameraScreen() {
     resetAnnouncement();
     resetHazards();
     silence();
-    if (mounted.current) { setResult(null); setAnalysisMessage(""); setPhase("closing"); }
+    if (mounted.current) { setResult(null); setUrban(null); setAnalysisMessage(""); setPhase("closing"); }
     if (opening.current) return;
     if (closing.current) return;
     const owned = current.current;
@@ -326,15 +329,10 @@ function CameraScreen() {
   const busy = phase === "opening" || phase === "closing";
   const live = phase === "live";
   const hasWarning = hazard?.status === "caution" || hazard?.status === "priority";
-  const overlayBoxes = useMemo(() => {
-    const boxes: Array<{ trackId: number; label: string; level: string; left: number; top: number; width: number; height: number }> = [];
-    if (!result?.imageSize || !hazard) return boxes;
-    for (const item of hazard.hazards) {
-      const projected = projectBoxToPreview(item.box, result.imageSize, previewSize);
-      if (projected) boxes.push({ ...projected, trackId: item.trackId, label: hazardLabel(item.label), level: item.level });
-    }
-    return boxes;
-  }, [hazard, result, previewSize]);
+  const overlayBoxes = useMemo(() => buildObjectOverlays(result, hazard, urban, previewSize), [result, hazard, urban, previewSize]);
+  const canAnnounceUrban = useCallback(() => wanted.current && screenReaderReady.current &&
+    !(latestHazard.current?.status === "priority" && isFreshResult({ receivedAt: latestHazard.current.observedAt }, Date.now())), []);
+  const overlayName = (label: string) => urbanLabels.find(item => item.label === label)?.name ?? labelInKorean(label);
 
 
   return (
@@ -365,11 +363,11 @@ function CameraScreen() {
           </View>
         )}
         <View pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-          {overlayBoxes.map(item => <View key={item.trackId} testID={`hazard-box-${item.trackId}`}
+          {overlayBoxes.map(item => <View key={item.key} testID={`object-box-${item.key}`}
             style={[styles.objectBox, { left: item.left, top: item.top, width: item.width, height: item.height,
-              borderColor: item.level === "priority" ? "#FF8D94" : item.level === "caution" ? "#FFCA80" : "#90C7FF" }]}>
+              borderColor: item.level === "priority" ? "#FF8D94" : item.level === "caution" ? "#FFCA80" : item.level === "notice" ? "#73E0AC" : item.level === "candidate" ? "#90C7FF" : "#E4EAF0" }]}>
             <Text numberOfLines={1} style={styles.objectBoxLabel}>
-              {item.level === "priority" ? "우선 주의" : item.level === "caution" ? "주의" : "참고"} · {item.label}
+              {item.level === "priority" ? "우선 주의" : item.level === "caution" ? "주의" : item.level === "notice" ? "참고" : item.level === "candidate" ? "후보" : "감지"} · {overlayName(item.label)}
             </Text>
           </View>)}
         </View>
@@ -477,13 +475,14 @@ function CameraScreen() {
           <Text style={styles.linkText}>설정에서 카메라 권한 허용</Text>
         </Pressable>
       )}
+      <UrbanVisionPanel live={live} voice={voice} onResult={setUrban} say={say} canAnnounce={canAnnounceUrban} cancel={silence} />
       <View style={styles.coveragePanel}>
-        <Text style={styles.sectionLabel}>감지 범위</Text>
-        <Text style={styles.note}>아래의 ‘구분 못함’은 주변에 없다는 뜻이 아닙니다.</Text>
+        <Text style={styles.sectionLabel}>기본 감지 범위</Text>
+        <Text style={styles.note}>확장 후보는 위 시설물·신호 분석에서 별도로 표시합니다. 미감지는 주변에 없다는 뜻이 아닙니다.</Text>
         {HAZARD_COVERAGE.map(group => <View key={group.kind} style={styles.hazardDetail}>
           <Text style={styles.hazardDetailTitle}>{group.title}</Text>
           {!!group.supported && <Text style={styles.note}>감지 대상: {group.supported}</Text>}
-          {!!group.unavailable && <Text style={styles.note}>아직 구분 못함: {group.unavailable}</Text>}
+          {!!group.unavailable && <Text style={styles.note}>기본 감지 제외: {group.unavailable}</Text>}
         </View>)}
       </View>
       <Text style={styles.footer}>주의 알림은 실험 기능입니다. 이동·횡단의 안전을 판단하지 않습니다.</Text>
@@ -502,10 +501,11 @@ function CameraScreen() {
               {sheet === "privacy" ? "개인정보와 이용 안내" : "공개 모델 및 라이브러리"}
             </Text>
             {sheet === "privacy" ? <>
-              <Text style={styles.privacyText}>카메라 영상은 이 휴대폰에서 분석합니다. 사진·영상·분석 기록을 파일로 저장하거나 서버로 보내지 않습니다.</Text>
-              <Text style={styles.privacyText}>현재 앱은 마이크와 위치를 수집하지 않습니다. 카메라 권한은 카메라를 켤 때 요청하며 휴대폰 설정에서 언제든 취소할 수 있습니다.</Text>
+              <Text style={styles.privacyText}>카메라 영상은 이 휴대폰에서 분석합니다. 사진·영상·분석 기록을 파일로 저장하거나 서버로 보내지 않습니다. 추가 공개 모델 파일만 기기에 보관합니다.</Text>
+              <Text style={styles.privacyText}>숫자·문자 판독에 Google ML Kit를 사용합니다. 영상과 판독 결과는 기기에서 처리하며, SDK 성능·사용 통계는 Google에 전송될 수 있습니다. 자세한 내용은 오픈소스 안내의 ML Kit 약관·개인정보 링크를 확인해 주세요.</Text>
+              <Text style={styles.privacyText}>현재 앱은 마이크와 GPS 위치를 수집하지 않습니다. STOP 스캔은 휴대폰 방향 센서를 사용하며 방향 이력을 저장하지 않습니다. 카메라 권한은 카메라를 켤 때 요청하며 휴대폰 설정에서 언제든 취소할 수 있습니다.</Text>
               <Text style={styles.privacyText}>카메라 끄기, 결과 지우기, 다른 앱으로 전환하기, 이 안내 열기로 분석과 자동 음성을 중지합니다. 돌아와도 카메라는 자동으로 켜지지 않습니다.</Text>
-              <Text style={styles.privacyText}>연속된 객체 위치와 화면상 크기로 주의 대상을 고릅니다. 휴대폰 움직임이나 오인식으로 잘못 알리거나 위험을 놓칠 수 있습니다. 실제 거리·충돌 확률·횡단 가능 여부는 계산하지 않습니다. 계단·낭떠러지·노면 구멍·차도와 인도 구분은 지원하지 않습니다.</Text>
+              <Text style={styles.privacyText}>연속된 객체 위치와 화면상 크기로 주의 대상을 고릅니다. 휴대폰 움직임이나 오인식으로 잘못 알리거나 위험을 놓칠 수 있습니다. 실제 거리·충돌 확률·횡단 가능 여부는 계산하지 않습니다. 확장 모델은 시설물·계단·연석·나뭇가지 등의 후보를 찾지만 높이·깊이·실제 통행 경로를 확인하지 못합니다. 보행 신호와 숫자도 오인식할 수 있어 횡단 허가를 제공하지 않습니다.</Text>
               <Text style={styles.privacyText}>현재는 카메라 시험판입니다. 실제 GPS 길안내와 마이크 소음 측정은 연결하지 않았습니다.</Text>
               <Text style={styles.privacyText}>아래 시작 버튼을 누르면 권한을 확인한 뒤 실시간 카메라 화면을 표시합니다. 외부 AI 사진 전송은 현재 앱에 연결되어 있지 않습니다.</Text>
             </> : <Text style={styles.licenseText}>{notices.text}</Text>}

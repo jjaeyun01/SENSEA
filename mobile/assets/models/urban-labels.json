@@ -1,0 +1,147 @@
+[
+  {
+    "label": "streetlight",
+    "name": "가로등",
+    "prompt": "a street light pole"
+  },
+  {
+    "label": "trash_can",
+    "name": "쓰레기통",
+    "prompt": "a trash can"
+  },
+  {
+    "label": "bicycle_rack",
+    "name": "자전거 거치대",
+    "prompt": "a bicycle parking rack"
+  },
+  {
+    "label": "bicycle_locker",
+    "name": "자전거 보관함",
+    "prompt": "a bicycle storage locker"
+  },
+  {
+    "label": "bollard",
+    "name": "볼라드",
+    "prompt": "a bollard on a sidewalk"
+  },
+  {
+    "label": "flowerbed",
+    "name": "화단",
+    "prompt": "a raised flower bed"
+  },
+  {
+    "label": "construction_cone",
+    "name": "공사 콘",
+    "prompt": "a traffic cone"
+  },
+  {
+    "label": "barricade",
+    "name": "공사 차단물",
+    "prompt": "a construction barricade"
+  },
+  {
+    "label": "utility_pole",
+    "name": "전선주",
+    "prompt": "a utility pole"
+  },
+  {
+    "label": "e_scooter",
+    "name": "전동 킥보드",
+    "prompt": "an electric kick scooter"
+  },
+  {
+    "label": "stairs",
+    "name": "계단",
+    "prompt": "stairs"
+  },
+  {
+    "label": "curb",
+    "name": "연석",
+    "prompt": "a street curb"
+  },
+  {
+    "label": "open_manhole",
+    "name": "열린 맨홀",
+    "prompt": "an open manhole"
+  },
+  {
+    "label": "low_branch",
+    "name": "나뭇가지",
+    "prompt": "a tree branch"
+  },
+  {
+    "label": "awning",
+    "name": "차양",
+    "prompt": "an awning"
+  },
+  {
+    "label": "open_window",
+    "name": "열린 창문",
+    "prompt": "an open window"
+  },
+  {
+    "label": "pedestrian_signal",
+    "name": "보행 신호",
+    "prompt": "a pedestrian crossing signal"
+  },
+  {
+    "label": "walk_signal",
+    "name": "보행자 표시 후보",
+    "prompt": "a pedestrian walk signal showing a white walking person"
+  },
+  {
+    "label": "dont_walk_signal",
+    "name": "손 표시 후보",
+    "prompt": "a pedestrian crossing signal showing an orange hand"
+  },
+  {
+    "label": "stop sign",
+    "name": "STOP 표지",
+    "prompt": "a stop sign"
+  },
+  {
+    "label": "person",
+    "name": "사람",
+    "prompt": "a person"
+  },
+  {
+    "label": "bicycle",
+    "name": "자전거",
+    "prompt": "a bicycle"
+  },
+  {
+    "label": "car",
+    "name": "자동차",
+    "prompt": "a car"
+  },
+  {
+    "label": "truck",
+    "name": "트럭",
+    "prompt": "a truck"
+  },
+  {
+    "label": "bus",
+    "name": "버스",
+    "prompt": "a bus"
+  },
+  {
+    "label": "motorcycle",
+    "name": "오토바이",
+    "prompt": "a motorcycle"
+  },
+  {
+    "label": "dog",
+    "name": "개",
+    "prompt": "a dog"
+  },
+  {
+    "label": "bench",
+    "name": "벤치",
+    "prompt": "a bench"
+  },
+  {
+    "label": "potted plant",
+    "name": "화분",
+    "prompt": "a potted plant"
+  }
+]

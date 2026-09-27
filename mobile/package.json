@@ -1,6 +1,6 @@
 {
   "name": "sensea-mobile",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "private": true,
   "main": "index.ts",
   "scripts": {
@@ -11,7 +11,7 @@
     "test": "node --test vision/tests/*.test.mjs src/vision/tests/*.test.mjs",
     "models:download": "node scripts/download-model.mjs",
     "export:check": "expo export --platform all --output-dir dist",
-    "postinstall": "node scripts/patch-tflite-cpu.mjs"
+    "postinstall": "node scripts/patch-tflite-cpu.mjs && node scripts/patch-urban-camera.mjs"
   },
   "dependencies": {
     "expo": "57.0.25",

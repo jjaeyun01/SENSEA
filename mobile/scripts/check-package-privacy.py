@@ -24,8 +24,11 @@ if platform == "android":
     with zipfile.ZipFile(target) as package:
         assert "assets/index.android.bundle" in package.namelist()
         models = [name for name in package.namelist() if name.endswith(".tflite")]
-        assert len(models) == 1, models
-        assert hashlib.sha256(package.read(models[0])).hexdigest() == manifest["sha256"]
+        matches = [name for name in models if hashlib.sha256(package.read(name)).hexdigest() == manifest["sha256"]]
+        assert len(matches) == 1, "Pinned base model missing or duplicated"
+        urban = json.loads(Path("assets/models/urban-manifest.json").read_text(encoding="utf-8"))
+        data = package.read("assets/sensea-urban/urban-int8.onnx")
+        assert len(data) == urban["bytes"] and hashlib.sha256(data).hexdigest() == urban["sha256"]
     print("Merged APK permissions and bundled model verified.")
 elif platform == "ios":
     app = Path(target)
