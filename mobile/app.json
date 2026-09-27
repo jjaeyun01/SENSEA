@@ -3,7 +3,7 @@
     "name": "SENSEA",
     "slug": "sensea",
     "icon": "./assets/app-icon.png",
-    "version": "0.4.6",
+    "version": "0.4.12",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "sensea",
@@ -14,20 +14,22 @@
         "NSCameraUsageDescription": "주변 사물을 기기에서 분석하고 음성으로 알려드리기 위해 카메라를 사용합니다.",
         "NSMicrophoneUsageDescription": "SENSEA는 음성 명령과 선택적 소음지도 기여를 위해 마이크를 사용합니다. 소음 샘플은 기기에서 처리 후 즉시 삭제되며 숫자 데이터만 업로드됩니다."
       },
-      "buildNumber": "8"
+      "buildNumber": "9"
     },
     "android": {
       "package": "com.sensea.app",
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.VIBRATE"
       ],
-      "versionCode": 8,
+      "versionCode": 14,
       "blockedPermissions": [
         "android.permission.ACCESS_BACKGROUND_LOCATION",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_MEDIA_VIDEO"
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_PHONE_STATE"
       ]
     },
     "platforms": [
@@ -78,7 +80,8 @@
       "expo-sqlite",
       "expo-router",
       "expo-asset",
-      "./plugins/with-mjs-bundle-inputs"
+      "./plugins/with-mjs-bundle-inputs",
+      "./plugins/with-urban-vision"
     ]
   }
 }

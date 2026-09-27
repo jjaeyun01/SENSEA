@@ -246,7 +246,7 @@ test("three consecutive processing deadline misses stop analysis while retaining
     assert.equal(f.analysis.length, i === 2 ? 1 : 0);
   }
   assert.deepEqual(f.warnings, [["[SENSEA] Frame analysis stopped", "Frame processing deadline exceeded"]]);
-  assert.match(f.analysis[0], /실시간 카메라 화면은 계속 표시/);
+  assert.match(f.analysis[0], /live camera view will stay on/);
   assert.equal(f.fatal.length, 0);
   assert.ok(!f.events.includes("stop"), "deadline failure must keep preview hardware running");
   assert.equal(f.events.filter(event => event.startsWith("configure:")).at(-1), "configure:2");

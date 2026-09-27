@@ -1,6 +1,6 @@
 {
   "name": "sensea-mobile",
-  "version": "0.4.6",
+  "version": "0.4.12",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -13,7 +13,7 @@
     "export:check": "expo export --platform all --output-dir dist",
     "test:ui": "vitest run",
     "web": "expo start --web",
-    "postinstall": "node scripts/patch-tflite-cpu.mjs"
+    "postinstall": "node scripts/patch-tflite-cpu.mjs && node scripts/patch-urban-camera.mjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

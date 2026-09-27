@@ -40,8 +40,8 @@ test("a persistent lower central object creates image-space caution without a sa
   assert.equal(answer.navigation_safe, false);
   assert.equal(answer.hazards[0].direction, "center");
   assert.deepEqual(answer.hazards[0].reasons, ["stable_presence", "central_lower"]);
-  assert.match(answer.summary, /화면 중앙/);
-  assert.doesNotMatch(answer.summary, /안전합니다|이동하세요|피하세요|충돌까지|미터|접근 중/);
+  assert.match(answer.summary, /center of the image/);
+  assert.doesNotMatch(answer.summary, /safe to|move ahead|veer|time to collision|meters|approaching/i);
 });
 
 test("a large central vehicle requires two strong observations before priority", () => {
@@ -50,8 +50,11 @@ test("a large central vehicle requires two strong observations before priority",
   const answer = update(tracker, 200, vehicle);
   assert.equal(answer.status, "priority");
   assert.ok(answer.hazards[0].reasons.includes("strong_vehicle_evidence"));
-  assert.match(answer.summary, /크게 보이는/);
-  assert.equal(stable(new HazardTracker(), [detection("truck", vehicle[0].box, 0.78)]).status, "caution");
+  assert.match(answer.summary, /large part of the image/);
+  const near = stable(new HazardTracker(), [detection("truck", vehicle[0].box, 0.78)]);
+  assert.equal(near.status, "priority");
+  assert.ok(near.hazards[0].reasons.includes("confirmed_near_obstruction"));
+  assert.ok(!near.hazards[0].reasons.includes("strong_vehicle_evidence"));
 });
 
 test("low confidence, small distant and unsupported semantic classes do not become warnings", () => {
@@ -158,9 +161,9 @@ test("well-associated monotonic growth takes at least three samples spanning 400
   const third = update(tracker, 400, [detection("car", box(0.5, 0.7, 0.37))]);
   assert.equal(third.status, "priority");
   assert.ok(third.hazards[0].reasons.includes("apparent_growth"));
-  assert.match(third.summary, /영상 크기가 커지고/);
-  assert.match(third.summary, /실제 거리는 알 수 없습니다/);
-  assert.doesNotMatch(third.summary, /다가오|접근|충돌|초 후|미터/);
+  assert.match(third.summary, /Appears larger in successive images/);
+  assert.match(third.summary, /Actual distance is unknown/);
+  assert.doesNotMatch(third.summary, /approaching|collision|seconds until|meters/i);
   const tooFast = new HazardTracker();
   for (const [i, w] of [0.26, 0.31, 0.37].entries()) {
     const a = update(tooFast, i * 100, [detection("car", box(0.5, 0.7, w))]);
@@ -258,12 +261,12 @@ test("tracker caps inputs, histories, tracks and hazards across ten thousand fra
 
 test("priority escalation bypasses ordinary speech cooldown and repeated frames do not repeat speech", () => {
   const gate = new HazardAnnouncementGate();
-  assert.match(gate.offer(assessment(200), 200), /^주의/);
+  assert.match(gate.offer(assessment(200), 200), /^Caution/);
   assert.equal(gate.offer(assessment(200), 250), null);
-  assert.match(gate.offer(assessment(400, "priority"), 400), /^우선 주의/);
+  assert.match(gate.offer(assessment(400, "priority"), 400), /^High alert/);
   assert.equal(gate.offer(assessment(600, "priority"), 600), null);
   assert.equal(gate.offer(assessment(8000, "priority"), 8000), null);
-  assert.match(gate.offer(assessment(8400, "priority"), 8400), /^우선 주의/);
+  assert.match(gate.offer(assessment(8400, "priority"), 8400), /^High alert/);
 });
 
 test("ordinary announcements use global cooldown with no queued messages", () => {
@@ -300,11 +303,11 @@ test("gate rejects stale, unavailable and regressing assessments and bounds its 
 test("automatic warnings say screen direction and object first, with a short image-only cue", () => {
   const tracker = new HazardTracker(), value = growing(tracker);
   const speech = new HazardAnnouncementGate().offer(value, value.observedAt);
-  assert.match(speech, /^우선 주의\. 화면 중앙 자동차\./);
-  assert.ok(speech.length < 55);
-  assert.match(speech, /화면에서 커져/);
-  assert.doesNotMatch(speech, /미터|충돌까지|안전|다가오/);
-  assert.match(value.summary, /실제 거리는 알 수 없습니다/);
+  assert.match(speech, /^High alert\. Car, center of the image\./);
+  assert.ok(speech.split(/\s+/).length <= 16, "English warnings stay short enough to prioritize the hazard");
+  assert.match(speech, /Appearing larger/);
+  assert.doesNotMatch(speech, /meters|time to collision|safe to|approaching/i);
+  assert.match(value.summary, /Actual distance is unknown/);
 });
 
 test('unplayed reservations do not apply cooldown and can be retried on the next frame', () => {

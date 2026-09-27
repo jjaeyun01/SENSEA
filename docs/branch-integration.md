@@ -40,3 +40,7 @@ Supabase migrations are included as source. This merge does not rerun SQL or res
 Actual login, RLS access, OAuth redirects, microphone handoffs and long-running device performance
 still require a configured project and physical-device validation. Preferences tab options remain
 session controls; synced profile and route settings are available under Manage account.
+
+## 2026-09-27 backend-foundation v0.4.12
+
+README1 작업 기록 및 변경 코드를 main에 병합했습니다. Expo Router 진입점·사용자 계정·경로 기능·앱 로고를 유지하고 근접 장애물 판정/영어 객체 안내를 통합했습니다. Android 내비게이션에는 ONNX/ML Kit 확장 분석 및 신호 안내 패널을 연결했습니다. 기존 iOS 카메라 정리 실패 후 재시도 처리도 유지했습니다. Android 모델은 약 99 MB이며 iOS JS 번들에는 포함하지 않습니다. 네이티브 플러그인 반영을 위해 Android 앱 재빌드가 필요합니다. README1의 단독 카메라 UI/APK 기록은 역사적 기록이며 현재 main 화면과 다릅니다. 신호 숫자 최종 E2E 검증은 미완료이므로 통과로 간주하지 않습니다.

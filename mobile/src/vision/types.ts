@@ -1,6 +1,8 @@
 import type { CameraPreviewOutput } from "react-native-vision-camera";
 export interface Detection {
   classId: number; label: string; score: number;
+  /** Weaker close-looking candidate, excluded from ordinary automatic descriptions. */
+  nearCandidate?: boolean;
   box: { top: number; left: number; bottom: number; right: number };
 }
 export interface LiveResult {
@@ -47,4 +49,12 @@ export interface HazardAssessment {
   hazards: HazardObservation[];
   observedAt: number;
   navigation_safe: false;
+}
+
+export interface UrbanResult {
+ generation:number; receivedAt:number; processedMs:number; quality:"usable"|"retake";
+ imageSize:{width:number;height:number};
+ detections:Array<{label:string;score:number;box:Detection["box"];source:"owlvit";level?:string}>;
+ texts:Array<{text:string;box:Detection["box"];signalBox?:Detection["box"]}>;
+ heading?:number; headingAt:number; headingAccuracy:number;
 }

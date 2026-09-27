@@ -1,0 +1,8 @@
+import test from "node:test";import assert from "node:assert/strict";
+import { buildObjectOverlays,OVERLAY_LIMIT } from "../overlay.mjs";
+const box={left:.2,top:.2,right:.8,bottom:.8}, size={width:480,height:640},preview={width:300,height:400};
+const frame={receivedAt:100,quality:{status:"usable"},imageSize:size,detections:[{label:"bottle",score:.9,box}]};
+test("ordinary detections receive labelled rectangles without waiting for a hazard",()=>{const x=buildObjectOverlays(frame,null,null,preview,100);assert.equal(x.length,1);assert.equal(x[0].label,"bottle");assert.equal(x[0].level,"detected");assert.equal(x[0].left,60);});
+test("hazard rectangle replaces same-label ordinary rectangle",()=>{const h={observedAt:100,hazards:[{label:"bottle",box,trackId:1,level:"caution"}]};const x=buildObjectOverlays(frame,h,null,preview,100);assert.equal(x.length,1);assert.equal(x[0].level,"caution");});
+test("overlay count is capped and current urban results can render without base results",()=>{const u={receivedAt:100,quality:"usable",imageSize:size,detections:Array.from({length:24},(_,i)=>({label:String(i),score:.3,box}))};assert.equal(buildObjectOverlays(null,null,u,preview,100).length,OVERLAY_LIMIT);assert.equal(buildObjectOverlays(null,null,u,preview,1101).length,0);});
+test("retake, future timestamps and invalid boxes produce no rectangle",()=>{assert.equal(buildObjectOverlays({...frame,quality:{status:"retake"}},null,null,preview,100).length,0);assert.equal(buildObjectOverlays(frame,null,null,preview,99).length,0);assert.equal(buildObjectOverlays({...frame,detections:[{label:"x",box:{...box,right:NaN}}]},null,null,preview,100).length,0);});

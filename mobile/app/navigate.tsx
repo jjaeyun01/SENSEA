@@ -4,7 +4,7 @@ import { useFocusEffect, usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LargeActionButton } from '@/src/components/LargeActionButton';
 import { RouteMap } from '@/src/components/RouteMap';
-import { CameraPreview, useCamera } from '@/src/camera/CameraProvider';
+import { CameraPreview, UrbanCameraGuidance, useCamera } from '@/src/camera/CameraProvider';
 import { useJourney } from '@/src/navigation/JourneyProvider';
 import { colors, radii, spacing, typography } from '@/src/theme';
 import { useNoise } from '@/src/noise/NoiseProvider';
@@ -38,7 +38,7 @@ export default function NavigateScreen() {
   const contributeNoise = () => journey.say(noiseMessage);
   if (!started) return <ScrollView style={styles.root} contentContainerStyle={[styles.preflight, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 30 }]}>
     <Text style={styles.eyebrow}>READY TO GO</Text><Text accessibilityRole="header" style={styles.preflightTitle}>{state.destination?.name}</Text>
-    <View style={styles.cameraFrame}>{pathname === '/navigate' && <CameraPreview />}</View>
+    <UrbanCameraGuidance /><View style={styles.cameraFrame}>{pathname === '/navigate' && <CameraPreview />}</View>
     <Text accessibilityLiveRegion="polite" style={styles.cameraStatus}>{cameraState.message}</Text>
     <View style={styles.preflightActions}>
       {!cameraState.ready && <LargeActionButton label={cameraState.phase === 'opening' ? 'Preparing camera…' : 'Retry camera'} loading={cameraState.phase === 'opening'} onPress={() => void cameraState.open()} />}
@@ -56,7 +56,7 @@ export default function NavigateScreen() {
     <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 160 }]} showsVerticalScrollIndicator={false}>
       <View style={styles.navTop}><View><Text style={styles.navStatus}>{journey.rerouting ? 'RECALCULATING ROUTE' : journey.stage === 'arrived' ? 'ARRIVAL CONFIRMED' : arrivalPending ? 'ARRIVAL CHECK' : paused ? 'NAVIGATION PAUSED' : 'NAVIGATING'}</Text><Text style={styles.destination}>{state.destination?.name}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Open camera assist" onPress={camera} style={styles.cameraButton}><Text style={styles.cameraIcon}>▣</Text></Pressable></View>
 
-      <View style={styles.cameraFrame}>{pathname === '/navigate' && <CameraPreview />}</View><Text accessibilityLiveRegion="polite" style={styles.cameraStatus}>{cameraState.message}</Text>
+      <UrbanCameraGuidance /><View style={styles.cameraFrame}>{pathname === '/navigate' && <CameraPreview />}</View><Text accessibilityLiveRegion="polite" style={styles.cameraStatus}>{cameraState.message}</Text>
       <View style={[styles.guidanceCard, paused && styles.guidancePaused]}>
         <View style={styles.turnIcon}><Text style={styles.turnArrow}>{direction?.arrow ?? '↑'}</Text></View>
         <Text style={styles.instruction} accessibilityLiveRegion="assertive">{journey.rerouting ? 'Finding a new route. Please stop.' : journey.stage === 'arrived' ? 'Arrival confirmed' : arrivalPending ? journey.arrivalStatus === 'verified_entrance_nearby' ? 'Near the verified entrance coordinate' : 'Near the mapped building location' : paused ? 'Guidance paused' : segment?.instruction ?? `Final waypoint near ${state.destination?.name}`}</Text>

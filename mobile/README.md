@@ -82,3 +82,7 @@ Production still uses Expo Router and the main UI, account, noise, and UW/Google
 ## Source layout
 
 The server lives in ../backend; all mobile UI and TypeScript code lives here. The former frontend directory has been removed. Its independent simulation/API and wake-word prototypes are preserved in [src/legacy](src/legacy/README.md), with their tests included in npm run test:ui. Production screens and providers continue using their current implementations. No native wake-word engine was added by this reorganization.
+
+## backend-foundation v0.4.12 병합
+
+Expo Router 진입점과 로그인·길찾기·로고를 유지합니다. 근접 장애물 정책과 영어 관찰 안내는 공용 CameraProvider에 적용하고 Android 내비게이션 화면에 UrbanVisionPanel을 연결했습니다. ONNX/ML Kit 확장 분석은 Android 전용이며 iOS는 기존 TFLite 분석을 유지합니다. 카메라 단독 앱 작업 기록은 README1.md를 참고하세요. 신호 카운트다운 최종 흐름은 아직 검증되지 않았습니다.

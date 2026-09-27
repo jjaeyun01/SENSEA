@@ -7,7 +7,7 @@ import { NativePreviewView, useCameraPermission } from "react-native-vision-came
 import * as Speech from "expo-speech";
 import { callback } from "react-native-nitro-modules";
 import { createNativeSession } from "./src/vision/createNativeSession";
-import { AnnouncementGate, describeResult, isFreshResult, labelInKorean } from "./src/vision/detection.mjs";
+import { AnnouncementGate, describeResult, isFreshResult, displayLabel } from "./src/vision/detection.mjs";
 import { HazardTracker, HazardAnnouncementGate } from "./src/vision/hazards.mjs";
 import { HAZARD_COVERAGE, hazardLabel, describeScreenRelation, describeHazardKind } from "./src/vision/hazard-policy.mjs";
 import { projectBoxToPreview } from "./src/vision/preview-geometry.mjs";
@@ -422,7 +422,7 @@ function CameraScreen() {
         <Text style={styles.sectionLabel}>함께 보이는 사물</Text>
         <Text style={styles.objects}>
           {result?.detections.length
-            ? [...new Set(result.detections.map(item => labelInKorean(item.label)))].slice(0, 5).join(" · ")
+            ? [...new Set(result.detections.map(item => displayLabel(item.label)))].slice(0, 5).join(" · ")
             : "사물을 식별하지 못했습니다. 주변에 사물이 없다는 뜻은 아닙니다."}
         </Text>
         <Text style={styles.note}>영상은 저장하거나 서버로 전송하지 않습니다.</Text>

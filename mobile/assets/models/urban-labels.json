@@ -1,0 +1,147 @@
+[
+  {
+    "label": "streetlight",
+    "name": "Streetlight",
+    "prompt": "a street light pole"
+  },
+  {
+    "label": "trash_can",
+    "name": "Trash can",
+    "prompt": "a trash can"
+  },
+  {
+    "label": "bicycle_rack",
+    "name": "Bicycle rack",
+    "prompt": "a bicycle parking rack"
+  },
+  {
+    "label": "bicycle_locker",
+    "name": "Bicycle locker",
+    "prompt": "a bicycle storage locker"
+  },
+  {
+    "label": "bollard",
+    "name": "Bollard",
+    "prompt": "a bollard on a sidewalk"
+  },
+  {
+    "label": "flowerbed",
+    "name": "Flowerbed",
+    "prompt": "a raised flower bed"
+  },
+  {
+    "label": "construction_cone",
+    "name": "Construction cone",
+    "prompt": "a traffic cone"
+  },
+  {
+    "label": "barricade",
+    "name": "Construction barrier",
+    "prompt": "a construction barricade"
+  },
+  {
+    "label": "utility_pole",
+    "name": "Utility pole",
+    "prompt": "a utility pole"
+  },
+  {
+    "label": "e_scooter",
+    "name": "E-scooter",
+    "prompt": "an electric kick scooter"
+  },
+  {
+    "label": "stairs",
+    "name": "Stairs",
+    "prompt": "stairs"
+  },
+  {
+    "label": "curb",
+    "name": "Curb",
+    "prompt": "a street curb"
+  },
+  {
+    "label": "open_manhole",
+    "name": "Open manhole",
+    "prompt": "an open manhole"
+  },
+  {
+    "label": "low_branch",
+    "name": "Tree branch",
+    "prompt": "a tree branch"
+  },
+  {
+    "label": "awning",
+    "name": "Awning",
+    "prompt": "an awning"
+  },
+  {
+    "label": "open_window",
+    "name": "Open window",
+    "prompt": "an open window"
+  },
+  {
+    "label": "pedestrian_signal",
+    "name": "Pedestrian signal",
+    "prompt": "a pedestrian crossing signal"
+  },
+  {
+    "label": "walk_signal",
+    "name": "Possible WALK symbol",
+    "prompt": "a pedestrian walk signal showing a white walking person"
+  },
+  {
+    "label": "dont_walk_signal",
+    "name": "Possible DON'T WALK symbol",
+    "prompt": "a pedestrian crossing signal showing an orange hand"
+  },
+  {
+    "label": "stop sign",
+    "name": "STOP sign",
+    "prompt": "a stop sign"
+  },
+  {
+    "label": "person",
+    "name": "Person",
+    "prompt": "a person"
+  },
+  {
+    "label": "bicycle",
+    "name": "Bicycle",
+    "prompt": "a bicycle"
+  },
+  {
+    "label": "car",
+    "name": "Car",
+    "prompt": "a car"
+  },
+  {
+    "label": "truck",
+    "name": "Truck",
+    "prompt": "a truck"
+  },
+  {
+    "label": "bus",
+    "name": "Bus",
+    "prompt": "a bus"
+  },
+  {
+    "label": "motorcycle",
+    "name": "Motorcycle",
+    "prompt": "a motorcycle"
+  },
+  {
+    "label": "dog",
+    "name": "Dog",
+    "prompt": "a dog"
+  },
+  {
+    "label": "bench",
+    "name": "Bench",
+    "prompt": "a bench"
+  },
+  {
+    "label": "potted plant",
+    "name": "Potted plant",
+    "prompt": "a potted plant"
+  }
+]

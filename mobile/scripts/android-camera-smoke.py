@@ -12,8 +12,8 @@ OUT = Path("build/camera-smoke")
 EMULATOR_VERIFIED = False
 EMULATOR_SERIAL = None
 INFERENCE_MARKER = "[SENSEA] First frame inference ready"
-ANALYSIS_RUNNING = "사물 분석 중"
-ANALYSIS_FAILURES = ("분석을 중지", "분석을 준비하지 못", "분석을 사용할 수 없", "분석 방식을 지원하지")
+ANALYSIS_RUNNING = "Analyzing objects"
+ANALYSIS_FAILURES = ("Object analysis stopped", "Could not prepare object analysis", "Object analysis is unavailable", "Object analysis is not supported")
 
 
 def adb(*args, binary=False, timeout=30):
@@ -94,7 +94,7 @@ def analysis_ready(root, log, previous_count):
     count = inference_count(log)
     if (count > previous_count
             and ui_text(root, "analysis-state") == ANALYSIS_RUNNING
-            and "실시간 카메라 켜짐" in ui_text(root, "camera-state")):
+            and "Live camera on" in ui_text(root, "camera-state")):
         return count
     return None
 
@@ -115,7 +115,7 @@ def evidence(name):
 
 
 def validate_session(previous_count, name):
-    state("실시간 카메라 켜짐")
+    state("Live camera on")
     # This state is emitted by NativePreviewView.onPreviewStarted, not camera.start().
     count = wait_for_analysis(previous_count, name)
     evidence(name + "-inference")
@@ -125,7 +125,7 @@ def validate_session(previous_count, name):
     while time.monotonic() < deadline:
         root = hierarchy()
         assert_analysis_not_failed(root)
-        assert "실시간 카메라 켜짐" in ui_text(root, "camera-state"), "Preview stopped during analysis"
+        assert "Live camera on" in ui_text(root, "camera-state"), "Preview stopped during analysis"
         time.sleep(0.5)
     wait_for_analysis(previous_count, name + " sustained stream")
     evidence(name + "-sustained")
@@ -149,7 +149,7 @@ def main():
     adb("shell", "am", "start", "-n", f"{PACKAGE}/.MainActivity")
     tap_id("camera-toggle")
     tap_id("notice-close")
-    state("카메라 꺼짐")
+    state("Camera off")
     permission = adb("shell", "dumpsys", "package", PACKAGE)
     assert "android.permission.CAMERA: granted=true" not in permission, "Cancel requested camera access"
     tap_id("camera-toggle")
@@ -166,7 +166,7 @@ def main():
     native_log = adb("logcat", "-d")
     assert "[SENSEA] Local model ready" in native_log, "Bundled model did not load in standalone Android APK"
     tap_id("camera-toggle")
-    state("카메라 꺼짐")
+    state("Camera off")
     # A prior session's successful inference must never satisfy a restart check.
     previous_count = inference_count(adb("logcat", "-d"))
     tap_id("camera-toggle")
@@ -174,12 +174,12 @@ def main():
     adb("shell", "input", "keyevent", "KEYCODE_HOME")
     time.sleep(2)
     adb("shell", "am", "start", "-n", f"{PACKAGE}/.MainActivity")
-    state("카메라 꺼짐")
+    state("Camera off")
     previous_count = inference_count(adb("logcat", "-d"))
     tap_id("camera-toggle")
     count = validate_session(previous_count, "03-camera-after-background")
     tap_id("camera-toggle")
-    state("카메라 꺼짐")
+    state("Camera off")
     result = {"passed": True, "device": "Android emulator with synthetic camera", "serial": EMULATOR_SERIAL,
               "inference_sessions": count,
               "checks": ["privacy cancel", "privacy confirm continues startup", "OS permission dialog",

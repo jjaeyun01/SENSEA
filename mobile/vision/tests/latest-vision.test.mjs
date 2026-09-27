@@ -313,5 +313,5 @@ test("high uncertainty is explicitly spoken", async () => {
   await tick();
   h.calls[0].resolve({ ...scene(h.calls[0].requestId), uncertainty: "high" });
   await pending;
-  assert.match(h.spoken[0], /확실하게 알 수 없습니다/);
+  assert.match(h.spoken[0], /not enough to be certain/);
 });

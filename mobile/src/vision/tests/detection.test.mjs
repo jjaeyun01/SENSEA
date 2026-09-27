@@ -135,28 +135,28 @@ test("unexpected large camera buffers are rejected before conversion", () => {
 
 test("announcements require stability and a cooldown, without repeating unchanged observations", () => {
   const gate = new AnnouncementGate();
-  assert.equal(gate.offer(result(), 0), null);
-  assert.match(gate.offer(result(), 200), /사람/);
-  assert.equal(gate.offer(result(), 5000), null);
+  assert.equal(gate.offer(result(["bench"]), 0), null);
+  assert.match(gate.offer(result(["bench"]), 200), /Bench/);
+  assert.equal(gate.offer(result(["bench"]), 5000), null);
   assert.equal(gate.offer(result(["car"]), 5200), null);
-  assert.match(gate.offer(result(["car"]), 5400), /자동차/);
+  assert.match(gate.offer(result(["car"]), 5400), /Car/);
   assert.equal(gate.offer(result(["bicycle"]), 5600), null);
   assert.equal(gate.offer(result(["bicycle"]), 5800), null);
-  assert.match(gate.offer(result(["bicycle"]), 10000), /자전거/);
+  assert.match(gate.offer(result(["bicycle"]), 10000), /Bicycle/);
 });
 
 test("no detection never becomes permission to move", () => {
   const gate = new AnnouncementGate();
   assert.equal(gate.offer(result([]), 0), null);
   assert.equal(gate.offer(result([]), 5000), null);
-  assert.match(describeResult(result([])), /식별하지 못/);
+  assert.match(describeResult(result([])), /No objects identified/);
 });
 
 test("retake guidance is spoken only after a stable quality problem", () => {
   const gate = new AnnouncementGate();
   const dark = { quality: { status: "retake", reason: "too_dark" }, detections: [] };
   assert.equal(gate.offer(dark, 0), null);
-  assert.match(gate.offer(dark, 200), /어둡/);
+  assert.match(gate.offer(dark, 200), /too dark/);
   gate.reset();
   assert.equal(gate.offer(dark, 500), null);
 });

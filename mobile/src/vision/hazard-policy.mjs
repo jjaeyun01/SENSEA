@@ -1,27 +1,29 @@
+import { confirmedNearField } from "./near-field.mjs";
+
 /** Image-space priorities. No depth, road segmentation or world trajectory is inferred. */
 const targets = [
-  ["person", "사람", "dynamic"], ["bicycle", "자전거", "dynamic"],
-  ["car", "자동차", "dynamic"], ["motorcycle", "오토바이", "dynamic"],
-  ["bus", "버스", "dynamic"], ["truck", "트럭", "dynamic"], ["train", "기차", "dynamic"],
-  ["dog", "개", "dynamic"], ["cat", "고양이", "dynamic"],
-  ["bench", "벤치", "static"], ["chair", "의자", "static"],
-  ["potted plant", "화분", "static"], ["fire hydrant", "소화전", "static"],
-  ["parking meter", "주차 요금기", "static"], ["couch", "소파", "static"],
-  ["dining table", "식탁", "static"], ["bed", "침대", "static"],
-  ["suitcase", "여행 가방", "static"], ["backpack", "가방", "static"],
-  ["handbag", "손가방", "static"], ["umbrella", "우산", "static"],
+  ["person", "Person", "dynamic"], ["bicycle", "Bicycle", "dynamic"],
+  ["car", "Car", "dynamic"], ["motorcycle", "Motorcycle", "dynamic"],
+  ["bus", "Bus", "dynamic"], ["truck", "Truck", "dynamic"], ["train", "Train", "dynamic"],
+  ["dog", "Dog", "dynamic"], ["cat", "Cat", "dynamic"],
+  ["bench", "Bench", "static"], ["chair", "Chair", "static"],
+  ["potted plant", "Potted plant", "static"], ["fire hydrant", "Fire hydrant", "static"],
+  ["parking meter", "Parking meter", "static"], ["couch", "Couch", "static"],
+  ["dining table", "Dining table", "static"], ["bed", "Bed", "static"],
+  ["suitcase", "Suitcase", "static"], ["backpack", "Backpack", "static"],
+  ["handbag", "Handbag", "static"], ["umbrella", "Umbrella", "static"],
 ];
 const missing = [
-  ["e_scooter", "전동 킥보드", "dynamic"],
-  ["utility_pole", "전선주", "static"], ["streetlight", "가로등", "static"],
-  ["flowerbed", "화단", "static"], ["bollard", "볼라드", "static"],
-  ["trash_can", "쓰레기통", "static"], ["construction_cone", "공사 콘", "static"],
-  ["barricade", "공사 차단물", "static"],
-  ["stairs_up", "올라가는 계단", "elevation"], ["stairs_down", "내려가는 계단", "elevation"],
-  ["curb", "연석", "elevation"], ["open_manhole", "열린 맨홀", "elevation"],
-  ["construction_drop", "공사 낙차", "elevation"],
-  ["low_branch", "낮은 나뭇가지", "overhead"], ["awning", "차양", "overhead"],
-  ["open_window", "열린 창문", "overhead"],
+  ["e_scooter", "E-scooter", "dynamic"],
+  ["utility_pole", "Utility pole", "static"], ["streetlight", "Streetlight", "static"],
+  ["flowerbed", "Flowerbed", "static"], ["bollard", "Bollard", "static"],
+  ["trash_can", "Trash can", "static"], ["construction_cone", "Construction cone", "static"],
+  ["barricade", "Construction barrier", "static"],
+  ["stairs_up", "Stairs up", "elevation"], ["stairs_down", "Stairs down", "elevation"],
+  ["curb", "Curb", "elevation"], ["open_manhole", "Open manhole", "elevation"],
+  ["construction_drop", "Construction drop-off", "elevation"],
+  ["low_branch", "Low branch", "overhead"], ["awning", "Awning", "overhead"],
+  ["open_window", "Open window", "overhead"],
 ];
 // A requested class is not a detector capability. No aliases turn a plant into
 // a flowerbed, an umbrella into an awning, or a traffic light into a streetlight.
@@ -31,10 +33,10 @@ export const HAZARD_TARGETS = Object.freeze([
 ]);
 const profiles = new Map(HAZARD_TARGETS.filter(t => t.supported).map(t => [t.label, t]));
 export const getHazardProfile = label => profiles.get(label);
-export const hazardLabel = label => profiles.get(label)?.name ?? "물체";
+export const hazardLabel = label => profiles.get(label)?.name ?? "Object";
 export const HAZARD_COVERAGE = Object.freeze([
-  ["dynamic", "이동 가능 물체"], ["static", "길을 막는 물체"],
-  ["elevation", "단차·낙차"], ["overhead", "머리 위 장애물"],
+  ["dynamic", "Moving objects"], ["static", "Path blockers"],
+  ["elevation", "Steps and drop-offs"], ["overhead", "Overhead obstacles"],
 ].map(([kind, title]) => Object.freeze({ kind, title,
   supported: HAZARD_TARGETS.filter(t => t.kind === kind && t.supported).map(t => t.name).join(" · "),
   unavailable: HAZARD_TARGETS.filter(t => t.kind === kind && !t.supported).map(t => t.name).join(" · "),
@@ -49,7 +51,8 @@ export function screenPathRelation(box) {
   if (box.bottom < 0.45) return "unknown";
   const half = 0.12 + 0.20 * clamp((box.bottom - 0.45) / 0.55, 0, 1);
   const overlap = Math.max(0, Math.min(box.right, 0.5 + half) - Math.max(box.left, 0.5 - half));
-  if (box.bottom >= 0.62 && overlap / (box.right - box.left) >= 0.60) return "direct";
+  const coversCentre = box.left <= .5 && box.right >= .5 && overlap / Math.min(box.right - box.left, 2 * half) >= .65;
+  if (box.bottom >= 0.62 && (overlap / (box.right - box.left) >= 0.60 || coversCentre)) return "direct";
   if (overlap > 0 || Math.abs(centerX(box) - 0.5) <= half + 0.10) return "offset";
   return "side";
 }
@@ -92,11 +95,12 @@ export function evaluateHazardPolicy(track, cues) {
   let level = largeCentral || inView || adjacent || movingSide || broadSideVehicle ? "caution" : "notice";
   const span = last.at - history[0].at;
   const strong = history.every(s => s.score >= 0.82 && !s.sceneMotion);
-  const staticBlocker = !dynamic && relation === "direct" && history.length >= 3 && span >= 400 && strong &&
-    history.slice(-2).every(s => s.box.bottom >= 0.88 && area(s.box) >= 0.18);
+  const nearEvidence = confirmedNearField(history);
+  const closeObstacle = relation === "direct" && !!nearEvidence;
+  const staticBlocker = !dynamic && closeObstacle;
   const centralMotion = dynamic && relation === "direct" && size >= 0.10 && strong &&
     (cues.growth || cues.inwardMotion);
-  if (cues.strongLargeVehicle || staticBlocker || centralMotion) level = "priority";
+  if (cues.strongLargeVehicle || closeObstacle || centralMotion) level = "priority";
   const reasons = ["stable_presence"];
   if (relation === "direct" && box.bottom >= 0.67) reasons.push("central_lower");
   if (size >= 0.16) reasons.push("large_image_footprint");
@@ -104,7 +108,10 @@ export function evaluateHazardPolicy(track, cues) {
   if (cues.inwardMotion) reasons.push("toward_screen_center");
   if (cues.lateralMotion) reasons.push("peripheral_motion");
   if (cues.strongLargeVehicle) reasons.push("strong_vehicle_evidence");
+  if (closeObstacle) reasons.push("confirmed_near_obstruction");
+  if (closeObstacle && nearEvidence === "repeated") reasons.push("repeated_near_candidate");
   if (staticBlocker) reasons.push("strong_static_obstruction");
+  if (dynamic && closeObstacle) reasons.push("strong_near_image_obstruction");
   if (level === "notice") reasons.push("side_observation");
   const base = level === "priority" ? 8 : level === "caution" ? 5 : 1;
   const priorityScore = Math.min(level === "priority" ? 10 : level === "caution" ? 7 : 3,
@@ -117,11 +124,11 @@ export function evaluateHazardPolicy(track, cues) {
     priorityScore };
 }
 export function guidanceFor(status) {
-  if (status === "priority") return { action: "check_priority", guidance: "우선 주의 대상을 먼저 확인해 주세요." };
-  if (status === "caution") return { action: "check_surroundings", guidance: "주의 대상의 위치와 주변 상황을 확인해 주세요." };
-  if (status === "notice") return { action: "observe", guidance: "주변 물체를 참고로 표시합니다. 통행 가능 여부는 판단하지 않습니다." };
-  if (status === "observing") return { action: "observe", guidance: "주변 상황을 계속 확인해 주세요. 감지되지 않은 위험이 있을 수 있습니다." };
-  return { action: "unavailable", guidance: "현재 영상으로 판단할 수 없습니다. 촬영 상태를 확인해 주세요." };
+  if (status === "priority") return { action: "check_priority", guidance: "Check the highest-priority hazard first." };
+  if (status === "caution") return { action: "check_surroundings", guidance: "Check the hazard location and your surroundings." };
+  if (status === "notice") return { action: "observe", guidance: "Nearby objects are shown for reference. Path clearance is not established." };
+  if (status === "observing") return { action: "observe", guidance: "Keep checking your surroundings. Undetected hazards may be present." };
+  return { action: "unavailable", guidance: "Cannot assess the current image. Check the camera view." };
 }
-export const describeScreenRelation = relation => ({ direct: "화면 중앙 관심 영역", offset: "중앙 영역 주변", side: "화면 측면", unknown: "위치 관계 미확인" })[relation] ?? "위치 관계 미확인";
-export const describeHazardKind = kind => ({ dynamic: "이동 가능 물체", static: "고정물 후보", elevation: "단차·낙차", overhead: "머리 위 장애물" })[kind] ?? "물체";
+export const describeScreenRelation = relation => ({ direct: "Central image region", offset: "Near the central image region", side: "Side of the image", unknown: "Image position unknown" })[relation] ?? "Image position unknown";
+export const describeHazardKind = kind => ({ dynamic: "Moving objects", static: "Possible fixed object", elevation: "Steps and drop-offs", overhead: "Overhead obstacles" })[kind] ?? "Object";
