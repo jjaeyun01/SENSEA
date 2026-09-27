@@ -75,6 +75,11 @@ Owner: you, with frontend teammates connecting the UI.
 
 ## 4. Route API and campus data
 
+- [x] Replace harvested UW files with live building search and address confirmation.
+- [x] Add server-side Google Routes integration and in-app map/voice/haptic prototype.
+- [ ] Configure Google keys and validate GPS, speech, camera, and haptics on campus with a sighted tester.
+- [ ] Add verified accessibility data, VPS, obstacle distance estimation, and rerouting.
+
 Owner: you.
 
 - [x] Implement `GET /health`, `GET /places`, `GET /graph`, and `POST /routes`.

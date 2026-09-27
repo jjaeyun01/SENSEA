@@ -234,3 +234,18 @@ Supabase는 아직 연결하지 않았습니다. SQL은 루트 README의 places/
 .\.venv\Scripts\python.exe -m ruff check .
 .\.venv\Scripts\python.exe -m ruff format --check .
 ```
+
+## UW 건물 검색 + 앱 내부 Google 도보 경로
+
+두 서버 엔트리포인트 모두 다음 API를 제공합니다.
+- `GET /campus/places?q=memorial`: UW 공식 지도에 실시간 검색하고 건물 결과만 반환합니다(최소 2글자).
+- `GET /campus/places/432`: UW 건물명·도로명 주소·대표 좌표를 반환합니다.
+- `POST /campus/routes`: `{ "origin": { "latitude": 43.07, "longitude": -89.40 }, "destination_id": 432 }`.
+  서버에서 Google Routes의 WALK 경로와 대안 경로를 요청하고 시간·거리·polyline·단계별 지시를 반환합니다.
+  `X-Sensea-Token` 헤더는 `SENSEA_WRITE_TOKEN`과 일치해야 합니다.
+
+`.env`에 `GOOGLE_ROUTES_API_KEY`와 `SENSEA_WRITE_TOKEN`을 설정합니다. Google Routes API를 활성화하고 API/서버 IP 제한을 적용하세요. 키 누락은 503, 인증 실패는 401, 외부 서비스 오류는 502, 경로 없음은 404입니다. 실제 Google 요청은 과금될 수 있습니다. Google 키는 서버에만 둡니다. 프로토타입의 공용 앱 토큰은 배포 전 사용자 인증·요청량 제한으로 교체해야 합니다.
+
+기존 수집 데이터·평면도·수집 스크립트는 삭제했습니다. UW 검색과 Google 경로 응답은 디스크에 저장하지 않으며 `Cache-Control: no-store`를 보냅니다. UW 공개 지도 내부 엔드포인트에 의존하므로 응답 형식이 바뀌면 수정이 필요합니다. 건물 좌표는 출입구 좌표가 아닙니다. `accessibility: unknown`이며 평지·계단 없음·안전함을 추정하지 않습니다. 기존 `/places`·`/routes`는 가상 경로 데모용으로 유지합니다.
+
+전체 앱 흐름과 미구현 사항: [앱 내부 안내](../docs/in-app-navigation.md).

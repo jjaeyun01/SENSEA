@@ -31,11 +31,14 @@ elif platform == "ios":
     app = Path(target)
     info = plistlib.loads((app / "Info.plist").read_bytes())
     assert info.get("NSCameraUsageDescription")
+    assert info.get("NSMicrophoneUsageDescription")
+    assert info.get("NSSpeechRecognitionUsageDescription")
+    assert info.get("NSLocationWhenInUseUsageDescription")
     forbidden = [key for key in info if key.startswith((
-        "NSMicrophone", "NSLocation", "NSPhotoLibrary",
+        "NSLocationAlways", "NSPhotoLibrary",
     ))]
     assert not forbidden, forbidden
     assert (app / "main.jsbundle").is_file()
-    print("iPhone camera permission and absence of microphone/location/photo usage keys verified.")
+    print("iPhone camera, speech and foreground-location purposes verified; no background location/photo access.")
 else:
     raise SystemExit("Expected android or ios")

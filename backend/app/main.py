@@ -9,6 +9,7 @@ import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from .campus import router as campus_router
 from .noise import NoiseStore
 from .routing import load_graph, shortest_path, summarize_route
 
@@ -39,6 +40,7 @@ def require_write_token(authorization: str | None = Header(default=None)):
 
 def create_app(graph_path=None, db_path=None):
     app = FastAPI(title="SENSEA API", version="0.1.0")
+    app.include_router(campus_router)
     graph_file = graph_path or os.getenv("SENSEA_GRAPH_PATH", ROOT / "data/demo-campus.json")
     graph = load_graph(Path(graph_file))
     store = NoiseStore(db_path or os.getenv("SENSEA_DB_PATH", ROOT / "sensea.sqlite3"))

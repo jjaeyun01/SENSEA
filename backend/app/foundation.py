@@ -32,6 +32,8 @@ from app.quality import assess_quality
 from app.routing import plan_routes
 from app.vision import DisabledVisionProvider, OpenAIVisionProvider, VisionProvider
 
+from .campus import router as campus_router
+
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
@@ -74,6 +76,7 @@ def create_app(
                 await owned.close()
 
     app = FastAPI(title="SENSEA API", version="0.3.0", lifespan=lifespan)
+    app.include_router(campus_router)
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_image_bytes + 64 * 1024)
     app.add_middleware(
         CORSMiddleware,

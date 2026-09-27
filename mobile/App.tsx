@@ -1,10 +1,12 @@
+import { CampusSearch } from "./src/navigation/CampusSearch";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo, AppState, Linking, Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, View,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { NativePreviewView, useCameraDevice, useCameraPermission } from "react-native-vision-camera";
-import * as Speech from "expo-speech";
+import { announce, setFeedbackScreenReader, stopFeedback } from "./src/navigation/feedback";
+import { recordEvent } from "./src/navigation/audit";
 import { createNativeSession } from "./src/vision/createNativeSession";
 import { AnnouncementGate, describeResult, isFreshResult, labelInKorean } from "./src/vision/detection.mjs";
 import type { LiveResult, NativeSession } from "./src/vision/types";
@@ -19,9 +21,7 @@ function CameraScreen() {
   const [session, setSession] = useState<NativeSession | null>(null);
   const [result, setResult] = useState<LiveResult | null>(null);
   const [message, setMessage] = useState("카메라를 켜면 주변 사물 분석을 시작합니다.");
-  const [voice, setVoice] = useState(true);
   const [sheet, setSheet] = useState<"privacy" | "licenses" | null>(null);
-  const [screenReader, setScreenReader] = useState<boolean | null>(null);
   const screenReaderEnabled = useRef(true);
   const reviewedNotice = useRef(false);
   const sheetTitle = useRef<Text>(null);
@@ -36,14 +36,10 @@ function CameraScreen() {
   const closing = useRef<Promise<void> | null>(null);
   const current = useRef<NativeSession | null>(null);
   const latest = useRef<LiveResult | null>(null);
-  const voiceEnabled = useRef(true);
-  const speechBusy = useRef(false);
-  const speechGeneration = useRef(0);
   const announcement = useRef(new AnnouncementGate());
 
   const silence = useCallback(() => {
-    speechGeneration.current++;
-    void Speech.stop().catch(() => {});
+    stopFeedback();
   }, []);
 
   useEffect(() => {
@@ -52,7 +48,7 @@ function CameraScreen() {
     const update = (enabled: boolean) => {
       if (!subscribed) return;
       screenReaderEnabled.current = enabled;
-      setScreenReader(enabled);
+      setFeedbackScreenReader(enabled);
       announcement.current.reset();
       silence();
     };
@@ -66,25 +62,13 @@ function CameraScreen() {
     return () => { subscribed = false; listener.remove(); };
   }, [silence]);
 
-  const say = useCallback((text: string, receivedAt: number, manual = false) => {
-    if (speechBusy.current || !wanted.current ||
-        (!manual && (!voiceEnabled.current || screenReaderEnabled.current))) return;
-    speechBusy.current = true;
-    const generation = speechGeneration.current;
-    void Speech.stop().then(() => {
-      if (mounted.current && wanted.current &&
-          (manual || (voiceEnabled.current && !screenReaderEnabled.current)) &&
-          generation === speechGeneration.current && isFreshResult({ receivedAt }, Date.now())) {
-        if (screenReaderEnabled.current) {
-          AccessibilityInfo.announceForAccessibilityWithOptions(text, { queue: false });
-        } else {
-          Speech.speak(text, { language: "ko-KR", rate: 0.95 });
-        }
-      }
-    }).catch(() => {}).finally(() => { speechBusy.current = false; });
+  const say = useCallback((text: string, receivedAt: number) => {
+    if (!wanted.current || !isFreshResult({ receivedAt }, Date.now())) return;
+    announce(text, 1, "ko-KR");
   }, []);
 
   const close = useCallback(() => {
+    recordEvent("camera", "closed");
     wanted.current = false;
     current.current?.pause();
     latest.current = null;
@@ -110,7 +94,7 @@ function CameraScreen() {
     latest.current = next;
     setResult(next);
     const text = announcement.current.offer(next, Date.now());
-    if (text && !screenReaderEnabled.current) say(text, next.receivedAt);
+    if (text) say(text, next.receivedAt);
   }, [say]);
 
   const fail = useCallback((text: string) => {
@@ -121,6 +105,7 @@ function CameraScreen() {
   }, [close]);
 
   const open = async () => {
+    recordEvent("touch", "camera_open");
     if (!reviewedNotice.current) {
       sheetOrigin.current = "camera";
       setSheet("privacy");
@@ -211,11 +196,13 @@ function CameraScreen() {
   return (
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle="light-content" />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} onTouchStart={() => recordEvent("touch", "app_surface")}>
       <View style={styles.header}>
         <Text style={styles.brand} accessibilityRole="header">SENSEA</Text>
         <Text style={styles.subtitle}>주변 살펴보기</Text>
       </View>
+      <CampusSearch cameraReady={live && !!result && result.quality.status === "usable"}
+        requestCamera={() => void open()} stopCamera={close} />
       <View style={styles.preview}>
         {session && device ? (
           <View style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -267,20 +254,6 @@ function CameraScreen() {
         <Text style={styles.primaryText}>{live || phase === "opening" ? "카메라 끄기" : phase === "closing" ? "카메라 정리 중" : "카메라 켜기"}</Text>
       </Pressable>
       <View style={styles.controls}>
-        <Pressable style={styles.secondary} accessibilityRole="switch"
-          accessibilityLabel="자동 음성 안내"
-          accessibilityHint="화면 읽기 기능을 사용 중이면 다시 듣기 버튼으로 결과를 확인합니다."
-          accessibilityState={{ checked: voice && screenReader === false, disabled: screenReader !== false }}
-          disabled={screenReader !== false}
-          onPress={() => {
-            const next = !voice;
-            voiceEnabled.current = next;
-            setVoice(next);
-            announcement.current.reset();
-            if (!next) silence();
-          }}>
-          <Text style={styles.secondaryText}>{screenReader === false ? `자동 음성 ${voice ? "켜짐" : "꺼짐"}` : "화면 읽기 사용"}</Text>
-        </Pressable>
         <Pressable style={styles.secondary} accessibilityRole="button"
           accessibilityLabel="현재 분석 결과 다시 듣기"
           accessibilityState={{ disabled: !live }}
@@ -288,7 +261,7 @@ function CameraScreen() {
           onPress={() => {
             const latestResult = latest.current;
             if (latestResult && isFreshResult(latestResult, Date.now())) {
-              say(describeResult(latestResult), latestResult.receivedAt, true);
+              say(describeResult(latestResult), latestResult.receivedAt);
             } else {
               setMessage("최신 결과가 없습니다. 새 영상 분석을 기다려 주세요.");
               if (screenReaderEnabled.current) AccessibilityInfo.announceForAccessibility("최신 결과가 없습니다.");
@@ -297,7 +270,7 @@ function CameraScreen() {
           <Text style={styles.secondaryText}>다시 듣기</Text>
         </Pressable>
       </View>
-      {screenReader !== false && <Text style={styles.note}>화면 읽기와 겹치지 않도록 자동 음성은 쉬고 있습니다. 다시 듣기로 결과를 확인하세요.</Text>}
+      <Text style={styles.note}>안내는 음성과 진동으로 함께 전달합니다. 화면 읽기 사용 시 해당 음성 출력을 이용합니다.</Text>
       <Pressable style={styles.linkButton} accessibilityRole="button"
         accessibilityLabel="분석 종료하고 현재 결과 지우기"
         onPress={() => {
@@ -322,16 +295,16 @@ function CameraScreen() {
       <Modal visible={sheet !== null} onRequestClose={dismissSheet} animationType="none"
         onShow={() => { if (sheetTitle.current) AccessibilityInfo.sendAccessibilityEvent(sheetTitle.current, "focus"); }}>
         <SafeAreaView style={styles.root} accessibilityViewIsModal onAccessibilityEscape={dismissSheet}>
-          <ScrollView contentContainerStyle={styles.content}>
+          <ScrollView contentContainerStyle={styles.content} onTouchStart={() => recordEvent("touch", "app_surface")}>
             <Text ref={sheetTitle} accessible accessibilityRole="header" style={styles.licenseTitle}>
               {sheet === "privacy" ? "개인정보와 이용 안내" : "공개 모델 및 라이브러리"}
             </Text>
             {sheet === "privacy" ? <>
               <Text style={styles.privacyText}>카메라 영상은 이 휴대폰에서 분석합니다. 사진·영상·분석 기록을 파일로 저장하거나 서버로 보내지 않습니다.</Text>
-              <Text style={styles.privacyText}>현재 앱은 마이크와 위치를 수집하지 않습니다. 카메라 권한은 카메라를 켤 때 요청하며 휴대폰 설정에서 언제든 취소할 수 있습니다.</Text>
+              <Text style={styles.privacyText}>목적지 음성 입력에는 마이크·음성 인식 권한, 경로 안내에는 사용 중 위치 권한을 요청합니다. 음성 인식은 운영체제 제공자의 서버를 사용할 수 있습니다. 카메라 권한은 카메라를 켤 때 요청합니다.</Text>
               <Text style={styles.privacyText}>카메라 끄기, 결과 지우기, 다른 앱으로 전환하기, 이 안내 열기로 분석과 자동 음성을 중지합니다. 돌아와도 카메라는 자동으로 켜지지 않습니다.</Text>
               <Text style={styles.privacyText}>인식이 틀리거나 사물을 놓칠 수 있습니다. 사물을 찾지 못해도 길이 비어 있다는 뜻은 아닙니다. 거리·충돌 위험·횡단 가능 여부는 판단하지 않습니다.</Text>
-              <Text style={styles.privacyText}>현재는 카메라 시험판입니다. 실제 GPS 길안내와 마이크 소음 측정은 연결하지 않았습니다.</Text>
+              <Text style={styles.privacyText}>건물 검색어는 검색 서버를 통해 UW로 전송됩니다. 경로 요청 시 현재 위치와 목적지 좌표가 Google로 전달되며 SENSEA 안에서 안내합니다. 인식한 명령과 주요 조작을 기기에 기록하고 앱 사용 시 7일 지난 기록을 정리하며 홈 화면에서 끄거나 삭제할 수 있습니다. 원본 음성·영상과 GPS 이동 이력은 기록하지 않습니다.</Text>
               <Text style={styles.privacyText}>이 안내를 닫고 카메라 켜기를 눌러 시작하세요. 외부 AI 사진 전송은 현재 앱에 연결되어 있지 않습니다.</Text>
               <Pressable style={styles.primary} accessibilityRole="button" onPress={() => { reviewedNotice.current = true; dismissSheet(); }}>
                 <Text style={styles.primaryText}>안내 확인·닫기</Text>
